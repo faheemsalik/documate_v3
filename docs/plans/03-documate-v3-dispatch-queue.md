@@ -39,9 +39,9 @@
 | Metric | Value |
 |--------|--------|
 | Total DQ items | 38 |
-| ✅ Complete | 12 |
+| ✅ Complete | 21 |
 | 🔄 In Progress | 0 |
-| ⬜ Ready | 18 |
+| ⬜ Ready | 9 |
 | ⏸ Parked | 8 (DQ-1202 email; DQ-1501–1507 Iden follow-on J3) |
 | ❌ Cancelled | 0 |
 
@@ -110,7 +110,7 @@ None blocking Phase 1 execution. (J3 locked.)
 | DQ-0603 | 06 | F2 Business-scoped API keys (temporary) | ✅ | DQ-0102 |
 | DQ-0701 | 07 | Normalize/OCR adapter(s) Mode 1 | ✅ | DQ-0501 |
 | DQ-0702 | 07 | Split → classify → route (E3 multi-doc PDFs) | ✅ | DQ-0701, DQ-0302 |
-| DQ-0703 | 07 | Extract via Documate meta-provider + schema validate → Ready/Failed | ⬜ | DQ-0702, DQ-0202 |
+| DQ-0703 | 07 | Extract via Documate meta-provider + schema validate → Ready/Failed | ✅ | DQ-0702, DQ-0202 |
 | DQ-0801 | 08 | Per-Document webhook dispatch + attempt metadata | ⬜ | DQ-0703, DQ-0303 |
 | DQ-0901 | 09 | Sync-wait API (single-doc, 60s, no webhook C2) | ⬜ | DQ-0703, DQ-0603 |
 | DQ-1001 | 10 | Cancel File and Cancel Document | ⬜ | DQ-0703, DQ-0801 |
@@ -413,12 +413,19 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 
 
 ### DQ-0703 — Extract + schema validate
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-0702, DQ-0202  
 - **Source:** Plan 03 Core extract Mode 1  
 - **Outcome:** Documate meta-provider extract into Agent schema; validate → Ready/Failed; WorkEvents recorded.  
 - **Required Documents:** Plan 03  
-- **Evidence:** (fill on completion)
+- **Evidence:**
+  - `IDocumentExtractStage` / `Mode1DocumateMetaExtractAdapter` (`providerKey=documate_meta`) after route
+  - Schema-guided fill from normalize text (label:value or JSON); live LLM when `Providers:DocumateMetaApiKey` / `DefaultLlmApiKey` is later wired (`llmArmed` log)
+  - `JsonSchemaLite` validate → Ready or Failed `schema_invalid`; extract exceptions → `extract_failed`
+  - No routed Agent → Failed `no_agent`; unroutable still `unroutable_type`
+  - `OpsDocument.ResultJson` + artifact `extract.{sequenceId}.result.json`; External poll returns `resultJson` / `errorCode`
+  - Unit tests: `tests/api/ExtractTests.cs`
+  - Smoke 2026-08-18: typed invoice labels → ready `resultJson.invoice_number=INV-0703`; no type → `no_agent`; no QueueRoute → `unroutable_type`
 
 ### DQ-0801 — Per-Document webhooks
 - **Status:** ⬜ Ready  
@@ -563,9 +570,9 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 ## Readiness
 
 **Decision J3 locked.** Band 15 parked.  
-**Waves 0–6 complete; DQ-0701 ✅; DQ-0702 Phase 1 slice ✅** (predetermined type skip + route). Real split/classify later.  
+**Waves 0–6 complete; DQ-0701 ✅; DQ-0702 Phase 1 slice ✅; DQ-0703 ✅.** Real split/classify later. Live LLM extract later.  
 **Postman:** [`docs/postman/Documate-v3-Smoke-Waves-0-3.postman_collection.json`](../postman/Documate-v3-Smoke-Waves-0-3.postman_collection.json).  
-**Next:** `DQ-0703` (extract + schema validate).  
+**Next:** `DQ-0801` (per-Document webhooks).  
 **Jobs:** Hangfire dashboard (Dev) at `/hangfire`.  
 **External auth:** `X-Api-Key` (F2 temporary). Optional upload field: `documentTypeKey`.
 

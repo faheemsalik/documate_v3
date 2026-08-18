@@ -23,3 +23,12 @@ public interface IDocumentRouteStage
 {
     Task ExecuteAsync(FilePipelineContext context, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Extract into the routed Agent schema, validate, then mark Document Ready/Failed.
+/// Post-processing (MCP) is a later DQ.
+/// </summary>
+public interface IDocumentExtractStage
+{
+    Task ExecuteAsync(FilePipelineContext context, CancellationToken cancellationToken = default);
+}

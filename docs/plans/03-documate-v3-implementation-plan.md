@@ -1272,5 +1272,6 @@ Select a DQ item to implement (do not code until selected).
 | 2026-08-04 | **Decision A amended:** A1 hosting + **Hangfire (SQL storage)**; Channel-only enqueue rejected; webhooks share Hangfire. |
 | 2026-08-04 | **Intake hints:** optional `documentCount` + DocumentType key(s) on External upload; complete hints → skip split+classify (E3 default otherwise). |
 | 2026-08-18 | **DQ-0702 Phase 1:** predetermined `documentTypeKey` skips split/classify; real split deferred; QueueRoute still runs. |
+| 2026-08-18 | **DQ-0703:** Mode 1 `documate_meta` extract + schema validate; External poll `resultJson`. |
 
 

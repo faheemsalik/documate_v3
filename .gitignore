@@ -54,3 +54,4 @@ coverage/
 
 # Local object storage (Storage:Provider=local)
 **/_data/blobs/
+/old_code/

@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// Hangfire File worker: normalize → split → classify → route → extract stub.
+/// Hangfire File worker: normalize → split → classify → route → extract+validate.
 /// Predetermined documentTypeKey skips split and classify (DQ-0702 Phase 1).
 /// </summary>
 public interface IFilePipelineStub
@@ -24,6 +24,7 @@ public sealed class FilePipelineStub(
     IFileSplitStage split,
     IFileClassifyStage classify,
     IDocumentRouteStage route,
+    IDocumentExtractStage extract,
     IOptions<PipelineOptions> options,
     ILogger<FilePipelineStub> logger) : IFilePipelineStub
 {
@@ -43,7 +44,6 @@ public sealed class FilePipelineStub(
         var processing = enums.Require("file_public_status", "processing");
         var ready = enums.Require("file_public_status", "ready");
         var failed = enums.Require("file_public_status", "failed");
-        var partialReady = enums.Require("file_public_status", "partial_ready");
 
         if (file.PublicStatusEnumId == ready)
         {
@@ -120,78 +120,13 @@ public sealed class FilePipelineStub(
             return;
         }
 
-        var docFailed = enums.Require("document_public_status", "failed");
-        if (context.SkipSplitAndClassify
-            && context.Documents.Count > 0
-            && context.Documents.All(d => d.PublicStatusEnumId == docFailed))
-        {
-            file.PublicStatusEnumId = failed;
-            file.ErrorCode ??= "unroutable_type";
-            file.UpdatedByUserId = item.UserId;
-            await db.SaveChangesAsync(cancellationToken);
-            await AppendFileEventAsync(context, """{"status":"failed","stage":"route","errorCode":"unroutable_type"}""", null, cancellationToken);
-            return;
-        }
-
-        await StubExtractAndCompleteAsync(context, ready, partialReady, delay, cancellationToken);
+        await extract.ExecuteAsync(context, cancellationToken);
         logger.LogInformation(
-            "Pipeline completed File {FileId} skipSplit={Skip} provider={Provider}",
+            "Pipeline completed File {FileId} skipSplit={Skip} status={Status} provider={Provider}",
             file.Id,
             context.SkipSplitAndClassify,
+            file.PublicStatusEnumId,
             context.Normalize?.ProviderKey);
-    }
-
-    private async Task StubExtractAndCompleteAsync(
-        FilePipelineContext context,
-        long ready,
-        long partialReady,
-        int delay,
-        CancellationToken cancellationToken)
-    {
-        context.File.InternalStageEnumId = enums.Require("file_internal_stage", "extract");
-        context.File.UpdatedByUserId = context.Item.UserId;
-        await db.SaveChangesAsync(cancellationToken);
-        await AppendFileEventAsync(context, """{"status":"processing","stage":"extract","stub":true}""", null, cancellationToken);
-        await DelayAsync(delay, cancellationToken);
-
-        var docProcessing = enums.Require("document_public_status", "processing");
-        var docReady = enums.Require("document_public_status", "ready");
-        var docFailed = enums.Require("document_public_status", "failed");
-        var docComplete = enums.Require("document_internal_stage", "complete");
-        var docSubject = enums.Require("work_subject_type", "document");
-        var statusChanged = enums.Require("work_event_type", "status_changed");
-
-        foreach (var doc in context.Documents)
-        {
-            if (doc.PublicStatusEnumId == docFailed)
-            {
-                continue;
-            }
-
-            doc.PublicStatusEnumId = docProcessing;
-            doc.InternalStageEnumId = enums.Require("document_internal_stage", "extract");
-            doc.SliceRefJson ??= context.SliceRefJson;
-            doc.UpdatedByUserId = context.Item.UserId;
-            await db.SaveChangesAsync(cancellationToken);
-            await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"processing"}""", cancellationToken);
-            await DelayAsync(delay, cancellationToken);
-
-            doc.PublicStatusEnumId = docReady;
-            doc.InternalStageEnumId = docComplete;
-            doc.CompletedAt = DateTimeOffset.UtcNow;
-            doc.UpdatedByUserId = context.Item.UserId;
-            await db.SaveChangesAsync(cancellationToken);
-            await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"ready"}""", cancellationToken);
-        }
-
-        context.File.InternalStageEnumId = enums.Require("file_internal_stage", "complete");
-        context.File.CompletedAt = DateTimeOffset.UtcNow;
-        context.File.UpdatedByUserId = context.Item.UserId;
-        var anyFailed = context.Documents.Any(d => d.PublicStatusEnumId == docFailed);
-        var anyReady = context.Documents.Any(d => d.PublicStatusEnumId == docReady);
-        context.File.PublicStatusEnumId = anyFailed && anyReady ? partialReady : ready;
-        await db.SaveChangesAsync(cancellationToken);
-        await AppendFileEventAsync(context, """{"status":"ready"}""", null, cancellationToken);
     }
 
     private async Task SetStageAsync(
@@ -252,27 +187,6 @@ public sealed class FilePipelineStub(
             SubjectId = context.File.Id,
             EventTypeEnumId = enums.Require("work_event_type", "status_changed"),
             ProviderId = providerId,
-            PayloadJson = payload,
-            CreatedByUserId = context.Item.UserId,
-            UpdatedByUserId = context.Item.UserId,
-        });
-        await db.SaveChangesAsync(cancellationToken);
-    }
-
-    private async Task AppendDocEventAsync(
-        FilePipelineContext context,
-        Guid documentId,
-        long subjectType,
-        long eventType,
-        string payload,
-        CancellationToken cancellationToken)
-    {
-        db.OpsWorkEvents.Add(new Domain.OpsWorkEvent
-        {
-            BusinessId = context.Item.BusinessId,
-            SubjectTypeEnumId = subjectType,
-            SubjectId = documentId,
-            EventTypeEnumId = eventType,
             PayloadJson = payload,
             CreatedByUserId = context.Item.UserId,
             UpdatedByUserId = context.Item.UserId,

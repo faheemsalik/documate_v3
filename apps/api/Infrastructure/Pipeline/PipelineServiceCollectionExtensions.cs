@@ -1,5 +1,6 @@
 namespace Documate.Api.Infrastructure.Pipeline;
 
+using Documate.Api.Infrastructure.Extract;
 using Documate.Api.Infrastructure.Ocr;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Pipeline.Stages;
@@ -45,6 +46,8 @@ public static class PipelineServiceCollectionExtensions
         services.AddScoped<IFileSplitStage, FileSplitStage>();
         services.AddScoped<IFileClassifyStage, FileClassifyStage>();
         services.AddScoped<IDocumentRouteStage, DocumentRouteStage>();
+        services.AddScoped<IDocumentExtractStage, DocumentExtractStage>();
+        services.AddScoped<IDocumentExtractAdapter, Mode1DocumateMetaExtractAdapter>();
         services.AddScoped<FilePipelineJobs>();
         services.AddScoped<WebhookJobs>();
         services.AddSingleton<IWorkDispatcher, HangfireWorkDispatcher>();

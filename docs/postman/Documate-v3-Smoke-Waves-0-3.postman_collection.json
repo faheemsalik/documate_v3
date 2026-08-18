@@ -636,7 +636,8 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
-            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/documents?fileId={{fileId}}"
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/documents?fileId={{fileId}}",
+            "description": "When ready: resultJson is the Agent schema payload. Failed docs include errorCode (no_agent, schema_invalid, extract_failed, unroutable_type)."
           }
         }
       ]

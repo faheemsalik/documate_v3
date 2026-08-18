@@ -47,6 +47,9 @@ public sealed record ExternalDocumentDto(
     Guid? AgentId,
     string? PublicStatusKey,
     string? InternalStageKey,
+    string? ErrorCode,
+    string? ErrorMessage,
+    System.Text.Json.Nodes.JsonNode? ResultJson,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt);
 
@@ -148,6 +151,19 @@ public sealed class ListExternalDocumentsHandler(DocumateDbContext db, IBusiness
                 typeKeys.TryGetValue(tid, out typeKey);
             }
 
+            System.Text.Json.Nodes.JsonNode? resultJson = null;
+            if (!string.IsNullOrWhiteSpace(d.ResultJson))
+            {
+                try
+                {
+                    resultJson = System.Text.Json.Nodes.JsonNode.Parse(d.ResultJson);
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    resultJson = null;
+                }
+            }
+
             return new ExternalDocumentDto(
                 d.Id,
                 d.QueueId,
@@ -158,6 +174,9 @@ public sealed class ListExternalDocumentsHandler(DocumateDbContext db, IBusiness
                 d.AgentId,
                 statusKey,
                 stageKey,
+                d.ErrorCode,
+                d.ErrorMessage,
+                resultJson,
                 d.CreatedAt,
                 d.CompletedAt);
         }).ToList();
