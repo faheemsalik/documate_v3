@@ -1,0 +1,25 @@
+{
+  "version": 1.0,
+  "rule_for": "keyword",
+  "rules": [
+    {
+      "rule_type": "extractor",
+      "category": "datapoint",
+      "identification": {
+        "find_by": "caption, caption_range, surrounding_captions",
+        "find_by_caption": {
+          "block_type": "word/line",
+          "comparison_type": "contains, equal",
+          "first_keyword_to_find": "leave empty if default keyword to find.",
+          "last_keyword_to_find": "leave empty if default keyword to find."
+        },
+        "value_extraction": {
+          "skip_blocks": 0,
+          "skip_block_type": "",
+          "direction": "forward, backward",
+          "reg_exp": "applied on the selected block"
+        }
+      }
+    }
+  ]
+} 

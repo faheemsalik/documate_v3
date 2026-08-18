@@ -1,0 +1,51 @@
+namespace Documate.Api.Infrastructure.Pipeline;
+
+using Hangfire;
+
+/// <summary>Hangfire-backed File enqueue (Decision A1 + Hangfire SQL).</summary>
+public sealed class HangfireWorkDispatcher(IBackgroundJobClient jobs) : IWorkDispatcher
+{
+    public ValueTask EnqueueFileAsync(FileWorkItem item, CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        jobs.Enqueue<FilePipelineJobs>(j =>
+            j.ProcessFileAsync(item.FileId, item.BusinessId, item.UserId));
+        return ValueTask.CompletedTask;
+    }
+}
+
+/// <summary>Placeholder for DQ-0801 — same Hangfire storage/retries as pipeline.</summary>
+public sealed class HangfireWebhookDispatcher(IBackgroundJobClient jobs) : IWebhookDispatcher
+{
+    public ValueTask EnqueueDocumentWebhookAsync(
+        Guid documentId,
+        string businessId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        jobs.Enqueue<WebhookJobs>(j => j.DeliverDocumentWebhookAsync(documentId, businessId));
+        return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class FilePipelineJobs(IFilePipelineStub stub)
+{
+    [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
+    public Task ProcessFileAsync(Guid fileId, string businessId, string? userId) =>
+        stub.ProcessAsync(new FileWorkItem(fileId, businessId, userId));
+}
+
+/// <summary>Webhook job shell — real delivery in DQ-0801.</summary>
+public sealed class WebhookJobs(ILogger<WebhookJobs> logger)
+{
+    [Queue("webhooks")]
+    [AutomaticRetry(Attempts = 5, DelaysInSeconds = [30, 60, 120, 300, 600], OnAttemptsExceeded = AttemptsExceededAction.Fail)]
+    public Task DeliverDocumentWebhookAsync(Guid documentId, string businessId)
+    {
+        logger.LogDebug(
+            "Webhook job stub for Document {DocumentId} business {BusinessId} (DQ-0801 not implemented)",
+            documentId,
+            businessId);
+        return Task.CompletedTask;
+    }
+}

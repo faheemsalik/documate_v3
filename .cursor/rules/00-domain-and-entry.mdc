@@ -1,0 +1,18 @@
+---
+description: Classify API vs Web and open architecture entry
+alwaysApply: true
+---
+
+# Documate — Domain and entry
+
+| Signal | Domain |
+|--------|--------|
+| Angular, `apps/web`, components, routes | **Web** |
+| C#, .NET, MediatR, DbContext, `apps/api` | **API** |
+| Both / unclear | Ask if needed; load both routers |
+
+**Architecture entry:** `docs/architecture/README.md`
+
+**Plans entry:** `docs/plans/README.md` (eng vs product tracks)
+
+**Flow:** classify → clarify scope if ambiguous (`05-clarify-before-assuming`) → architecture README → implement minimum scope.

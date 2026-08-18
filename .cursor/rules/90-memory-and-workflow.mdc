@@ -1,0 +1,12 @@
+---
+description: Minimum scope; eng vs product; old_code preservation
+alwaysApply: true
+---
+
+# Documate — Memory and workflow
+
+- Implement the **minimum** scope requested.
+- Do not invent **product** behavior in engineering tasks (point to product plans).
+- Do not redefine folder/CQRS conventions in product tasks (point to `docs/architecture/`).
+- Do not modify `old_code/` unless a DQ says so (`docs/architecture/governance/preservation-rules.md`).
+- Prefer copying an existing feature slice over inventing a new layout.

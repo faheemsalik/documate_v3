@@ -1,0 +1,4 @@
+@Documate.Api_HostAddress = http://localhost:5172
+
+GET {{Documate.Api_HostAddress}}/api/app/system/ping
+Accept: application/json

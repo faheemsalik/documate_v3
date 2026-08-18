@@ -1,0 +1,18 @@
+---
+description: Planning is 3 separate phases; stop and ask before each next phase
+alwaysApply: true
+---
+
+# Documate — Plan sequence gates
+
+Planning = **3 separate phases** — never all in one command (unless developer explicitly skips):
+
+1. **Exploration plan** only → stop → ask verify + approve Phase 2
+2. **Implementation plan** only → at **Decision Required**, ask → stop → ask verify + approve Phase 3
+3. **Dispatch queue** only → stop → ask which DQ to execute
+
+If user says “explore …”, do **Phase 1 only**.
+
+If user says “execute DQ-…” / “do all steps” / “implement now”, that is **execution**, not a planning phase.
+
+**Full rules:** `docs/plans/00-governance/09-plan-sequence-and-step-gates.md`

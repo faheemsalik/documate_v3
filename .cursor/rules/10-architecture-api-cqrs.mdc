@@ -1,0 +1,14 @@
+---
+description: API feature CQRS placement under Modules/*/Features
+globs: apps/api/**/*.cs
+alwaysApply: false
+---
+
+# Documate — API CQRS features
+
+- Features live under `Modules/{Core|FrontendSupport|External}/Features/{Name}/`
+- Colocate Controller, Commands, Queries, Dtos
+- Controllers: MediatR only — no DbContext/repos
+- Never return Domain entities
+
+Detail: `docs/architecture/patterns/cqrs-feature-slice.md`, `folder-structure.md`, `mediatr-conventions.md`

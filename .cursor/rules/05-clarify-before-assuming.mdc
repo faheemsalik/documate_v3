@@ -1,0 +1,10 @@
+---
+description: Ask when prompt scope is unclear; do not assume global/shared changes
+alwaysApply: true
+---
+
+# Documate — Clarify before assuming
+
+If the request is ambiguous or could affect **shared** code (`Infrastructure/`, `Domain/` bases, `apps/web` core/shared) or the **wrong module** (Core vs FrontendSupport vs External), **ask** before implementing. Do not silently widen scope.
+
+Full rules: `docs/architecture/governance/prompt-clarification.md`

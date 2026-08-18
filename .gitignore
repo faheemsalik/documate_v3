@@ -1,0 +1,56 @@
+# Build
+bin/
+obj/
+out/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rtifacts/
+
+# .NET
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nupkg
+*.snupkg
+
+# IDE
+.vs/
+.idea/
+*.swp
+*~
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+**/secrets.json
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Test / coverage
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# Local object storage (Storage:Provider=local)
+**/_data/blobs/

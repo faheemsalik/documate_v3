@@ -1,0 +1,20 @@
+---
+description: Planning document router and phase gates
+alwaysApply: true
+---
+
+# Documate — Planning Router
+
+**Phase gates (always):** `06-plan-sequence-gates.mdc`
+
+Governance index: `docs/plans/00-governance/README.md`
+
+**Start with:** `09-plan-sequence-and-step-gates.md` when doing any planning work.
+
+Load other governance docs only as needed for the **current phase**.
+
+Do not load planning governance for routine implementation unless the user is planning or executing from a dispatch queue.
+
+Do not combine exploration + implementation plan + dispatch queue in one response.
+
+Keep **engineering** and **product** plan tracks separate (`docs/plans/README.md`).

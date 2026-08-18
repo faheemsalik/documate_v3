@@ -1,0 +1,11 @@
+---
+description: Authoritative API critical rules
+globs: apps/api/**/*.cs
+alwaysApply: false
+---
+
+# Documate — Critical API rules
+
+Follow `docs/architecture/governance/critical-rules-api.md` before changing API code.
+
+Quick orientation: `docs/architecture/governance/quick-reference-api.md`

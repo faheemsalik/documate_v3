@@ -1,0 +1,11 @@
+---
+description: Authoritative Angular web critical rules
+globs: apps/web/**/*.{ts,html,scss}
+alwaysApply: false
+---
+
+# Documate — Critical Web rules
+
+Follow `docs/architecture/governance/critical-rules-web.md`.
+
+Conventions: `docs/architecture/patterns/angular-conventions.md`

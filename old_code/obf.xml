@@ -1,0 +1,9 @@
+﻿<?xml version='1.0'?>
+<Obfuscator>
+	<Var name="InPath" value=""
+	<Your project="" path="">
+		" />
+		<Var name="OutPath" value="$(InPath)\ReadyForDeployment" />
+		<Module file="$(InPath)\"<File to="" be="" obfuscated="">" />
+
+</Obfuscator>
