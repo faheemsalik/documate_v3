@@ -9,6 +9,8 @@ public sealed class OpsQueue : WireFacingEntity, IHasRowVersion
     public DateTimeOffset? RoutingLockedAt { get; set; }
     public string? WebhookUrl { get; set; }
     public string? WebhookSecretHash { get; set; }
+    /// <summary>Data-Protection payload of the HMAC secret (hash alone cannot sign).</summary>
+    public string? WebhookSecretProtected { get; set; }
     public bool WebhookEnabled { get; set; }
     public bool EmailIntakeEnabled { get; set; }
     public string? EmailLocalPart { get; set; }

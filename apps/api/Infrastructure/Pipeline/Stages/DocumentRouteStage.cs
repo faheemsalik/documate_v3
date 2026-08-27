@@ -5,7 +5,7 @@ using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-/// <summary>Creates Documents from predetermined type, then routes typed Documents via QueueRoute.</summary>
+/// <summary>Creates one Document from a single-page type hint, then routes typed Documents via QueueRoute.</summary>
 public sealed class DocumentRouteStage(
     DocumateDbContext db,
     ICorEnumIdResolver enums,
@@ -99,7 +99,7 @@ public sealed class DocumentRouteStage(
 
         var failed = enums.Require("document_public_status", "failed");
         var received = enums.Require("document_public_status", "received");
-        var count = context.Hints.EffectiveDocumentCount;
+        var count = 1;
 
         if (type is null)
         {

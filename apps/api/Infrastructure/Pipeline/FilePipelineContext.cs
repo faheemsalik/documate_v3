@@ -12,7 +12,8 @@ public sealed class FilePipelineContext
     public NormalizeResult? Normalize { get; set; }
     public List<OpsDocument> Documents { get; } = [];
 
-    public bool SkipSplitAndClassify => Hints.HasPredeterminedType;
+    public bool SkipSplitAndClassify =>
+        IntakeSkipPolicy.SkipSplitAndClassify(Hints.HasPredeterminedType, Normalize?.PageCount ?? 0);
 
     public string? SliceRefJson =>
         Normalize is null

@@ -1,0 +1,968 @@
+{
+  "info": {
+    "_postman_id": "b2c3d4e5-f6a7-8901-bcde-documate-v3-api",
+    "name": "Documate v3 \u2014 API",
+    "description": "Full API collection for Documate v3 (app + External).\n\nApp (`/api/app`): DevBypass \u2014 no token.\nExternal (`/api/v1`): `X-Api-Key` from folder 06.\n\nRun folders 00\u201308 in order. Attach `docs/postman/samples/invoice-sample.txt` on upload/extract requests. Set QueueRoute (folder 04) before the first File.\nSync extract client timeout must be > 60s.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5172"
+    },
+    {
+      "key": "agentId",
+      "value": ""
+    },
+    {
+      "key": "documentTypeId",
+      "value": ""
+    },
+    {
+      "key": "queueId",
+      "value": ""
+    },
+    {
+      "key": "fileId",
+      "value": ""
+    },
+    {
+      "key": "documentId",
+      "value": ""
+    },
+    {
+      "key": "apiKey",
+      "value": ""
+    },
+    {
+      "key": "apiKeyId",
+      "value": ""
+    },
+    {
+      "key": "batchId",
+      "value": ""
+    },
+    {
+      "key": "allowlistEntryId",
+      "value": ""
+    },
+    {
+      "key": "allowlistModeEnumId",
+      "value": ""
+    },
+    {
+      "key": "filePollTries",
+      "value": "0"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 \u2014 Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "GET /api/app/health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/health"
+          }
+        },
+        {
+          "name": "GET /api/app/system/ping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/system/ping"
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 \u2014 Me (DevBypass)",
+      "item": [
+        {
+          "name": "GET /api/app/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/me",
+            "description": "Provisions CorTenant + CorTenantBusiness on first call."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('me returns tenant and business', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.businessId).to.be.ok;",
+                  "  pm.expect(j.tenantId).to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 \u2014 Catalogs",
+      "item": [
+        {
+          "name": "GET document-types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/catalogs/document-types"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('has invoice type', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.length).to.be.above(0);",
+                  "  var inv = j.find(x => x.documentTypeKey === 'invoice');",
+                  "  pm.expect(inv).to.be.ok;",
+                  "  pm.collectionVariables.set('documentTypeId', String(inv.id));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET providers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/catalogs/providers"
+          }
+        },
+        {
+          "name": "GET agent-templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/catalogs/agent-templates"
+          }
+        },
+        {
+          "name": "GET agent-template invoice_generic_v1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/catalogs/agent-templates/invoice_generic_v1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 \u2014 Agents",
+      "item": [
+        {
+          "name": "POST clone-from-template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/agents/clone-from-template",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentTemplateKey\": \"invoice_generic_v1\",\n  \"name\": \"Postman Invoice Agent\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cloned agent', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  pm.expect(j.id).to.be.ok;",
+                  "  pm.collectionVariables.set('agentId', j.id);",
+                  "  pm.collectionVariables.set('documentTypeId', String(j.documentTypeId));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET agents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/agents"
+          }
+        },
+        {
+          "name": "GET agent by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/agents/{{agentId}}"
+          }
+        },
+        {
+          "name": "PUT update agent",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/agents/{{agentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Invoice Agent (updated)\",\n  \"description\": \"Updated in Postman\",\n  \"documentTypeId\": {{documentTypeId}},\n  \"outputSchemaJson\": \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"invoice_number\\\":{\\\"type\\\":\\\"string\\\"},\\\"total\\\":{\\\"type\\\":\\\"number\\\"}}}\",\n  \"instructions\": \"Extract invoice header fields.\",\n  \"defaultWorkflowId\": null,\n  \"defaultProviderId\": null,\n  \"schemaVersion\": 1,\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "POST create agent (manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/agents",
+            "description": "Optional. Uses the same documentTypeId as invoice for smoke simplicity.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Credit Note Agent\",\n  \"description\": null,\n  \"documentTypeId\": {{documentTypeId}},\n  \"outputSchemaJson\": \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{}}\",\n  \"instructions\": \"Extract credit note fields.\",\n  \"defaultWorkflowId\": null,\n  \"defaultProviderId\": null,\n  \"schemaVersion\": 1\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 \u2014 Queues (set routes before first file)",
+      "item": [
+        {
+          "name": "POST create queue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/queues",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman AP Inbox\",\n  \"description\": \"API collection queue\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('queue created', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.id).to.be.ok;",
+                  "  pm.collectionVariables.set('queueId', j.id);",
+                  "  pm.collectionVariables.set('allowlistModeEnumId', String(j.allowlistModeEnumId));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST create second queue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/queues",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman DN Inbox\",\n  \"description\": \"Second queue same Business\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET list queues",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues"
+          }
+        },
+        {
+          "name": "GET queue detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}"
+          }
+        },
+        {
+          "name": "PUT update queue",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman AP Inbox (updated)\",\n  \"description\": \"Updated\",\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "PUT replace routes",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/routes",
+            "description": "Must run before the first File on this queue.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"routes\": [\n    {\n      \"documentTypeId\": {{documentTypeId}},\n      \"agentId\": \"{{agentId}}\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('route saved', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.length).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET routes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/routes"
+          }
+        },
+        {
+          "name": "PUT webhook settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/webhook",
+            "description": "Re-save secret if HMAC signing is needed (Data Protection payload).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"url\": \"https://example.com/documate/webhook\",\n  \"secret\": \"postman-webhook-secret\"\n}"
+            }
+          }
+        },
+        {
+          "name": "POST mint email address",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/email/mint"
+          }
+        },
+        {
+          "name": "PUT email settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/email",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailIntakeEnabled\": true,\n  \"allowlistModeEnumId\": {{allowlistModeEnumId}}\n}"
+            }
+          }
+        },
+        {
+          "name": "POST allowlist entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/allowlist",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"matchTypeKey\": \"domain\",\n  \"value\": \"supplier.example\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  var j = pm.response.json();",
+                  "  if (j.id) pm.collectionVariables.set('allowlistEntryId', String(j.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET allowlist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/allowlist"
+          }
+        },
+        {
+          "name": "POST lock routing",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/routing/lock",
+            "description": "Optional. First File also locks routing."
+          }
+        },
+        {
+          "name": "PUT routes after lock (expect 409)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/routes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"routes\": [\n    {\n      \"documentTypeId\": {{documentTypeId}},\n      \"agentId\": \"{{agentId}}\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('locked map rejects replace', function () {",
+                  "  pm.expect(pm.response.code).to.eql(409);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 \u2014 App files (upload + poll)",
+      "item": [
+        {
+          "name": "POST upload file",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files",
+            "description": "Attach samples/invoice-sample.txt. documentTypeKey skips split/classify.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Attach docs/postman/samples/invoice-sample.txt"
+                },
+                {
+                  "key": "documentTypeKey",
+                  "type": "text",
+                  "value": "invoice"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('file created', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.id).to.be.ok;",
+                  "  pm.collectionVariables.set('fileId', String(j.id));",
+                  "  pm.collectionVariables.set('filePollTries', '0');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET file",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files/{{fileId}}"
+          }
+        },
+        {
+          "name": "GET download-url",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files/{{fileId}}/download-url"
+          }
+        },
+        {
+          "name": "GET file (poll until ready)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files/{{fileId}}",
+            "description": "Collection Runner loops until ready/failed (max ~40)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var j = pm.response.json();",
+                  "var n = Number(pm.collectionVariables.get('filePollTries') || 0);",
+                  "var done = ['ready','failed','partial_ready'].indexOf(j.publicStatusKey) >= 0;",
+                  "if (!done && n < 40) {",
+                  "  pm.collectionVariables.set('filePollTries', String(n + 1));",
+                  "  postman.setNextRequest('GET file (poll until ready)');",
+                  "} else {",
+                  "  pm.collectionVariables.set('filePollTries', '0');",
+                  "  pm.test('file reached a terminal status', function () {",
+                  "    pm.expect(['ready','failed','partial_ready']).to.include(j.publicStatusKey);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 \u2014 API keys (F2)",
+      "item": [
+        {
+          "name": "POST create api-key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/api-keys",
+            "description": "Raw apiKey is shown once. Saved to collection variable apiKey.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman External Key\",\n  \"expiresAt\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('api key minted', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.apiKey).to.be.ok;",
+                  "  pm.collectionVariables.set('apiKey', j.apiKey);",
+                  "  pm.collectionVariables.set('apiKeyId', j.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET list api-keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/api-keys"
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 \u2014 External async (X-Api-Key)",
+      "item": [
+        {
+          "name": "POST external multi-file upload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/files",
+            "description": "Form field name is `files` (repeat for 2+ files). Optional documentTypeKey.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": [],
+                  "description": "Add 1+ files with key files"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true
+                },
+                {
+                  "key": "documentTypeKey",
+                  "type": "text",
+                  "value": "invoice"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 accepted', function () {",
+                  "  pm.expect(pm.response.code).to.eql(202);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.fileIds.length).to.be.above(0);",
+                  "  pm.collectionVariables.set('fileId', String(j.fileIds[0]));",
+                  "  if (j.batchId) pm.collectionVariables.set('batchId', String(j.batchId));",
+                  "  pm.collectionVariables.set('filePollTries', '0');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET external list files",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/files"
+          }
+        },
+        {
+          "name": "GET external file",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/files/{{fileId}}"
+          }
+        },
+        {
+          "name": "GET external documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/documents?fileId={{fileId}}",
+            "description": "Poll until publicStatusKey is ready/failed. resultJson holds extract payload."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 list', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "var docs = pm.response.json();",
+                  "if (Array.isArray(docs) && docs.length) {",
+                  "  pm.collectionVariables.set('documentId', String(docs[0].id));",
+                  "  var n = Number(pm.collectionVariables.get('filePollTries') || 0);",
+                  "  var st = docs[0].publicStatusKey;",
+                  "  var done = ['ready','failed','rejected','cancelled'].indexOf(st) >= 0;",
+                  "  if (!done && n < 40) {",
+                  "    pm.collectionVariables.set('filePollTries', String(n + 1));",
+                  "    postman.setNextRequest('GET external documents');",
+                  "  } else {",
+                  "    pm.collectionVariables.set('filePollTries', '0');",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET external document by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/documents/{{documentId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 \u2014 External sync extract",
+      "item": [
+        {
+          "name": "POST sync extract",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/extract",
+            "description": "Single file. HTTP waits up to 60s. No webhook (C2). Attach invoice-sample.txt. Client timeout > 60s.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Attach docs/postman/samples/invoice-sample.txt"
+                },
+                {
+                  "key": "documentTypeKey",
+                  "type": "text",
+                  "value": "invoice"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sync extract 200', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.fileId).to.be.ok;",
+                  "  pm.collectionVariables.set('fileId', String(j.fileId));",
+                  "  if (j.documentIds && j.documentIds.length) {",
+                  "    pm.collectionVariables.set('documentId', String(j.documentIds[0]));",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "09 \u2014 Negatives (optional)",
+      "item": [
+        {
+          "name": "POST upload unknown documentTypeKey (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "documentTypeKey",
+                  "type": "text",
+                  "value": "not_a_real_type"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unknown type is 400', function () {",
+                  "  pm.expect(pm.response.code).to.eql(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST sync extract documentCount=2 (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/extract",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "documentTypeKey",
+                  "type": "text",
+                  "value": "invoice"
+                },
+                {
+                  "key": "documentCount",
+                  "type": "text",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('multi-doc sync is 400', function () {",
+                  "  pm.expect(pm.response.code).to.eql(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "99 \u2014 Cleanup (optional)",
+      "item": [
+        {
+          "name": "DELETE allowlist entry",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/allowlist/{{allowlistEntryId}}"
+          }
+        },
+        {
+          "name": "DELETE api-key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/api-keys/{{apiKeyId}}"
+          }
+        },
+        {
+          "name": "DELETE agent",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/agents/{{agentId}}"
+          }
+        },
+        {
+          "name": "DELETE queue",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -39,9 +39,9 @@
 | Metric | Value |
 |--------|--------|
 | Total DQ items | 38 |
-| ✅ Complete | 21 |
+| ✅ Complete | 23 |
 | 🔄 In Progress | 0 |
-| ⬜ Ready | 9 |
+| ⬜ Ready | 7 |
 | ⏸ Parked | 8 (DQ-1202 email; DQ-1501–1507 Iden follow-on J3) |
 | ❌ Cancelled | 0 |
 
@@ -111,8 +111,8 @@ None blocking Phase 1 execution. (J3 locked.)
 | DQ-0701 | 07 | Normalize/OCR adapter(s) Mode 1 | ✅ | DQ-0501 |
 | DQ-0702 | 07 | Split → classify → route (E3 multi-doc PDFs) | ✅ | DQ-0701, DQ-0302 |
 | DQ-0703 | 07 | Extract via Documate meta-provider + schema validate → Ready/Failed | ✅ | DQ-0702, DQ-0202 |
-| DQ-0801 | 08 | Per-Document webhook dispatch + attempt metadata | ⬜ | DQ-0703, DQ-0303 |
-| DQ-0901 | 09 | Sync-wait API (single-doc, 60s, no webhook C2) | ⬜ | DQ-0703, DQ-0603 |
+| DQ-0801 | 08 | Per-Document webhook dispatch + attempt metadata | ✅ | DQ-0703, DQ-0303 |
+| DQ-0901 | 09 | Sync-wait API (single-doc, 60s, no webhook C2) | ✅ | DQ-0703, DQ-0603 |
 | DQ-1001 | 10 | Cancel File and Cancel Document | ⬜ | DQ-0703, DQ-0801 |
 | DQ-1002 | 10 | Explicit reprocess → new File | ⬜ | DQ-0601, DQ-0703 |
 | DQ-1101 | 11 | Agent post-processing runner + internal MCP (1–2 platform tools) | ⬜ | DQ-0703 |
@@ -400,12 +400,13 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 - **Status:** ✅ Complete (Phase 1 slice)  
 - **Dependency:** DQ-0701, DQ-0302  
 - **Source:** Decision E3 (+ intake-hints); exploration 04 P0/C0 locked  
-- **Outcome:** Pipeline structure is normalize → **split → classify → route**. Caller `documentTypeKey` **skips split+classify**, materializes Document(s), routes via QueueRoute. Real page split/classify **deferred**. Unroutable type → Failed `unroutable_type`.  
+- **Outcome:** Pipeline structure is normalize → **split → classify → route**. Skip split+classify **only** when caller `documentTypeKey` **and** normalize `pageCount==1`. Type-only multi-page Files still split (Phase 1: placeholder Document; stamp type after split). Real page split **deferred**. Unroutable type → Failed `unroutable_type`.  
 - **Required Documents:** Plan 03 Flow 1 hints; [`04-split-classify-strategy-exploration.md`](./04-split-classify-strategy-exploration.md)  
 - **Evidence:**
   - `IFileSplitStage` / `IFileClassifyStage` / `IDocumentRouteStage` in the Hangfire File worker
   - `OpsFile.IntakeHintsJson`; upload form fields `documentTypeKey`, optional `documentCount`
-  - Skip WorkEvents: `skipped:true, reason:predetermined_document_type`
+  - Skip WorkEvents: `skipped:true, reason:predetermined_type_single_page` (type + pageCount==1 only)
+  - Typed multi-page: split not skipped; classify stamps caller type (`type_hint_after_split`)
   - Without type: split/classify log `deferred:true` and one placeholder Document
   - Typed + QueueRoute → Document.AgentId set; missing route → `unroutable_type`
   - Real split/classify algorithms: later phase (exploration 04 remainder)
@@ -428,20 +429,32 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - Smoke 2026-08-18: typed invoice labels → ready `resultJson.invoice_number=INV-0703`; no type → `no_agent`; no QueueRoute → `unroutable_type`
 
 ### DQ-0801 — Per-Document webhooks
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-0703, DQ-0303  
 - **Source:** Plan 02 §9.2; Plan 03 Flow 1  
 - **Outcome:** On Document terminal, HTTPS webhook + HMAC; attempts/metadata on Document; poll still works if webhook fails.  
 - **Required Documents:** Plan 02 webhook payload fields  
-- **Evidence:** (fill on completion)
+- **Evidence:**
+  - Enqueue on Document terminal (`ready`/`failed`/…); `api_sync` → `skipped` (C2 ready for DQ-0901)
+  - POST `document.terminal` snake_case payload; `X-Documate-Signature: sha256=…` from Data-Protected queue secret (`WebhookSecretProtected`)
+  - Status: `not_configured` | `pending` | `succeeded` | `exhausted` | `skipped`; attempts + last HTTP on Document
+  - Self-scheduled retries (30s…10m, max 5); Hangfire `webhooks` queue; poll still returns `resultJson` if delivery fails
+  - External poll: `webhookStatusKey`, `webhookAttempts`, `webhookLastHttpStatus`
+  - Unit tests: HMAC + payload shape; smoke 2026-08-18: http://127.0.0.1 listener → succeeded HTTP 200 + signature; no URL → `not_configured` and Document still `ready`
 
 ### DQ-0901 — Sync-wait API
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-0703, DQ-0603  
 - **Source:** Decisions B, C2, G; Plan 03 Flow 2  
 - **Outcome:** Sync extract: fail if >1 Document; else wait Ready/Failed or 60s; timeout returns ids; **no webhook**.  
 - **Required Documents:** Plan 03 Decisions B/C/G; Plan 02 §9.1  
-- **Evidence:** (fill on completion)
+- **Evidence:**
+  - `POST /api/v1/queues/{queueId}/extract` (API key); one `file`; intake source `api_sync`
+  - HTTP waits until File+Document terminal or `Pipeline:SyncWaitTimeoutSeconds` (default 60); `timedOut` + `fileIds`/`documentIds` always returned
+  - `documentCount > 1` → 400; `>1` Document after pipeline → 409; multi-file belongs on async `/files`
+  - C2: webhook status `skipped` (no POST) even if Queue webhook is enabled
+  - 200 body includes `fileStatus` + `documents[]` (same poll DTO, including `resultJson`)
+  - Smoke 2026-08-18: typed invoice → 200 `timedOut=false` ready + `INV-0901` + `webhookStatusKey=skipped`; `documentCount=2` → 400
 
 ### DQ-1001 — Cancel File / Document
 - **Status:** ⬜ Ready  
@@ -570,9 +583,9 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 ## Readiness
 
 **Decision J3 locked.** Band 15 parked.  
-**Waves 0–6 complete; DQ-0701 ✅; DQ-0702 Phase 1 slice ✅; DQ-0703 ✅.** Real split/classify later. Live LLM extract later.  
-**Postman:** [`docs/postman/Documate-v3-Smoke-Waves-0-3.postman_collection.json`](../postman/Documate-v3-Smoke-Waves-0-3.postman_collection.json).  
-**Next:** `DQ-0801` (per-Document webhooks).  
+**Waves 0–6 complete; DQ-0701–0703 ✅; DQ-0801 ✅; DQ-0901 ✅.** Real split/classify later. Live LLM extract later.  
+**Postman:** [`docs/postman/Documate-v3-API.postman_collection.json`](../postman/Documate-v3-API.postman_collection.json).  
+**Next:** `DQ-1001` (cancel File / Document).  
 **Jobs:** Hangfire dashboard (Dev) at `/hangfire`.  
 **External auth:** `X-Api-Key` (F2 temporary). Optional upload field: `documentTypeKey`.
 

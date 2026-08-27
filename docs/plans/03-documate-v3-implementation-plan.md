@@ -569,7 +569,7 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 | `QueueId`                                           | UUID    |                                      |
 | `BatchId`                                           | UUID?   |                                      |
 | `SourceEnumId`                                      | bigint  | FK → CorEnum (`intake_source`: `api` |
-| `IntakeHintsJson` (planned)                         | json?   | Optional caller hints: documentCount + documentTypeKey(s); used to skip split/classify when complete |
+| `IntakeHintsJson`                                   | json?   | Optional caller hints: documentCount + documentTypeKey; skip split/classify only when type + pageCount=1 |
 | `PublicStatusEnumId`                                | bigint  | FK → CorEnum (`file_public_status`)  |
 | `InternalStageEnumId`                               | bigint? | FK → CorEnum (`file_internal_stage`) |
 | Storage / email / reprocess / error / cancel fields |         | As previously specified              |
@@ -803,15 +803,15 @@ Client POST /api/v1/.../files (N files) + queue_id
   → If N≥2: create Batch (log)
   → Store each blob; create Files; lock routing if first
   → Enqueue each File (return 202 + batch_id? + file_ids)
-  → Worker: normalize/OCR
-       → if valid caller hints: skip split+classify → create Document(s) from hints → route
-       → else: split → classify → route → Documents
+  → Worker: normalize/OCR (records pageCount)
+       → if documentTypeKey AND pageCount==1: skip split+classify → one Document of that type → route
+       → else: split → classify (stamp type hint if present) → route → Documents
   → Per Document: extract → validate → post-process → Ready
   → Per Document: webhook attempt
   → Client poll GetDocument / list filters
 ```
 
-### Intake hints (optional — skip split/classify)
+### Intake hints (optional — skip split/classify only for type + one page)
 
 Partners often already know what they uploaded. External upload may supply **optional per-File hints**:
 
@@ -822,14 +822,16 @@ Partners often already know what they uploaded. External upload may supply **opt
 
 **Rules (locked for plan):**
 
-1. **No hints (or incomplete hints)** → full pipeline after normalize: **split → classify → route** (E3 default for PDFs; images/text usually 1 doc via classifier/heuristics).
-2. **Complete hints** that allow skip:
-   - `documentCount = 1` **and** one `documentTypeKey` → **skip split and classify**; create **one** Document of that type; **still route** via QueueRoute → extract…
-   - `documentCount = N` (`N > 1`) **and** `documentTypeKeys` length `N` (or one key applied to all N only if explicitly allowed later) → **skip auto-split/classify**; create **N** Documents with given types (page ranges optional follow-on); **still route** each → extract…
-3. **Partial hints** (e.g. only count, or only type without count) → **do not skip**; run full split/classify (safer than guessing).
-4. Unknown `documentTypeKey` → Document **Failed** `unroutable_type` / invalid hint (same as classify miss), not silent ignore.
-5. Hints are **caller assertions**, not OCR truth — persist on File for audit (`IntakeHintsJson` or dedicated columns — implement with DQ-0601 extension / DQ-0702).
-6. Sync-wait (Decision B) still **single Document only**; multi-doc hints on sync-wait → fail.
+1. **No `documentTypeKey`** → full pipeline after normalize: **split → classify → route** (E3 default for PDFs; images/text usually 1 doc via classifier/heuristics).
+2. **Skip split and classify** only when **both** are true:
+   - caller sent `documentTypeKey`, **and**
+   - normalize `pageCount == 1` (images/text; single-page PDF).
+   Then create **one** Document of that type; **still route** via QueueRoute → extract.
+3. **`documentTypeKey` + `pageCount > 1`** → **do not skip split**. The File may hold several documents of the same type. Classify still uses the type hint on whatever Documents split produces (real page split later; Phase 1 placeholder remains one Document spanning the File).
+4. `documentCount` is an audit/hint field. It does **not** skip split by itself, and type-only is not a single-document guarantee.
+5. Unknown `documentTypeKey` → 400 at upload, or Document **Failed** `unroutable_type` in the worker, not silent ignore.
+6. Hints are **caller assertions**, not OCR truth — persist on File for audit (`IntakeHintsJson`).
+7. Sync-wait (Decision B) still **single Document only**; `documentCount > 1` on sync-wait → fail.
 
 This does **not** remove E3 as the default when callers omit hints.
 
@@ -894,7 +896,7 @@ Reprocess → new File from same bytes → new Documents → new webhooks
 
 **Recommendation:** **E3** for PDFs/Office; **1 doc** for single images/plain text unless classifier says otherwise.  
 **Status:** **DECIDED E3**, amended **2026-08-04** with **optional caller intake hints**.  
-**Amendment:** E3 remains the **default** when the API caller does **not** supply complete document nature/count. When the caller supplies complete intake hints (`documentCount` + matching `documentTypeKey`(s)), Core **skips split and classify** and creates Document(s) from those hints, then **routes** via QueueRoute. See Flow 1 § Intake hints. Deeper classify/split strategy when hints are absent: **[`04-split-classify-strategy-exploration.md`](./04-split-classify-strategy-exploration.md)** (lock before DQ-0702).
+**Amendment:** E3 remains the **default** when the File is multi-page or the caller omits `documentTypeKey`. Skip split+classify **only** when `documentTypeKey` is set **and** normalize `pageCount == 1`. Type-only on a multi-page File does **not** skip split (same type may appear more than once). See Flow 1 § Intake hints. Deeper classify/split strategy: **[`04-split-classify-strategy-exploration.md`](./04-split-classify-strategy-exploration.md)**.
 
 ---
 
@@ -1183,7 +1185,7 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 | B   | Sync timeout policy     | B1 60s / B2 120s / B3 client cap                                               | B1     |
 | C   | Sync webhooks           | C1 fire / C2 suppress / C3 flag                                                | C1     |
 | D   | Email inbound           | D1 provider webhook / D2 IMAP / D3 stub first                                  | D3→D1  |
-| E   | Split/classify bar      | E3 default PDF multi-doc; **optional intake hints skip split+classify**        | **E3 + hints** |
+| E   | Split/classify bar      | E3 default PDF multi-doc; skip split+classify only if type **and** 1 page      | **E3 + hints** |
 | F   | External auth interim   | F1 user token / F2 tenant API keys / F3 wait M2M                               | **F2 bridge** → retire Band 15 (after Phase 1) |
 | G   | Exact timeout seconds   | with B                                                                         | 60     |
 | H   | Tenant persistence      | **DECIDED H1** — CorTenant + CorTenantBusiness (product extension; Iden = SoT) | H1     |
@@ -1272,6 +1274,9 @@ Select a DQ item to implement (do not code until selected).
 | 2026-08-04 | **Decision A amended:** A1 hosting + **Hangfire (SQL storage)**; Channel-only enqueue rejected; webhooks share Hangfire. |
 | 2026-08-04 | **Intake hints:** optional `documentCount` + DocumentType key(s) on External upload; complete hints → skip split+classify (E3 default otherwise). |
 | 2026-08-18 | **DQ-0702 Phase 1:** predetermined `documentTypeKey` skips split/classify; real split deferred; QueueRoute still runs. |
+| 2026-08-18 | **Skip rule amended:** skip split+classify only when `documentTypeKey` **and** normalize `pageCount==1`; type-only multi-page still splits. |
 | 2026-08-18 | **DQ-0703:** Mode 1 `documate_meta` extract + schema validate; External poll `resultJson`. |
+| 2026-08-18 | **DQ-0801:** per-Document HTTPS webhook + HMAC; poll still works if delivery fails. |
+| 2026-08-18 | **DQ-0901:** External sync-wait extract (60s, single Document, no webhook). |
 
 

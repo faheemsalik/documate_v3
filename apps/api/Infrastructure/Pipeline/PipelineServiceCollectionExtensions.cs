@@ -4,6 +4,7 @@ using Documate.Api.Infrastructure.Extract;
 using Documate.Api.Infrastructure.Ocr;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Pipeline.Stages;
+using Documate.Api.Infrastructure.Webhooks;
 using Hangfire;
 using Hangfire.Dashboard;
 using Hangfire.SqlServer;
@@ -48,6 +49,13 @@ public static class PipelineServiceCollectionExtensions
         services.AddScoped<IDocumentRouteStage, DocumentRouteStage>();
         services.AddScoped<IDocumentExtractStage, DocumentExtractStage>();
         services.AddScoped<IDocumentExtractAdapter, Mode1DocumateMetaExtractAdapter>();
+        services.AddSingleton<IWebhookSecretProtector, WebhookSecretProtector>();
+        services.AddScoped<IDocumentWebhookScheduler, DocumentWebhookScheduler>();
+        services.AddHttpClient("documate-webhooks", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+        services.AddScoped<DocumentWebhookDelivery>();
         services.AddScoped<FilePipelineJobs>();
         services.AddScoped<WebhookJobs>();
         services.AddSingleton<IWorkDispatcher, HangfireWorkDispatcher>();

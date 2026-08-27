@@ -1,7 +1,7 @@
 namespace Documate.Api.Infrastructure.Pipeline.Stages;
 
 /// <summary>
-/// Split a File into logical Documents. Predetermined documentTypeKey skips this stage.
+/// Split a File into logical Documents. Skipped only when documentTypeKey is set and the File has one page.
 /// Real page-boundary split is deferred to a later phase.
 /// </summary>
 public interface IFileSplitStage
@@ -10,7 +10,7 @@ public interface IFileSplitStage
 }
 
 /// <summary>
-/// Assign DocumentType when not supplied by the caller. Predetermined type skips this stage.
+/// Assign DocumentType when not supplied by the caller. Skipped only with type + one page.
 /// Real classify is deferred to a later phase.
 /// </summary>
 public interface IFileClassifyStage

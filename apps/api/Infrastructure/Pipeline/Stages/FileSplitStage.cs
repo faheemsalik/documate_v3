@@ -5,8 +5,8 @@ using Documate.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// Split stage: skipped when the caller supplied documentTypeKey.
-/// Without a type, Phase 1 only materializes a single placeholder Document (real split later).
+/// Split stage: skipped only when documentTypeKey is set and the File has one page.
+/// Multi-page Files still split (Phase 1: one placeholder until real split).
 /// </summary>
 public sealed class FileSplitStage(
     DocumateDbContext db,
@@ -22,20 +22,28 @@ public sealed class FileSplitStage(
         {
             await AppendEventAsync(
                 context,
-                """{"status":"processing","stage":"split","skipped":true,"reason":"predetermined_document_type"}""",
+                """{"status":"processing","stage":"split","skipped":true,"reason":"predetermined_type_single_page"}""",
                 cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
-            logger.LogInformation("Split skipped for File {FileId} (predetermined type {Type})", context.File.Id, context.Hints.DocumentTypeKey);
+            logger.LogInformation(
+                "Split skipped for File {FileId} (type {Type}, pageCount=1)",
+                context.File.Id,
+                context.Hints.DocumentTypeKey);
             return;
         }
 
         await EnsurePlaceholderDocumentsAsync(context, cancellationToken);
+        var pageCount = context.Normalize?.PageCount ?? 0;
         await AppendEventAsync(
             context,
-            """{"status":"processing","stage":"split","deferred":true,"reason":"real_split_not_implemented"}""",
+            $$"""{"status":"processing","stage":"split","deferred":true,"reason":"real_split_not_implemented","pageCount":{{pageCount}}}""",
             cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
-        logger.LogInformation("Split deferred for File {FileId}; placeholder Document count={Count}", context.File.Id, context.Documents.Count);
+        logger.LogInformation(
+            "Split deferred for File {FileId}; placeholder Document count={Count} pageCount={PageCount}",
+            context.File.Id,
+            context.Documents.Count,
+            pageCount);
     }
 
     private async Task EnsurePlaceholderDocumentsAsync(FilePipelineContext context, CancellationToken cancellationToken)

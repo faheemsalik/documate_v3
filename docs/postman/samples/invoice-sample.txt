@@ -1,0 +1,5 @@
+invoice_number: INV-1001
+invoice_date: 2026-08-18
+total: 42.50
+currency: USD
+vendor_name: Acme Supplies

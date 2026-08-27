@@ -224,7 +224,7 @@ internal static class QueueHelpers
             q.RoutingLockedAt,
             q.WebhookEnabled,
             q.WebhookUrl,
-            !string.IsNullOrEmpty(q.WebhookSecretHash),
+            !string.IsNullOrEmpty(q.WebhookSecretProtected) || !string.IsNullOrEmpty(q.WebhookSecretHash),
             q.EmailIntakeEnabled,
             FormatEmail(q),
             q.EmailLocalPart,
@@ -476,7 +476,11 @@ public sealed class LockQueueRoutingHandler(DocumateDbContext db, IBusinessConte
     }
 }
 
-public sealed class UpdateQueueWebhookHandler(DocumateDbContext db, IBusinessContext business, ICorEnumIdResolver enums)
+public sealed class UpdateQueueWebhookHandler(
+    DocumateDbContext db,
+    IBusinessContext business,
+    ICorEnumIdResolver enums,
+    Documate.Api.Infrastructure.Webhooks.IWebhookSecretProtector secrets)
     : IRequestHandler<UpdateQueueWebhookCommand, QueueDto?>
 {
     public async Task<QueueDto?> Handle(UpdateQueueWebhookCommand command, CancellationToken cancellationToken)
@@ -495,6 +499,7 @@ public sealed class UpdateQueueWebhookHandler(DocumateDbContext db, IBusinessCon
         if (!string.IsNullOrWhiteSpace(request.Secret))
         {
             q.WebhookSecretHash = QueueHelpers.HashSecret(request.Secret);
+            q.WebhookSecretProtected = secrets.Protect(request.Secret);
         }
 
         q.UpdatedByUserId = business.UserId;

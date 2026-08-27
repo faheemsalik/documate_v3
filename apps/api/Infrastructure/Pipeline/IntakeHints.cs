@@ -2,7 +2,7 @@ namespace Documate.Api.Infrastructure.Pipeline;
 
 using System.Text.Json;
 
-/// <summary>Optional caller-supplied File hints. A document type skips split/classify (P0/C0).</summary>
+/// <summary>Optional caller-supplied File hints. Type + single page skips split/classify.</summary>
 public sealed record IntakeHints(string? DocumentTypeKey, int? DocumentCount)
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };

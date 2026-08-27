@@ -50,6 +50,9 @@ public sealed record ExternalDocumentDto(
     string? ErrorCode,
     string? ErrorMessage,
     System.Text.Json.Nodes.JsonNode? ResultJson,
+    string? WebhookStatusKey,
+    int WebhookAttempts,
+    int? WebhookLastHttpStatus,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt);
 
@@ -122,6 +125,7 @@ public sealed class ListExternalDocumentsHandler(DocumateDbContext db, IBusiness
 
         var enumIds = docs.Select(d => d.PublicStatusEnumId)
             .Concat(docs.Where(d => d.InternalStageEnumId is not null).Select(d => d.InternalStageEnumId!.Value))
+            .Concat(docs.Where(d => d.WebhookStatusEnumId is not null).Select(d => d.WebhookStatusEnumId!.Value))
             .Distinct()
             .ToList();
 
@@ -164,6 +168,12 @@ public sealed class ListExternalDocumentsHandler(DocumateDbContext db, IBusiness
                 }
             }
 
+            string? webhookStatusKey = null;
+            if (d.WebhookStatusEnumId is long wid)
+            {
+                enumKeys.TryGetValue(wid, out webhookStatusKey);
+            }
+
             return new ExternalDocumentDto(
                 d.Id,
                 d.QueueId,
@@ -177,6 +187,9 @@ public sealed class ListExternalDocumentsHandler(DocumateDbContext db, IBusiness
                 d.ErrorCode,
                 d.ErrorMessage,
                 resultJson,
+                webhookStatusKey,
+                d.WebhookAttempts,
+                d.WebhookLastHttpStatus,
                 d.CreatedAt,
                 d.CompletedAt);
         }).ToList();

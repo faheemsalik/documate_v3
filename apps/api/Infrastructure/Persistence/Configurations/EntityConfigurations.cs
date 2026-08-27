@@ -191,6 +191,7 @@ internal sealed class OpsQueueConfiguration : IEntityTypeConfiguration<OpsQueue>
         b.Property(x => x.Name).HasMaxLength(256).IsRequired();
         b.Property(x => x.WebhookUrl).HasMaxLength(2048);
         b.Property(x => x.WebhookSecretHash).HasMaxLength(256);
+        b.Property(x => x.WebhookSecretProtected).HasColumnType("nvarchar(max)");
         b.Property(x => x.EmailLocalPart).HasMaxLength(128);
         b.Property(x => x.EmailDomain).HasMaxLength(256);
         b.HasOne(x => x.AllowlistMode).WithMany().HasForeignKey(x => x.AllowlistModeEnumId).OnDelete(DeleteBehavior.Restrict);

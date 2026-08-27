@@ -9,6 +9,7 @@ using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Pipeline;
 using Documate.Api.Infrastructure.Storage;
+using Documate.Api.Infrastructure.Webhooks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -21,6 +22,7 @@ public sealed class DocumentExtractStage(
     ICorEnumIdResolver enums,
     IDocumentExtractAdapter extract,
     IObjectStorage storage,
+    IDocumentWebhookScheduler webhooks,
     IOptions<PipelineOptions> options,
     ILogger<DocumentExtractStage> logger) : IDocumentExtractStage
 {
@@ -61,135 +63,167 @@ public sealed class DocumentExtractStage(
 
         foreach (var doc in context.Documents)
         {
-            if (doc.PublicStatusEnumId == docFailed)
+            if (doc.PublicStatusEnumId != docFailed)
             {
-                continue;
-            }
-
-            doc.PublicStatusEnumId = docProcessing;
-            doc.InternalStageEnumId = docExtract;
-            doc.UpdatedByUserId = context.Item.UserId;
-            await db.SaveChangesAsync(cancellationToken);
-            await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"processing","stage":"extract"}""", cancellationToken);
-            await DelayAsync(delay, cancellationToken);
-
-            if (doc.AgentId is not Guid agentId || !agents.TryGetValue(agentId, out var agent))
-            {
-                FailDocument(doc, docFailed, "no_agent", "Document has no routed Agent; cannot extract.", "extract", context.Item.UserId);
-                await db.SaveChangesAsync(cancellationToken);
-                await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"failed","stage":"extract","errorCode":"no_agent"}""", cancellationToken);
-                continue;
-            }
-
-            try
-            {
-                var result = await extract.ExtractAsync(
-                    new ExtractAdapterRequest(
-                        context.File.Id,
-                        doc.Id,
-                        doc.SequenceId,
-                        context.File.StorageBucket ?? context.Normalize?.StorageBucket,
-                        context.Normalize?.TextArtifactKey,
-                        agent.OutputSchemaJson,
-                        agent.Instructions,
-                        sourceText),
-                    cancellationToken);
-
-                doc.ResultJson = result.ResultJson;
-                doc.SchemaVersion = agent.SchemaVersion;
-                doc.ProviderId = metaProviderId;
-                doc.InternalStageEnumId = docValidate;
+                doc.PublicStatusEnumId = docProcessing;
+                doc.InternalStageEnumId = docExtract;
                 doc.UpdatedByUserId = context.Item.UserId;
                 await db.SaveChangesAsync(cancellationToken);
-                await AppendDocEventAsync(
-                    context,
-                    doc.Id,
-                    docSubject,
-                    statusChanged,
-                    JsonSerializer.Serialize(new
-                    {
-                        status = "processing",
-                        stage = "validate",
-                        providerKey = result.ProviderKey,
-                    }),
-                    cancellationToken);
+                await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"processing","stage":"extract"}""", cancellationToken);
                 await DelayAsync(delay, cancellationToken);
 
-                await TryWriteExtractArtifactAsync(context, doc, result.ResultJson, cancellationToken);
-
-                JsonNode? instance = null;
-                try
+                if (doc.AgentId is not Guid agentId || !agents.TryGetValue(agentId, out var agent))
                 {
-                    instance = JsonNode.Parse(result.ResultJson);
-                }
-                catch (JsonException ex)
-                {
-                    FailDocument(doc, docFailed, "schema_invalid", $"Extract result is not JSON: {ex.Message}", "validate", context.Item.UserId);
+                    FailDocument(doc, docFailed, "no_agent", "Document has no routed Agent; cannot extract.", "extract", context.Item.UserId);
                     await db.SaveChangesAsync(cancellationToken);
-                    await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"failed","stage":"validate","errorCode":"schema_invalid"}""", cancellationToken);
-                    continue;
+                    await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"failed","stage":"extract","errorCode":"no_agent"}""", cancellationToken);
                 }
-
-                var validation = JsonSchemaLite.Validate(agent.OutputSchemaJson, instance);
-                if (!validation.IsValid)
+                else
                 {
-                    var message = string.Join(" ", validation.Errors);
-                    FailDocument(
-                        doc,
-                        docFailed,
-                        "schema_invalid",
-                        message.Length > 4000 ? message[..4000] : message,
-                        "validate",
-                        context.Item.UserId);
-                    await db.SaveChangesAsync(cancellationToken);
-                    await AppendDocEventAsync(
-                        context,
-                        doc.Id,
-                        docSubject,
-                        statusChanged,
-                        JsonSerializer.Serialize(new
-                        {
-                            status = "failed",
-                            stage = "validate",
-                            errorCode = "schema_invalid",
-                            errors = validation.Errors.Take(20).ToArray(),
-                        }),
-                        cancellationToken);
-                    continue;
-                }
-
-                doc.PublicStatusEnumId = docReady;
-                doc.InternalStageEnumId = docComplete;
-                doc.CompletedAt = DateTimeOffset.UtcNow;
-                doc.ErrorCode = null;
-                doc.ErrorMessage = null;
-                doc.FailedStage = null;
-                doc.UpdatedByUserId = context.Item.UserId;
-                await db.SaveChangesAsync(cancellationToken);
-                await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"ready","stage":"validate"}""", cancellationToken);
-                logger.LogInformation("Document {DocumentId} extract+validate ready via {Provider}", doc.Id, result.ProviderKey);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Extract failed for Document {DocumentId}", doc.Id);
-                FailDocument(doc, docFailed, "extract_failed", ex.Message, "extract", context.Item.UserId);
-                await db.SaveChangesAsync(cancellationToken);
-                await AppendDocEventAsync(
-                    context,
-                    doc.Id,
-                    docSubject,
-                    statusChanged,
-                    JsonSerializer.Serialize(new
+                    try
                     {
-                        status = "failed",
-                        stage = "extract",
-                        errorCode = "extract_failed",
-                    }),
-                    cancellationToken);
+                        await ExtractOneAsync(
+                            context,
+                            doc,
+                            agent,
+                            sourceText,
+                            metaProviderId,
+                            docReady,
+                            docFailed,
+                            docValidate,
+                            docComplete,
+                            docSubject,
+                            statusChanged,
+                            delay,
+                            cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Extract failed for Document {DocumentId}", doc.Id);
+                        FailDocument(doc, docFailed, "extract_failed", ex.Message, "extract", context.Item.UserId);
+                        await db.SaveChangesAsync(cancellationToken);
+                        await AppendDocEventAsync(
+                            context,
+                            doc.Id,
+                            docSubject,
+                            statusChanged,
+                            JsonSerializer.Serialize(new
+                            {
+                                status = "failed",
+                                stage = "extract",
+                                errorCode = "extract_failed",
+                            }),
+                            cancellationToken);
+                    }
+                }
             }
+
+            await webhooks.ScheduleIfTerminalAsync(doc, context.File, cancellationToken);
         }
 
         await CompleteFileAsync(context, docReady, docFailed, cancellationToken);
+    }
+
+    private async Task ExtractOneAsync(
+        FilePipelineContext context,
+        OpsDocument doc,
+        OpsAgent agent,
+        string? sourceText,
+        long? metaProviderId,
+        long docReady,
+        long docFailed,
+        long docValidate,
+        long docComplete,
+        long docSubject,
+        long statusChanged,
+        int delay,
+        CancellationToken cancellationToken)
+    {
+        var result = await extract.ExtractAsync(
+            new ExtractAdapterRequest(
+                context.File.Id,
+                doc.Id,
+                doc.SequenceId,
+                context.File.StorageBucket ?? context.Normalize?.StorageBucket,
+                context.Normalize?.TextArtifactKey,
+                agent.OutputSchemaJson,
+                agent.Instructions,
+                sourceText),
+            cancellationToken);
+
+        doc.ResultJson = result.ResultJson;
+        doc.SchemaVersion = agent.SchemaVersion;
+        doc.ProviderId = metaProviderId;
+        doc.InternalStageEnumId = docValidate;
+        doc.UpdatedByUserId = context.Item.UserId;
+        await db.SaveChangesAsync(cancellationToken);
+        await AppendDocEventAsync(
+            context,
+            doc.Id,
+            docSubject,
+            statusChanged,
+            JsonSerializer.Serialize(new
+            {
+                status = "processing",
+                stage = "validate",
+                providerKey = result.ProviderKey,
+            }),
+            cancellationToken);
+        await DelayAsync(delay, cancellationToken);
+
+        await TryWriteExtractArtifactAsync(context, doc, result.ResultJson, cancellationToken);
+
+        JsonNode? instance;
+        try
+        {
+            instance = JsonNode.Parse(result.ResultJson);
+        }
+        catch (JsonException ex)
+        {
+            FailDocument(doc, docFailed, "schema_invalid", $"Extract result is not JSON: {ex.Message}", "validate", context.Item.UserId);
+            await db.SaveChangesAsync(cancellationToken);
+            await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"failed","stage":"validate","errorCode":"schema_invalid"}""", cancellationToken);
+            return;
+        }
+
+        var validation = JsonSchemaLite.Validate(agent.OutputSchemaJson, instance);
+        if (!validation.IsValid)
+        {
+            var message = string.Join(" ", validation.Errors);
+            FailDocument(
+                doc,
+                docFailed,
+                "schema_invalid",
+                message.Length > 4000 ? message[..4000] : message,
+                "validate",
+                context.Item.UserId);
+            await db.SaveChangesAsync(cancellationToken);
+            await AppendDocEventAsync(
+                context,
+                doc.Id,
+                docSubject,
+                statusChanged,
+                JsonSerializer.Serialize(new
+                {
+                    status = "failed",
+                    stage = "validate",
+                    errorCode = "schema_invalid",
+                    errors = validation.Errors.Take(20).ToArray(),
+                }),
+                cancellationToken);
+            return;
+        }
+
+        doc.PublicStatusEnumId = docReady;
+        doc.InternalStageEnumId = docComplete;
+        doc.CompletedAt = DateTimeOffset.UtcNow;
+        doc.ErrorCode = null;
+        doc.ErrorMessage = null;
+        doc.FailedStage = null;
+        doc.UpdatedByUserId = context.Item.UserId;
+        await db.SaveChangesAsync(cancellationToken);
+        await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"ready","stage":"validate"}""", cancellationToken);
+        logger.LogInformation("Document {DocumentId} extract+validate ready via {Provider}", doc.Id, result.ProviderKey);
     }
 
     private async Task CompleteFileAsync(

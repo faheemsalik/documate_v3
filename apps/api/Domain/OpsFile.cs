@@ -20,7 +20,7 @@ public sealed class OpsFile : WireFacingEntity, IHasRowVersion
     public string? EmailFrom { get; set; }
     public string? EmailSubject { get; set; }
 
-    /// <summary>Optional caller hints (documentTypeKey, documentCount). Complete type hint skips split/classify.</summary>
+    /// <summary>Optional caller hints (documentTypeKey, documentCount). Type + one page skips split/classify.</summary>
     public string? IntakeHintsJson { get; set; }
 
     public Guid? ReprocessOfFileId { get; set; }

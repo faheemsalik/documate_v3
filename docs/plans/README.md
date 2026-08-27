@@ -21,8 +21,8 @@ Agents executing **engineering** DQs must not invent product behavior. Agents on
 | [01-project-exploration-mental-design.md](./01-project-exploration-mental-design.md) | Product exploration | Frozen (product track) |
 | [02-document-queue-design.md](./02-document-queue-design.md) | Product design | Aligned to exploration |
 | [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md) | Implementation plan | Approved — A–I closed; entity catalog approved |
-| [03-documate-v3-dispatch-queue.md](./03-documate-v3-dispatch-queue.md) | Dispatch queue | 🔄 Waves 0–6 ✅; DQ-0701–0703 ✅; next DQ-0801 |
-| [04-split-classify-strategy-exploration.md](./04-split-classify-strategy-exploration.md) | Exploration | 🔄 Phase 1 locked: P0/C0 skip + S3 hybrid later; real split/classify deferred |
+| [03-documate-v3-dispatch-queue.md](./03-documate-v3-dispatch-queue.md) | Dispatch queue | 🔄 Waves 0–6 ✅; DQ-0701–0703 ✅; DQ-0801–0901 ✅; next DQ-1001 |
+| [04-split-classify-strategy-exploration.md](./04-split-classify-strategy-exploration.md) | Exploration | 🔄 Phase 1 P0/C0 locked; P8/F5 semantic split imported, not locked |
 
 ## Plan-writing rules
 

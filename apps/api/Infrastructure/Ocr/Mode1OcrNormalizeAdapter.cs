@@ -28,7 +28,8 @@ public sealed class Mode1OcrNormalizeAdapter(
         var bucket = request.StorageBucket;
         await using var source = await storage.DownloadAsync(bucket, request.StorageKey, cancellationToken);
 
-        var (plainText, pageCount, mode) = await ExtractAsync(source, request.ContentType, request.OriginalFileName, cancellationToken);
+        var bytes = await ReadAllBytesAsync(source, cancellationToken);
+        var (plainText, pageCount, mode) = Extract(bytes, request.ContentType, request.OriginalFileName);
 
         // Credentials present ⇒ Mode 1 OCR path armed (real Textract later); still write artifacts now.
         var hasOcrCreds = !string.IsNullOrWhiteSpace(credentials.Value.DefaultOcrApiKey);
@@ -99,11 +100,17 @@ public sealed class Mode1OcrNormalizeAdapter(
         return new NormalizeResult(providerKey, pageCount, textKey, layoutKey, bucket);
     }
 
-    private static async Task<(string Text, int PageCount, string Mode)> ExtractAsync(
-        Stream source,
+    private static async Task<byte[]> ReadAllBytesAsync(Stream source, CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+        await source.CopyToAsync(buffer, cancellationToken);
+        return buffer.ToArray();
+    }
+
+    private static (string Text, int PageCount, string Mode) Extract(
+        byte[] bytes,
         string? contentType,
-        string? originalFileName,
-        CancellationToken cancellationToken)
+        string? originalFileName)
     {
         var ct = (contentType ?? "").ToLowerInvariant();
         var ext = Path.GetExtension(originalFileName ?? "").ToLowerInvariant();
@@ -111,8 +118,7 @@ public sealed class Mode1OcrNormalizeAdapter(
         if (ct.StartsWith("text/", StringComparison.Ordinal)
             || ext is ".txt" or ".csv" or ".md" or ".json" or ".xml" or ".html" or ".htm")
         {
-            using var reader = new StreamReader(source, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: false);
-            var text = await reader.ReadToEndAsync(cancellationToken);
+            var text = Encoding.UTF8.GetString(bytes);
             if (string.IsNullOrWhiteSpace(text))
             {
                 text = "[empty text file]";
@@ -121,13 +127,29 @@ public sealed class Mode1OcrNormalizeAdapter(
             return (text, 1, "passthrough_text");
         }
 
-        // Binary / PDF / image: Phase 1 stub layout for split/classify until real Textract.
-        // Do not load entire large binaries as UTF-8.
-        var sizeHint = source.CanSeek ? source.Length : 0;
+        var isPdf = ct.Contains("pdf", StringComparison.Ordinal) || ext == ".pdf";
+        var pageCount = 1;
+        var mode = "stub_binary";
+        if (isPdf)
+        {
+            var counted = PdfPageCounter.TryCount(bytes);
+            if (counted is int n)
+            {
+                pageCount = n;
+            }
+            else
+            {
+                // Unknown PDF page count: do not treat as a single-page skip.
+                pageCount = 2;
+                mode = "stub_binary_pagecount_unknown";
+            }
+        }
+
         var stub = new StringBuilder();
         stub.AppendLine($"[stub_normalize] contentType={contentType ?? "unknown"} name={originalFileName ?? "file"}");
-        stub.AppendLine($"sizeBytes={sizeHint}");
+        stub.AppendLine($"sizeBytes={bytes.Length}");
+        stub.AppendLine($"pageCount={pageCount}");
         stub.AppendLine("OCR text placeholder for Mode 1 — replace with Textract/Document AI when credentials + S3 path are production-ready.");
-        return (stub.ToString(), pageCount: 1, mode: "stub_binary");
+        return (stub.ToString(), pageCount, mode);
     }
 }

@@ -1,0 +1,47 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API: Launch",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-api",
+      "program": "${workspaceFolder}/apps/api/bin/Debug/net10.0/Documate.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/apps/api",
+      "stopAtEntry": false,
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/health"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5172"
+      },
+      "launchSettingsFilePath": "${workspaceFolder}/apps/api/Properties/launchSettings.json",
+      "launchSettingsProfile": "http"
+    },
+    {
+      "name": "API: Attach",
+      "type": "coreclr",
+      "request": "attach"
+    },
+    {
+      "name": "Web: Chrome",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "run-web",
+      "url": "http://localhost:4200/",
+      "webRoot": "${workspaceFolder}/apps/web"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full stack: API + Web",
+      "configurations": ["API: Launch", "Web: Chrome"],
+      "stopAll": true
+    }
+  ]
+}

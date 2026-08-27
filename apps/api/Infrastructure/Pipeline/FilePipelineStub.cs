@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Hangfire File worker: normalize → split → classify → route → extract+validate.
-/// Predetermined documentTypeKey skips split and classify (DQ-0702 Phase 1).
+/// documentTypeKey + single-page file skips split and classify.
 /// </summary>
 public interface IFilePipelineStub
 {
@@ -111,6 +111,11 @@ public sealed class FilePipelineStub(
 
         await classify.ExecuteAsync(context, cancellationToken);
         await DelayAsync(delay, cancellationToken);
+
+        if (file.PublicStatusEnumId == failed)
+        {
+            return;
+        }
 
         await route.ExecuteAsync(context, cancellationToken);
         await DelayAsync(delay, cancellationToken);
