@@ -16,13 +16,14 @@ public static class PlatformCatalogSeeder
         await EnsureProvider(db, "gpt_5_6", "GPT 5.6", llmId, "OpenAI", now, cancellationToken);
         await EnsureProvider(db, "claude_sonnet_6", "Claude Sonnet 6", llmId, "Anthropic", now, cancellationToken);
         await EnsureProvider(db, "aws_textract", "AWS Textract", ocrId, "AWS", now, cancellationToken);
+        await EnsureProvider(db, "google_document_ai", "Google Document AI", ocrId, "Google", now, cancellationToken);
 
         var invoiceTypeId = await EnsureDocumentType(db, "invoice", "Invoice", "Supplier invoice", now, cancellationToken);
         var creditNoteTypeId = await EnsureDocumentType(db, "credit_note", "Credit note", null, now, cancellationToken);
         var deliveryNoteTypeId = await EnsureDocumentType(db, "delivery_note", "Delivery note", null, now, cancellationToken);
         await EnsureDocumentType(db, "purchase_order", "Purchase order", null, now, cancellationToken);
 
-        var metaProvider = await db.CorProviders.SingleAsync(p => p.ProviderKey == "documate_meta", cancellationToken);
+        var defaultLlmProvider = await db.CorProviders.SingleAsync(p => p.ProviderKey == "gpt_5_6", cancellationToken);
 
         await EnsureTemplate(
             db,
@@ -32,7 +33,7 @@ public static class PlatformCatalogSeeder
             invoiceTypeId,
             """{"type":"object","properties":{"invoice_number":{"type":"string"},"invoice_date":{"type":"string"},"total":{"type":"number"},"currency":{"type":"string"},"vendor_name":{"type":"string"}}}""",
             "Extract invoice header fields accurately. Prefer printed values over handwritten notes.",
-            metaProvider.Id,
+            defaultLlmProvider.Id,
             now,
             cancellationToken);
 
@@ -44,7 +45,7 @@ public static class PlatformCatalogSeeder
             creditNoteTypeId,
             """{"type":"object","properties":{"credit_note_number":{"type":"string"},"related_invoice_number":{"type":"string"},"total":{"type":"number"},"currency":{"type":"string"}}}""",
             "Extract credit note fields and link to original invoice when present.",
-            metaProvider.Id,
+            defaultLlmProvider.Id,
             now,
             cancellationToken);
 
@@ -56,7 +57,7 @@ public static class PlatformCatalogSeeder
             deliveryNoteTypeId,
             """{"type":"object","properties":{"delivery_note_number":{"type":"string"},"delivery_date":{"type":"string"},"ship_to":{"type":"string"},"line_items":{"type":"array"}}}""",
             "Extract delivery note header and line items.",
-            metaProvider.Id,
+            defaultLlmProvider.Id,
             now,
             cancellationToken);
     }
@@ -173,6 +174,14 @@ public static class PlatformCatalogSeeder
             row.IsDeleted = false;
             row.DeletedAt = null;
             row.IsPublished = true;
+            row.UpdatedAt = now;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        // DQ-0704: templates use LLM DefaultProviderId (not documate_meta).
+        if (row.DefaultProviderId != providerId)
+        {
+            row.DefaultProviderId = providerId;
             row.UpdatedAt = now;
             await db.SaveChangesAsync(cancellationToken);
         }

@@ -1,0 +1,54 @@
+<section class="builder">
+  <div class="section">
+    <div class="section-head">
+      <h3>Header fields</h3>
+      <p-button label="Add field" icon="pi pi-plus" size="small" severity="secondary" (onClick)="addField()" />
+    </div>
+    @for (field of fields(); track $index) {
+      <div class="row">
+        <input pInputText [(ngModel)]="field.key" (ngModelChange)="onFieldChange()" placeholder="field_key" />
+        <p-select
+          [options]="fieldTypes"
+          [(ngModel)]="field.type"
+          (ngModelChange)="onFieldChange()"
+          optionLabel="label"
+          optionValue="value"
+        />
+        <label class="req">
+          <p-checkbox [(ngModel)]="field.required" (ngModelChange)="onFieldChange()" [binary]="true" />
+          Required
+        </label>
+        <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="removeField($index)" />
+      </div>
+    }
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h3>Line tables</h3>
+      <p-button label="Add table" icon="pi pi-plus" size="small" severity="secondary" (onClick)="addTable()" />
+    </div>
+    @for (table of tables(); track $index; let ti = $index) {
+      <div class="table-block">
+        <div class="row">
+          <input pInputText [(ngModel)]="table.key" (ngModelChange)="onFieldChange()" placeholder="line_items" />
+          <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="removeTable(ti)" />
+        </div>
+        @for (col of table.columns; track $index; let ci = $index) {
+          <div class="row indent">
+            <input pInputText [(ngModel)]="col.key" (ngModelChange)="onFieldChange()" placeholder="column" />
+            <p-select
+              [options]="fieldTypes"
+              [(ngModel)]="col.type"
+              (ngModelChange)="onFieldChange()"
+              optionLabel="label"
+              optionValue="value"
+            />
+            <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="removeTableColumn(ti, ci)" />
+          </div>
+        }
+        <p-button label="Add column" size="small" [text]="true" (onClick)="addTableColumn(ti)" />
+      </div>
+    }
+  </div>
+</section>

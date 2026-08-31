@@ -1,0 +1,29 @@
+<div class="page">
+  <header class="page-header">
+    <h1>Dashboard</h1>
+    <p class="subtitle">File processing overview · default queue</p>
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading metrics…" />
+  } @else {
+    <div class="kpi-grid">
+      <p-card class="kpi total">
+        <div class="kpi-value">{{ total() }}</div>
+        <div class="kpi-label">Total files</div>
+        <a routerLink="/files">View all →</a>
+      </p-card>
+      @for (entry of byStatus(); track entry[0]) {
+        <p-card class="kpi">
+          <div class="kpi-row">
+            <span class="kpi-value">{{ entry[1] }}</span>
+            <p-tag [value]="formatStatusLabel(entry[0])" [severity]="statusSeverity(entry[0])" />
+          </div>
+          <a routerLink="/files">Extract data →</a>
+        </p-card>
+      }
+    </div>
+  }
+</div>

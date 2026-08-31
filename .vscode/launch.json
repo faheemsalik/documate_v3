@@ -33,7 +33,7 @@
       "type": "chrome",
       "request": "launch",
       "preLaunchTask": "run-web",
-      "url": "http://localhost:4200/",
+      "url": "http://localhost:4202/",
       "webRoot": "${workspaceFolder}/apps/web"
     }
   ],

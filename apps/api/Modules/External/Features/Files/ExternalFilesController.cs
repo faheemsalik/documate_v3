@@ -2,6 +2,7 @@ namespace Documate.Api.Modules.External.Features.Files;
 
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Persistence;
+using Documate.Api.Infrastructure.Work;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,6 +17,7 @@ public sealed class ExternalFilesController(IMediator mediator) : ControllerBase
     [HttpGet("queues/{queueId:guid}/files")]
     public async Task<ActionResult<IReadOnlyList<ExternalFileDto>>> List(
         Guid queueId,
+        [FromQuery] List<Guid>? ids,
         [FromQuery] string? status,
         [FromQuery] Guid? batchId,
         [FromQuery] DateTimeOffset? createdFrom,
@@ -23,7 +25,13 @@ public sealed class ExternalFilesController(IMediator mediator) : ControllerBase
         CancellationToken cancellationToken)
     {
         var items = await mediator.Send(
-            new ListExternalFilesQuery(queueId, status, batchId, createdFrom, createdTo),
+            new ListExternalFilesQuery(
+                queueId,
+                ids is { Count: > 0 } ? ids : null,
+                status,
+                batchId,
+                createdFrom,
+                createdTo),
             cancellationToken);
         return Ok(items);
     }
@@ -33,6 +41,31 @@ public sealed class ExternalFilesController(IMediator mediator) : ControllerBase
     {
         var dto = await mediator.Send(new GetExternalFileQuery(fileId), cancellationToken);
         return dto is null ? NotFound() : Ok(dto);
+    }
+
+    /// <summary>Cancel File (Plan 02 §11.1 / DQ-1001). Non-terminal docs → cancelled + webhooks; Ready docs kept.</summary>
+    [HttpPost("files/{fileId:guid}/cancel")]
+    public async Task<ActionResult<ExternalFileDto>> Cancel(Guid fileId, CancellationToken cancellationToken)
+    {
+        var dto = await mediator.Send(new CancelExternalFileCommand(fileId), cancellationToken);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    /// <summary>Explicit reprocess (Plan 02 §11.3 / DQ-1002). New File + enqueue; source unchanged.</summary>
+    [HttpPost("files/{fileId:guid}/reprocess")]
+    public async Task<ActionResult<ExternalFileDto>> Reprocess(Guid fileId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dto = await mediator.Send(new ReprocessExternalFileCommand(fileId), cancellationToken);
+            return dto is null ? NotFound() : Accepted(dto);
+        }
+        catch (InvalidOperationException ex) when (
+            ex.Message.Contains("storage", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("Queue not found", StringComparison.Ordinal))
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }
 
@@ -47,16 +80,22 @@ public sealed record ExternalFileDto(
     string? InternalStageKey,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt,
-    int DocumentCount);
+    int DocumentCount,
+    Guid? ReprocessOfFileId = null);
 
 public sealed record ListExternalFilesQuery(
     Guid QueueId,
+    IReadOnlyList<Guid>? Ids,
     string? StatusKey,
     Guid? BatchId,
     DateTimeOffset? CreatedFrom,
     DateTimeOffset? CreatedTo) : IRequest<IReadOnlyList<ExternalFileDto>>;
 
 public sealed record GetExternalFileQuery(Guid FileId) : IRequest<ExternalFileDto?>;
+
+public sealed record CancelExternalFileCommand(Guid FileId) : IRequest<ExternalFileDto?>;
+
+public sealed record ReprocessExternalFileCommand(Guid FileId) : IRequest<ExternalFileDto?>;
 
 public sealed class ListExternalFilesHandler(DocumateDbContext db, IBusinessContext business, ICorEnumIdResolver enums)
     : IRequestHandler<ListExternalFilesQuery, IReadOnlyList<ExternalFileDto>>
@@ -65,6 +104,11 @@ public sealed class ListExternalFilesHandler(DocumateDbContext db, IBusinessCont
     {
         var q = db.OpsFiles.AsNoTracking()
             .Where(f => f.QueueId == request.QueueId && f.BusinessId == business.BusinessId && !f.IsDeleted);
+
+        if (request.Ids is { Count: > 0 } ids)
+        {
+            q = q.Where(f => ids.Contains(f.Id));
+        }
 
         if (request.BatchId is Guid batchId)
         {
@@ -113,6 +157,50 @@ public sealed class GetExternalFileHandler(DocumateDbContext db, IBusinessContex
         }
 
         var list = await ExternalFileDtoMapping.MapManyAsync(db, [file], cancellationToken);
+        return list.FirstOrDefault();
+    }
+}
+
+public sealed class CancelExternalFileHandler(
+    ICancelWorkService cancel,
+    IBusinessContext business,
+    DocumateDbContext db) : IRequestHandler<CancelExternalFileCommand, ExternalFileDto?>
+{
+    public async Task<ExternalFileDto?> Handle(CancelExternalFileCommand request, CancellationToken cancellationToken)
+    {
+        var result = await cancel.CancelFileAsync(
+            request.FileId,
+            business.BusinessId,
+            business.UserId,
+            cancellationToken);
+        if (result is null)
+        {
+            return null;
+        }
+
+        var list = await ExternalFileDtoMapping.MapManyAsync(db, [result.File], cancellationToken);
+        return list.FirstOrDefault();
+    }
+}
+
+public sealed class ReprocessExternalFileHandler(
+    IReprocessWorkService reprocess,
+    IBusinessContext business,
+    DocumateDbContext db) : IRequestHandler<ReprocessExternalFileCommand, ExternalFileDto?>
+{
+    public async Task<ExternalFileDto?> Handle(ReprocessExternalFileCommand request, CancellationToken cancellationToken)
+    {
+        var result = await reprocess.ReprocessFileAsync(
+            request.FileId,
+            business.BusinessId,
+            business.UserId,
+            cancellationToken);
+        if (result is null)
+        {
+            return null;
+        }
+
+        var list = await ExternalFileDtoMapping.MapManyAsync(db, [result.NewFile], cancellationToken);
         return list.FirstOrDefault();
     }
 }
@@ -166,7 +254,8 @@ file static class ExternalFileDtoMapping
                 stageKey,
                 f.CreatedAt,
                 f.CompletedAt,
-                count);
+                count,
+                f.ReprocessOfFileId);
         }).ToList();
     }
 }

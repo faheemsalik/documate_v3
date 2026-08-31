@@ -4,7 +4,9 @@ namespace Documate.Api.Infrastructure.Pipeline;
 public sealed record FileWorkItem(
     Guid FileId,
     string BusinessId,
-    string? UserId);
+    string? UserId,
+    /// <summary>normal (default Hangfire queue) or high (Hangfire queue "priority").</summary>
+    string Priority = "normal");
 
 /// <summary>Non-blocking durable enqueue for File pipeline work.</summary>
 public interface IWorkDispatcher

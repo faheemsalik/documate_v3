@@ -11,8 +11,8 @@
         "-c",
         "Debug",
         "--nologo",
-        "/property:GenerateFullPaths=true",
-        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+"/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
       ],
       "group": {
         "kind": "build",

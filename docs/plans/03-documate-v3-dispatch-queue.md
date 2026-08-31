@@ -38,12 +38,12 @@
 
 | Metric | Value |
 |--------|--------|
-| Total DQ items | 38 |
-| ✅ Complete | 23 |
+| Total DQ items | 42 |
+| ✅ Complete | 29 |
 | 🔄 In Progress | 0 |
-| ⬜ Ready | 7 |
+| ⬜ Ready | 3 |
 | ⏸ Parked | 8 (DQ-1202 email; DQ-1501–1507 Iden follow-on J3) |
-| ❌ Cancelled | 0 |
+| ❌ Cancelled | 2 (DQ-1301, DQ-1302 → Band 16 customer frontend MVP) |
 
 **Count note:** Phase 1 executable = bands 00–14 except DQ-1202. Band 15 parked until Phase 1 product accepted (Decision **J3**).
 
@@ -62,7 +62,8 @@
 | I | Queue UUID PK + SequenceId |
 | J | **J3** — late Iden validation; Band 15 follow-on after Phase 1 product |
 | — | Entity catalog **approved** |
-| — | Multi-queue + QueueRoute day one; Agent-primary post-processing |
+| — | Keep Queue + QueueRoute (Queue untyped; type→Agent routes) |
+| K | **K1** — Default channel: Business create → default Queue (`IsDefault`); Agent create/clone auto-route when Business has exactly one Queue; Phase 1 UI shows Queue ID on Business; multi-queue UI later |
 | — | **Iden Integration & Validation** (Band 15) — parked until Phase 1 done |
 
 ### Pending decisions
@@ -99,9 +100,11 @@ None blocking Phase 1 execution. (J3 locked.)
 | DQ-0201 | 02 | Platform catalogs: Provider, DocumentType, AgentTemplate APIs | ✅ | DQ-0102, DQ-0003 |
 | DQ-0202 | 02 | Agent CRUD (schema, instructions, WorkflowId, DocumentTypeId) | ✅ | DQ-0201 |
 | DQ-0203 | 02 | Guided clone from AgentTemplate | ✅ | DQ-0202 |
+| DQ-0204 | 02 | Agent create/clone auto QueueRoute when Business has one Queue | ✅ | DQ-0203, DQ-0304 |
 | DQ-0301 | 03 | Queue CRUD (multi-queue per Business) | ✅ | DQ-0102 |
 | DQ-0302 | 03 | QueueRoute + RoutingLocked behavior | ✅ | DQ-0301, DQ-0202 |
 | DQ-0303 | 03 | Queue webhook settings + email address mint + allowlist entries | ✅ | DQ-0301 |
+| DQ-0304 | 03 | Default Queue bootstrap on Business create (`IsDefault`) + expose default queue_id | ✅ | DQ-0102, DQ-0301 |
 | DQ-0401 | 04 | Blob/object storage for File bytes (business-prefixed keys) | ✅ | DQ-0004 |
 | DQ-0402 | 04 | Persist Batch, File, Document, IntakeRejection, WorkEvent | ✅ | DQ-0002, DQ-0301 |
 | DQ-0501 | 05 | In-process dispatcher (A1) + File pipeline stub (non-blocking enqueue) | ✅ | DQ-0402 |
@@ -111,16 +114,18 @@ None blocking Phase 1 execution. (J3 locked.)
 | DQ-0701 | 07 | Normalize/OCR adapter(s) Mode 1 | ✅ | DQ-0501 |
 | DQ-0702 | 07 | Split → classify → route (E3 multi-doc PDFs) | ✅ | DQ-0701, DQ-0302 |
 | DQ-0703 | 07 | Extract via Documate meta-provider + schema validate → Ready/Failed | ✅ | DQ-0702, DQ-0202 |
+| DQ-0704 | 07 | Real OCR (Textract→Google) + live LLM extract + sync gates + app priority + ops alert | ✅ | DQ-0703, DQ-0901, DQ-0304 |
 | DQ-0801 | 08 | Per-Document webhook dispatch + attempt metadata | ✅ | DQ-0703, DQ-0303 |
 | DQ-0901 | 09 | Sync-wait API (single-doc, 60s, no webhook C2) | ✅ | DQ-0703, DQ-0603 |
-| DQ-1001 | 10 | Cancel File and Cancel Document | ⬜ | DQ-0703, DQ-0801 |
-| DQ-1002 | 10 | Explicit reprocess → new File | ⬜ | DQ-0601, DQ-0703 |
-| DQ-1101 | 11 | Agent post-processing runner + internal MCP (1–2 platform tools) | ⬜ | DQ-0703 |
+| DQ-1001 | 10 | Cancel File and Cancel Document | ✅ | DQ-0703, DQ-0801 |
+| DQ-1002 | 10 | Explicit reprocess → new File | ✅ | DQ-0601, DQ-0703 |
+| DQ-1101 | 11 | Agent post-processing runner + internal MCP (1–2 platform tools) | ✅ | DQ-0703 |
 | DQ-1201 | 12 | Email intake stub + intake-decision agent skeleton | ⬜ | DQ-0501, DQ-0402 |
 | DQ-1202 | 12 | Real email inbound D1 and/or D2 (one active at a time) | ⏸ | Activation: later email phase after stub proven |
-| DQ-1301 | 13 | Angular: Agents + Queues configuration UI | ⬜ | DQ-0203, DQ-0303, DQ-0101 |
-| DQ-1302 | 13 | Angular: Files/Documents monitor + cancel/reprocess actions | ⬜ | DQ-0602, DQ-1001, DQ-1301 |
+| DQ-1301 | 13 | Angular: Agents + Business default channel (Queue ID) + intake settings | ❌ | Superseded by Band 16 (`07-customer-frontend-dispatch-queue.md`) |
+| DQ-1302 | 13 | Angular: Files/Documents monitor + cancel/reprocess actions | ❌ | Superseded by Band 16 (`07-customer-frontend-dispatch-queue.md`) |
 | DQ-1401 | 14 | Hardening: rate/size limits, allowlist enforce path, metrics/logs | ⬜ | DQ-0801, DQ-0303 |
+| DQ-1402 | 14 | Upload intake performance (multi-file parallel, fewer DB round trips, intake timing metrics) | ⬜ | DQ-0601, DQ-0401, DQ-1401 |
 | DQ-1501 | 15 | Inventory Iden APIs + Documate-facing contract note | ⏸ | Activation: after Phase 1 product done-when (J3) |
 | DQ-1502 | 15 | Live Iden human auth (Angular + API) — no fixed shipping tokens | ⏸ | DQ-1501, DQ-0101 |
 | DQ-1503 | 15 | Integration harness: Tenant→Business through Documate | ⏸ | DQ-1502, DQ-0102 |
@@ -142,10 +147,10 @@ DQ-0001 → DQ-0002 → DQ-0003; DQ-0004 parallel after DQ-0001.
 DQ-0101 → DQ-0102.
 
 ### Wave 2 — Configuration (Agents)
-DQ-0201 → DQ-0202 → DQ-0203.
+DQ-0201 → DQ-0202 → DQ-0203; DQ-0204 after DQ-0304.
 
 ### Wave 3 — Configuration (Queues)
-DQ-0301 → DQ-0302, DQ-0303.
+DQ-0301 → DQ-0302, DQ-0303, DQ-0304.
 
 ### Wave 4 — Storage & work records
 DQ-0401, DQ-0402.
@@ -157,13 +162,13 @@ DQ-0501.
 DQ-0603 → DQ-0601, DQ-0602.
 
 ### Wave 7 — Core pipeline
-DQ-0701 → DQ-0702 → DQ-0703.
+DQ-0701 → DQ-0702 → DQ-0703 → **DQ-0704** (real OCR + live LLM).
 
 ### Wave 8 — Delivery
 DQ-0801, DQ-0901, DQ-1001, DQ-1002.
 
 ### Wave 9 — Post-process + email stub + web + harden
-DQ-1101, DQ-1201, DQ-1301 → DQ-1302, DQ-1401.  
+DQ-1101, DQ-1201, DQ-1401 → **DQ-1402** (last Phase 1 executable item). Band 13 Angular (**DQ-1301/1302**) ❌ superseded by Band 16 customer frontend MVP.  
 DQ-1202 remains ⏸.
 
 ### Wave 10 — Iden Integration & Validation (J3 — follow-on)
@@ -275,10 +280,21 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - `POST /api/app/agents/clone-from-template` copies schema/instructions/provider; sets SourceTemplateId  
   - Smoke: cloned `invoice_generic_v1` → Agent with SourceTemplateId
 
+### DQ-0204 — Agent auto QueueRoute (single-Queue Business)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-0203, DQ-0304  
+- **Source:** Plan 02 §3.1; Plan 03 Agent auto-route; Decision **K1**  
+- **Outcome:** On Agent **create** or **guided clone**, if the Business has **exactly one** non-deleted Queue, insert `QueueRoute(QueueId, DocumentTypeId, AgentId)`. If that DocumentType is already routed on that Queue → conflict (no overwrite). If **2+** Queues → create Agent only (no auto-route). If **0** Queues → fail (default Queue missing). Respect `RoutingLocked` (no auto-route when locked).  
+- **Required Documents:** Plan 02 §3.1; Plan 03 Agent / QueueRoute  
+- **Evidence:**
+  - `IAgentQueueRouteAutoMapper` wired into CreateAgent + CloneFromTemplate (transactional)
+  - 0 queues → 409; type already routed → 409; 2+ queues → Agent only; RoutingLocked → skip route
+  - Migration/runtime default Queue makes 0-queue case exceptional after provisioning
+
 ### DQ-0301 — Queue CRUD (multi-queue)
 - **Status:** ✅ Complete  
 - **Dependency:** DQ-0102  
-- **Source:** Plan 03 Queue; multi-queue day one  
+- **Source:** Plan 03 Queue; multi-queue in model  
 - **Outcome:** Business can create multiple Queues; CRUD + list.  
 - **Required Documents:** Plan 02; Plan 03  
 - **Evidence:** 
@@ -305,6 +321,19 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - `PUT .../webhook` (secret hashed); `POST .../email/mint`; `PUT .../email` allowlist mode  
   - Allowlist entry CRUD; inbound receive still stubbed  
   - Postman: `docs/postman/Documate-v3-Smoke-Waves-0-3.postman_collection.json`
+
+### DQ-0304 — Default Queue bootstrap (`IsDefault`)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-0102, DQ-0301  
+- **Source:** Plan 02 §3.1; Plan 03 Queue / CorTenantBusiness; Decision **K1**  
+- **Outcome:** Ensuring/creating `CorTenantBusiness` creates a **default Queue** (`IsDefault = true`, name e.g. `Default channel`) if the Business has none. Migration/backfill for existing Businesses missing a default. Unique filtered: one default per Business. App/Business read APIs expose `defaultQueueId`. Optional: Business-scoped intake settings endpoints that write through to the default Queue (or document that existing Queue webhook/email APIs are used with that id).  
+- **Required Documents:** Plan 02 §3.1; Plan 03 Queue `IsDefault`  
+- **Evidence:**
+  - `OpsQueue.IsDefault` + filtered unique index `IX_OpsQueues_BusinessId_IsDefault`
+  - Migration `20260828010000_OpsQueueIsDefault` (promote oldest / insert missing)
+  - `TenantBusinessProvisioner` → `IDefaultQueueBootstrap.EnsureDefaultAsync`
+  - `GET /api/app/me` → `defaultQueueId`; `QueueDto.isDefault`
+  - Cannot delete default Queue (409)
 
 ### DQ-0401 — Blob storage
 - **Status:** ✅ Complete  
@@ -428,6 +457,23 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - Unit tests: `tests/api/ExtractTests.cs`
   - Smoke 2026-08-18: typed invoice labels → ready `resultJson.invoice_number=INV-0703`; no type → `no_agent`; no QueueRoute → `unroutable_type`
 
+### DQ-0704 — Real OCR + live LLM extract
+- **Status:** ✅ Complete
+- **Dependency:** DQ-0703, DQ-0901, DQ-0304
+- **Source:** [05-ocr-normalize-real-providers-exploration.md](./05-ocr-normalize-real-providers-exploration.md); [05-ocr-llm-extract-implementation-plan.md](./05-ocr-llm-extract-implementation-plan.md); Queue K1
+- **Outcome:** End-to-end useful path on **default Queue**: real OCR text/layout artifacts (Textract → Google Document AI fallback) + live LLM field extract (Agent/template provider) + schema validate; sync gates (≤3 pages, ≤5 MB, 60s); App upload optional priority; LLM fail after retry → ops email (best-effort when notifications enabled).
+- **Required Documents:** Exploration 05; Implementation plan 05; Plan 02 §3.1; Plan 03 Wave 4
+- **Evidence:**
+  - `Ocr:` / `Llm:` / `Notifications:` options in appsettings + `.env.example`; `LlmStartupGate` requires default provider ApiKey+Model (skip only `Testing`)
+  - Catalog: `google_document_ai` seeded; AgentTemplate `DefaultProviderId` → `gpt_5_6`
+  - Normalize: `TextractOcrEngine` + `GoogleDocumentAiOcrEngine` compose primary→secondary; artifacts `normalize.text.txt` + `normalize.layout.json`; Textract sync ≤8 pages / single-page PDF bytes; multipage/large → S3 async Textract when `Storage:Provider=s3`, else Google fallback
+  - Extract: `LiveLlmDocumentExtractAdapter` HTTP OpenAI-compatible / Anthropic; full normalize text; retry once; Document `ProviderId` = `documate_meta`; WorkEvent payload carries concrete `providerKey`
+  - Sync extract: `SyncExtractGates` reject >3 pages or >5 MB before persist; wait 60s unchanged
+  - App `priority=high` → Hangfire queue `priority` (server listens `priority`, `default`, `webhooks`)
+  - LLM final fail → `IOpsAlertSender` log; SMTP when `Notifications:Enabled` (mail never changes status)
+  - Packages: AWSSDK.Textract, Google.Cloud.DocumentAI.V1, MailKit; `dotnet build` OK; unit tests 18 passed
+  - Smoke: set user-secrets for `Llm:Providers:gpt_5_6:ApiKey` (+ OCR keys); restart API; upload on **defaultQueueId** with QueueRoute → expect real OCR artifacts + LLM `resultJson` (not heuristic stub)
+
 ### DQ-0801 — Per-Document webhooks
 - **Status:** ✅ Complete  
 - **Dependency:** DQ-0703, DQ-0303  
@@ -457,28 +503,45 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - Smoke 2026-08-18: typed invoice → 200 `timedOut=false` ready + `INV-0901` + `webhookStatusKey=skipped`; `documentCount=2` → 400
 
 ### DQ-1001 — Cancel File / Document
-- **Status:** ⬜ Ready  
-- **Dependency:** DQ-0703, DQ-0801  
-- **Source:** Plan 02 cancel rules  
-- **Outcome:** Cancel File aborts pack → Cancelled + webhooks for newly cancelled docs; Cancel Document single-doc; file rollup updates.  
-- **Required Documents:** Plan 02  
-- **Evidence:** (fill on completion)
+- **Status:** ✅ Complete
+- **Dependency:** DQ-0703, DQ-0801
+- **Source:** Plan 02 cancel rules
+- **Outcome:** Cancel File aborts pack → Cancelled + webhooks for newly cancelled docs; Cancel Document single-doc; file rollup updates.
+- **Required Documents:** Plan 02
+- **Evidence:**
+  - `ICancelWorkService` / `CancelWorkService` — Plan 02 §11; sets `CancelledAt` / `CancelledByUserId` / `ErrorCode=cancelled`
+  - `POST /api/v1/files/{fileId}/cancel` — file → `cancelled` (overrides rollup); non-terminal docs → `cancelled` + `ScheduleIfTerminalAsync`; Ready/Failed/Rejected docs unchanged; idempotent if already cancelled
+  - `POST /api/v1/documents/{documentId}/cancel` — doc → `cancelled` + webhook; file rollup via `FilePublicStatusRollup` (Plan 02 §6.2); 409 if doc already Ready/Failed/Rejected
+  - Pipeline: `FilePipelineStub` aborts on cancelled (reload between stages); extract skips cancelled docs / cancelled file; does not overwrite whole-file cancel
+  - WorkEvents: `work_event_type=cancelled` on cancel; file rollup `status_changed` after cancel-doc
+  - Postman: cancel file + cancel document requests; unit tests for rollup (21 total passed)
 
 ### DQ-1002 — Reprocess
-- **Status:** ⬜ Ready  
-- **Dependency:** DQ-0601, DQ-0703  
-- **Source:** Plan 01/02 reprocess explicit → new File  
-- **Outcome:** Explicit reprocess creates new File (link ReprocessOfFileId) and new Documents; new webhooks.  
-- **Required Documents:** Plan 02  
-- **Evidence:** (fill on completion)
+- **Status:** ✅ Complete
+- **Dependency:** DQ-0601, DQ-0703
+- **Source:** Plan 01/02 reprocess explicit → new File
+- **Outcome:** Explicit reprocess creates new File (link ReprocessOfFileId) and new Documents; new webhooks.
+- **Required Documents:** Plan 02
+- **Evidence:**
+  - `POST /api/v1/files/{fileId}/reprocess` → **202 Accepted** + new `ExternalFileDto` (`reprocessOfFileId` set); source File unchanged
+  - `IReprocessWorkService`: download source blob → `CreateFileWithBlobAsync` (new storage key) with `ReprocessOfFileId` + copied hints/hash → Hangfire `EnqueueFileAsync`
+  - Single-file reprocess → `BatchId=null` (Plan 02 §11.3); Documents/webhooks from normal pipeline
+  - `CreateFileWithBlobRequest` extended with optional `ReprocessOfFileId` / `ContentHash`
+  - Postman: POST reprocess file; unit tests 21 passed
 
 ### DQ-1101 — Agent post-processing + internal MCP
-- **Status:** ⬜ Ready  
-- **Dependency:** DQ-0703  
-- **Source:** Agent-primary workflow; Plan 03 Wave 6 (corrected: Agent not Queue)  
-- **Outcome:** After extract, run Agent.WorkflowId steps via internal MCP host; ≥1–2 platform tools (e.g. date/currency normalize stub).  
-- **Required Documents:** Plan 01 §13; Plan 03 Agent WorkflowId  
-- **Evidence:** (fill on completion)
+- **Status:** ✅ Complete
+- **Dependency:** DQ-0703
+- **Source:** Agent-primary workflow; Plan 03 Wave 6 (corrected: Agent not Queue)
+- **Outcome:** After extract, run Agent.WorkflowId steps via internal MCP host; ≥1–2 platform tools (e.g. date/currency normalize stub).
+- **Required Documents:** Plan 01 §13; Plan 03 Agent WorkflowId
+- **Evidence:**
+  - Internal MCP: `IInternalMcpHost` + platform tools `normalize_date`, `normalize_currency` (not OCR/LLM as MCP)
+  - `IAgentPostProcessRunner` runs `Agent.DefaultWorkflowId` → `CorWorkflowDefinition.DefinitionJson` steps after schema validate, before Ready
+  - Fail → `post_process_failed`; stage `document_internal_stage=post_process`; webhooks still on terminal
+  - Bootstrap: Business provision creates `normalize_fields_v1` workflow; Agent create/clone auto-attaches when `DefaultWorkflowId` unset
+  - DefinitionJson: `{"steps":[{"tool":"normalize_date","fields":["*"]},{"tool":"normalize_currency","fields":["*"]}]}`
+  - Unit tests for date/currency tools; 23 tests passed
 
 ### DQ-1201 — Email stub + intake agent skeleton
 - **Status:** ⬜ Ready  
@@ -497,29 +560,46 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 - **Required Documents:** Plan 03 Decision D  
 - **Evidence:** —  
 
-### DQ-1301 — Angular Agents + Queues UI
-- **Status:** ⬜ Ready  
-- **Dependency:** DQ-0203, DQ-0303, DQ-0101  
-- **Source:** Plan 03 Wave 8  
-- **Outcome:** Configure Agents (clone/edit), Queues, routes, webhook/email/allowlist in Angular (Plan 00 web conventions).  
-- **Required Documents:** `angular-conventions.md`; Plan 03  
-- **Evidence:** (fill on completion)
+### DQ-1301 — Angular Agents + Business default channel
+- **Status:** ❌ Cancelled  
+- **Cancellation note:** Superseded 2026-08-30 by customer frontend MVP Band 16 — see [07-customer-frontend-dispatch-queue.md](./07-customer-frontend-dispatch-queue.md) (DQ-1606, DQ-1609, etc.). Do not execute this thin Wave 8 shell.  
+- **Dependency:** DQ-0204, DQ-0304, DQ-0303, DQ-0101  
+- **Source:** Plan 03 Wave 8; Decision **K1**; superseded by Plan 07  
+- **Outcome:** (cancelled)  
+- **Required Documents:** —  
+- **Evidence:** Cancelled in favor of DQ-1601+  
 
 ### DQ-1302 — Angular monitor UI
-- **Status:** ⬜ Ready  
+- **Status:** ❌ Cancelled  
+- **Cancellation note:** Superseded 2026-08-30 by Band 16 Files UI (DQ-1604…) without cancel/reprocess in MVP. See [07-customer-frontend-dispatch-queue.md](./07-customer-frontend-dispatch-queue.md).  
 - **Dependency:** DQ-0602, DQ-1001, DQ-1301  
-- **Source:** Plan 03 Wave 8  
-- **Outcome:** Browse Files/Documents/rejections; cancel/reprocess actions.  
-- **Required Documents:** Plan 03  
-- **Evidence:** (fill on completion)
+- **Source:** Plan 03 Wave 8; superseded by Plan 07  
+- **Outcome:** (cancelled)  
+- **Required Documents:** —  
+- **Evidence:** Cancelled in favor of DQ-1602/1604+  
 
 ### DQ-1401 — Hardening
-- **Status:** ⬜ Ready  
-- **Dependency:** DQ-0801, DQ-0303  
-- **Source:** Plan 03 Wave 9  
-- **Outcome:** Rate/size limits; allowlist enforcement path; basic metrics/logs; do not market email hard until allowlist UX ready.  
-- **Required Documents:** Plan 03; Plan 01 email gates  
+- **Status:** ⬜ Ready
+- **Dependency:** DQ-0801, DQ-0303
+- **Source:** Plan 03 Wave 9
+- **Outcome:** Rate/size limits; allowlist enforcement path; basic metrics/logs; do not market email hard until allowlist UX ready.
+- **Required Documents:** Plan 03; Plan 01 email gates
 - **Evidence:** (fill on completion)
+
+### DQ-1402 — Upload intake performance
+- **Status:** ⬜ Ready
+- **Dependency:** DQ-0601, DQ-0401, DQ-1401 (metrics baseline)
+- **Source:** Dev smoke — ~16s to accept 3×87 KB PDFs; intake path not sized for partner batch upload
+- **Outcome:** Faster **upload accept** path (202 / Created) — not full OCR/LLM pipeline. Target: multi-file batch intake dominated by blob I/O, not sequential SQL.
+- **Likely work:**
+  - Parallelize per-file blob writes in `ExternalUploadFilesHandler` (and app upload batch if added)
+  - Reduce `CreateFileWithBlobAsync` round trips (cache queue + tenant scope per request; coalesce SaveChanges / defer WorkEvents to batch flush)
+  - Optional: presigned direct-to-storage upload (design spike only if needed)
+  - Intake timing metrics: `upload.accept_ms`, `upload.blob_ms`, `upload.db_ms` per file/batch
+  - Document: async upload returns immediately; sync-wait / poll is separate from intake latency
+- **Acceptance:** 3×100 KB files → HTTP accept **&lt; 2s** p95 local dev (excluding pipeline); evidence in DQ entry
+- **Required Documents:** Plan 03 Wave 4 intake; DQ-0601
+- **Evidence:** (fill on completion — before/after timings, Postman or script)
 
 ### DQ-1501 — Inventory Iden APIs + contract note
 - **Status:** ⏸ Parked  
@@ -582,11 +662,13 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 
 ## Readiness
 
-**Decision J3 locked.** Band 15 parked.  
-**Waves 0–6 complete; DQ-0701–0703 ✅; DQ-0801 ✅; DQ-0901 ✅.** Real split/classify later. Live LLM extract later.  
+**Decision J3 locked.** Decision **K1** locked (default channel). Band 15 parked.  
+**Waves 0–6 complete; DQ-0701–0704 ✅; DQ-0801 ✅; DQ-0901 ✅; DQ-1001–1002 ✅; DQ-1101 ✅; DQ-0304 ✅; DQ-0204 ✅.**  
+**Next ready:** `DQ-1201` (email stub). **Last Phase 1 item:** `DQ-1402` (upload intake performance). Customer web UI: [07-customer-frontend-dispatch-queue.md](./07-customer-frontend-dispatch-queue.md) (Band 16; starts at DQ-1601/1602).
 **Postman:** [`docs/postman/Documate-v3-API.postman_collection.json`](../postman/Documate-v3-API.postman_collection.json).  
-**Next:** `DQ-1001` (cancel File / Document).  
-**Jobs:** Hangfire dashboard (Dev) at `/hangfire`.  
-**External auth:** `X-Api-Key` (F2 temporary). Optional upload field: `documentTypeKey`.
+**OCR/LLM secrets:** `Llm:Providers:…:ApiKey` required at startup; `Ocr:Textract` / `Ocr:GoogleDocumentAi` for real OCR.  
+**Jobs:** Hangfire dashboard (Dev) at `/hangfire` (queues: `priority`, `default`, `webhooks`).  
+**External auth:** `X-Api-Key` (F2 temporary). Optional upload field: `documentTypeKey`. App upload: optional `priority=high|normal`.  
+**Default channel:** `GET /api/app/me` returns `defaultQueueId` after provisioning.
 
 Do **not** start coding until a DQ is selected (per `00-governance/06-dispatch-queue-execution.md`).

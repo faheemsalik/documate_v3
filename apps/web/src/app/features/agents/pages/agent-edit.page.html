@@ -1,0 +1,81 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <a routerLink="/agents" class="back-link">← My agents</a>
+      <h1>{{ agent()?.name ?? 'Edit agent' }}</h1>
+    </div>
+    <p-button label="Save" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading agent…" />
+  } @else if (agent(); as a) {
+    <p-tabs value="0">
+      <p-tablist>
+        <p-tab value="0">General</p-tab>
+        <p-tab value="1">Schema</p-tab>
+        <p-tab value="2">Post-process</p-tab>
+        <p-tab value="3">Test</p-tab>
+      </p-tablist>
+      <p-tabpanels>
+        <p-tabpanel value="0">
+          <div class="form-grid">
+            <label>Name<input pInputText [(ngModel)]="name" /></label>
+            <label>Description<input pInputText [(ngModel)]="description" /></label>
+            <label>
+              Document type
+              <p-select
+                [options]="documentTypes()"
+                [(ngModel)]="documentTypeId"
+                optionLabel="name"
+                optionValue="id"
+              />
+            </label>
+            <label class="full">
+              Instructions
+              <textarea pTextarea [(ngModel)]="instructions" rows="5"></textarea>
+            </label>
+            <label class="checkbox-row">
+              <p-checkbox [(ngModel)]="isActive" [binary]="true" />
+              Active
+            </label>
+          </div>
+        </p-tabpanel>
+        <p-tabpanel value="1">
+          <app-schema-form-builder
+            [schemaJson]="outputSchemaJson"
+            (schemaChange)="onSchemaChange($event)"
+          />
+        </p-tabpanel>
+        <p-tabpanel value="2">
+          <div class="form-grid">
+            <label class="checkbox-row">
+              <p-checkbox [(ngModel)]="postProcessEnabled" [binary]="true" />
+              Use default post-process workflow
+            </label>
+            <p class="hint">
+              When enabled, the server normalizes extracted fields after LLM extraction. Workflow id:
+              {{ defaultWorkflowId ?? 'assigned on save' }}.
+            </p>
+            <label>
+              Provider override
+              <p-select
+                [options]="providers()"
+                [(ngModel)]="defaultProviderId"
+                optionLabel="name"
+                optionValue="id"
+                [showClear]="true"
+                placeholder="Inherit default"
+              />
+            </label>
+          </div>
+        </p-tabpanel>
+        <p-tabpanel value="3">
+          <app-agent-test-runner [agent]="a" />
+        </p-tabpanel>
+      </p-tabpanels>
+    </p-tabs>
+  }
+</div>

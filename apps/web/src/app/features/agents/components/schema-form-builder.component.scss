@@ -1,0 +1,43 @@
+.builder {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.section-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.row.indent {
+  margin-left: 1rem;
+}
+
+.req {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+}
+
+.table-block {
+  padding: 0.75rem;
+  border: 1px dashed var(--p-content-border-color);
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+}

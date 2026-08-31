@@ -1,0 +1,73 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <a [routerLink]="['/files', fileId()]" class="back-link">← File detail</a>
+      <h1>Document</h1>
+      @if (document(); as doc) {
+        <div class="meta-row">
+          <app-status-pill [status]="doc.publicStatusKey" />
+          <span class="muted">{{ doc.documentTypeKey ?? 'Unknown type' }}</span>
+        </div>
+      }
+    </div>
+  </header>
+
+  @if (loading()) {
+    <p-message severity="info" text="Loading document…" />
+  } @else if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (document(); as doc) {
+    <p-card header="Document info">
+      <dl class="meta-grid">
+        <dt>Status</dt>
+        <dd><app-status-pill [status]="doc.publicStatusKey" /></dd>
+        <dt>Created</dt>
+        <dd>{{ doc.createdAt | date: 'medium' }}</dd>
+        <dt>Completed</dt>
+        <dd>{{ doc.completedAt ? (doc.completedAt | date: 'medium') : '—' }}</dd>
+        @if (doc.errorMessage) {
+          <dt>Error</dt>
+          <dd class="error-text">{{ doc.errorMessage }}</dd>
+        }
+      </dl>
+    </p-card>
+
+    <p-card header="Extracted fields">
+      @if (parsedResult().scalars.length === 0) {
+        <p class="muted">No header fields in result.</p>
+      } @else {
+        <dl class="fields-grid">
+          @for (field of parsedResult().scalars; track field.key) {
+            <dt>{{ field.key }}</dt>
+            <dd>{{ formatFieldValue(field.value) }}</dd>
+          }
+        </dl>
+      }
+    </p-card>
+
+    @for (table of parsedResult().tables; track table.key) {
+      <p-card [header]="table.key">
+        <p-table [value]="table.rows" [tableStyle]="{ 'min-width': '100%' }">
+          <ng-template pTemplate="header">
+            <tr>
+              @for (col of table.columns; track col) {
+                <th>{{ col }}</th>
+              }
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              @for (col of table.columns; track col) {
+                <td>{{ formatFieldValue(row[col]) }}</td>
+              }
+            </tr>
+          </ng-template>
+        </p-table>
+      </p-card>
+    }
+
+    @if (parsedResult().scalars.length === 0 && parsedResult().tables.length === 0) {
+      <p-message severity="info" text="No extracted result yet — document may still be processing." />
+    }
+  }
+</div>

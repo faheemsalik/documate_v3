@@ -1,0 +1,38 @@
+<div class="page">
+  <h1>API keys</h1>
+  <p class="subtitle">Manage keys for External API access (`/api/v1`)</p>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (createdKey(); as c) {
+    <p-message severity="warn">
+      <span>Copy now — key shown once: <code>{{ c.apiKey }}</code></span>
+    </p-message>
+  }
+
+  <div class="create-row">
+    <input pInputText [(ngModel)]="newKeyName" placeholder="Key name" />
+    <p-button label="Create key" (onClick)="create()" [loading]="creating()" />
+  </div>
+
+  <p-table [value]="keys()" [loading]="loading()">
+    <ng-template pTemplate="header">
+      <tr><th>Name</th><th>Prefix</th><th>Status</th><th>Created</th><th></th></tr>
+    </ng-template>
+    <ng-template pTemplate="body" let-key>
+      <tr>
+        <td>{{ key.name }}</td>
+        <td>{{ key.keyPrefix }}</td>
+        <td>{{ key.isActive ? 'Active' : 'Revoked' }}</td>
+        <td>{{ key.createdAt | date: 'short' }}</td>
+        <td>
+          @if (key.isActive) {
+            <p-button label="Revoke" severity="danger" [text]="true" (onClick)="revoke(key.id)" />
+          }
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>

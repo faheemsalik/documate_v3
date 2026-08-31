@@ -1,9 +1,11 @@
 namespace Documate.Api.Infrastructure.Pipeline;
 
 using Documate.Api.Infrastructure.Extract;
+using Documate.Api.Infrastructure.Notifications;
 using Documate.Api.Infrastructure.Ocr;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Pipeline.Stages;
+using Documate.Api.Infrastructure.PostProcess;
 using Documate.Api.Infrastructure.Webhooks;
 using Hangfire;
 using Hangfire.Dashboard;
@@ -14,6 +16,9 @@ public static class PipelineServiceCollectionExtensions
     public static IServiceCollection AddDocumatePipeline(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<PipelineOptions>(configuration.GetSection(PipelineOptions.SectionName));
+        services.Configure<OcrOptions>(configuration.GetSection(OcrOptions.SectionName));
+        services.Configure<LlmOptions>(configuration.GetSection(LlmOptions.SectionName));
+        services.Configure<NotificationOptions>(configuration.GetSection(NotificationOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("Documate")
             ?? throw new InvalidOperationException("Connection string 'Documate' is missing for Hangfire.");
@@ -39,16 +44,28 @@ public static class PipelineServiceCollectionExtensions
         services.AddHangfireServer(options =>
         {
             options.WorkerCount = maxWorkers;
-            options.Queues = ["default", "webhooks"];
+            options.Queues = ["priority", "default", "webhooks"];
         });
 
         services.AddScoped<IFilePipelineStub, FilePipelineStub>();
+        services.AddSingleton<IOcrEngine, TextractOcrEngine>();
+        services.AddSingleton<IOcrEngine, GoogleDocumentAiOcrEngine>();
         services.AddScoped<IOcrNormalizeAdapter, Mode1OcrNormalizeAdapter>();
         services.AddScoped<IFileSplitStage, FileSplitStage>();
         services.AddScoped<IFileClassifyStage, FileClassifyStage>();
         services.AddScoped<IDocumentRouteStage, DocumentRouteStage>();
         services.AddScoped<IDocumentExtractStage, DocumentExtractStage>();
-        services.AddScoped<IDocumentExtractAdapter, Mode1DocumateMetaExtractAdapter>();
+        services.AddScoped<IDocumentExtractAdapter, LiveLlmDocumentExtractAdapter>();
+        services.AddSingleton<IPlatformMcpTool, NormalizeDateTool>();
+        services.AddSingleton<IPlatformMcpTool, NormalizeCurrencyTool>();
+        services.AddSingleton<IInternalMcpHost, InternalMcpHost>();
+        services.AddScoped<IAgentPostProcessRunner, AgentPostProcessRunner>();
+        services.AddScoped<IDefaultWorkflowBootstrap, DefaultWorkflowBootstrap>();
+        services.AddSingleton<IOpsAlertSender, OpsAlertSender>();
+        services.AddHttpClient("documate-llm", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(90);
+        });
         services.AddSingleton<IWebhookSecretProtector, WebhookSecretProtector>();
         services.AddScoped<IDocumentWebhookScheduler, DocumentWebhookScheduler>();
         services.AddHttpClient("documate-webhooks", client =>

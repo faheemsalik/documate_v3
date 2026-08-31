@@ -1247,6 +1247,9 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -1312,6 +1315,11 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("WorkflowId");
 
                     b.HasIndex("WorkflowModeEnumId");
+
+                    b.HasIndex("BusinessId", "IsDefault")
+                        .IsUnique()
+                        .HasDatabaseName("IX_OpsQueues_BusinessId_IsDefault")
+                        .HasFilter("[IsDefault] = 1 AND [IsDeleted] = 0");
 
                     b.ToTable("OpsQueues");
                 });

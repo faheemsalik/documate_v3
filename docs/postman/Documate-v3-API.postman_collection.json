@@ -94,7 +94,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/app/me",
-            "description": "Provisions CorTenant + CorTenantBusiness on first call."
+            "description": "Provisions CorTenant + CorTenantBusiness + default Queue on first call."
           },
           "event": [
             {
@@ -102,10 +102,75 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('me returns tenant and business', function () {",
+                  "pm.test('me returns tenant, business, and defaultQueueId', function () {",
                   "  var j = pm.response.json();",
                   "  pm.expect(j.businessId).to.be.ok;",
                   "  pm.expect(j.tenantId).to.be.ok;",
+                  "  pm.expect(j.defaultQueueId).to.be.ok;",
+                  "  pm.collectionVariables.set('queueId', j.defaultQueueId);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01b \u2014 Business profile (A6)",
+      "item": [
+        {
+          "name": "GET business profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/business/profile",
+            "description": "Business profile from CorTenantBusiness (DQ-1603 A6)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('business profile', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.businessId).to.be.ok;",
+                  "  pm.expect(j.name).to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT business profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/app/business/profile",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dev Business\"\n}"
+            },
+            "description": "Update business display name (CUS-02)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('business profile updated', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.name).to.eql('Dev Business');",
                   "});"
                 ]
               }
@@ -517,7 +582,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files",
-            "description": "Attach samples/invoice-sample.txt. documentTypeKey skips split/classify.",
+            "description": "Attach samples/invoice-sample.txt. documentTypeKey skips split/classify. Optional priority=high → Hangfire queue priority.",
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -531,6 +596,12 @@
                   "key": "documentTypeKey",
                   "type": "text",
                   "value": "invoice"
+                },
+                {
+                  "key": "priority",
+                  "type": "text",
+                  "value": "normal",
+                  "description": "normal (default) or high (Hangfire priority queue)"
                 }
               ]
             }
@@ -568,6 +639,193 @@
             "header": [],
             "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files/{{fileId}}/download-url"
           }
+        },
+        {
+          "name": "GET list files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/app/queues/{{queueId}}/files?page=1&pageSize=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "app",
+                "queues",
+                "{{queueId}}",
+                "files"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "50"
+                },
+                {
+                  "key": "status",
+                  "value": "ready",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paged file list (DQ-1602 A1). Optional filters: status, batchId, createdFrom, createdTo, ids."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('list files', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.items).to.be.an('array');",
+                  "  pm.expect(j.totalCount).to.be.a('number');",
+                  "  pm.expect(j.page).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET files summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files/summary",
+            "description": "Home KPI counts by file public status (DQ-1602 A5 / H2)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('files summary', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.total).to.be.a('number');",
+                  "  pm.expect(j.byPublicStatus).to.be.an('object');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET schema search files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/app/queues/{{queueId}}/files/search?fieldKey=invoice_number&value=INVO-005&matchMode=exact",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "app",
+                "queues",
+                "{{queueId}}",
+                "files",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "fieldKey",
+                  "value": "invoice_number"
+                },
+                {
+                  "key": "value",
+                  "value": "INVO-005"
+                },
+                {
+                  "key": "matchMode",
+                  "value": "exact"
+                }
+              ]
+            },
+            "description": "Search files by top-level ResultJson field (DQ-1603 A4). Run after a file reaches ready."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('schema search', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.items).to.be.an('array');",
+                  "  pm.expect(j.fieldKey).to.eql('invoice_number');",
+                  "  pm.expect(j.matchMode).to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET file documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/files/{{fileId}}/documents",
+            "description": "Documents under file (DQ-1602 A2)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('file documents', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.be.an('array');",
+                  "  if (j.length > 0) {",
+                  "    pm.collectionVariables.set('documentId', String(j[0].id));",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET document",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/app/queues/{{queueId}}/documents/{{documentId}}",
+            "description": "Document detail + ResultJson (DQ-1602 A3). Run after GET file documents."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('document detail', function () {",
+                  "  if (!pm.collectionVariables.get('documentId')) {",
+                  "    pm.test.skip('no documentId — run GET file documents first');",
+                  "    return;",
+                  "  }",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.id).to.be.ok;",
+                  "  pm.expect(j.publicStatusKey).to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "GET file (poll until ready)",
@@ -717,7 +975,36 @@
                 "value": "{{apiKey}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/files"
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/files",
+            "description": "List files in the queue (newest first, max 200). Optional filters: ids, status, batchId, createdFrom, createdTo."
+          }
+        },
+        {
+          "name": "GET external list files by ids",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/files?ids={{fileId}}",
+            "description": "Repeat `ids` for multiple: ?ids=guid1&ids=guid2. Returns only found files (missing ids omitted)."
+          }
+        },
+        {
+          "name": "GET external list files by date range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/queues/{{queueId}}/files?createdFrom=2026-01-01T00:00:00Z&createdTo=2026-12-31T23:59:59Z",
+            "description": "Filter on OpsFile.CreatedAt (inclusive). Adjust dates as needed."
           }
         },
         {
@@ -730,8 +1017,68 @@
                 "value": "{{apiKey}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/files/{{fileId}}"
+            "url": "{{baseUrl}}/api/v1/files/{{fileId}}",
+            "description": "Get a single file by id (business-scoped)."
           }
+        },
+        {
+          "name": "POST cancel file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/files/{{fileId}}/cancel",
+            "description": "Cancel File (DQ-1001). File → cancelled; non-terminal docs → cancelled + webhooks; Ready docs kept."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cancel file 200', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  pm.expect(pm.response.json().publicStatusKey).to.eql('cancelled');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST reprocess file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/files/{{fileId}}/reprocess",
+            "description": "Explicit reprocess (DQ-1002). New File with reprocessOfFileId; same bytes; Hangfire enqueue; source unchanged."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('reprocess 202', function () {",
+                  "  pm.expect(pm.response.code).to.eql(202);",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.id).to.be.ok;",
+                  "  pm.expect(j.reprocessOfFileId).to.be.ok;",
+                  "  pm.collectionVariables.set('fileId', String(j.id));",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "GET external documents",
@@ -783,6 +1130,33 @@
             ],
             "url": "{{baseUrl}}/api/v1/documents/{{documentId}}"
           }
+        },
+        {
+          "name": "POST cancel document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/documents/{{documentId}}/cancel",
+            "description": "Cancel Document (DQ-1001). Doc → cancelled + webhook; file rollup updates. 409 if already terminal Ready/Failed/Rejected."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cancel document ok or conflict', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 409]);",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

@@ -25,7 +25,9 @@ public sealed record CreateFileWithBlobRequest(
     string? ContentType,
     Stream Content,
     long? SizeBytes = null,
-    string? IntakeHintsJson = null);
+    string? IntakeHintsJson = null,
+    Guid? ReprocessOfFileId = null,
+    string? ContentHash = null);
 
 public sealed record CreateDocumentRequest(
     Guid QueueId,
@@ -108,6 +110,8 @@ public sealed class WorkRecordService(
             StorageBucket = storage.ResolveBucket(),
             StorageKey = "", // set after Id assigned
             IntakeHintsJson = request.IntakeHintsJson,
+            ReprocessOfFileId = request.ReprocessOfFileId,
+            ContentHash = request.ContentHash,
             CreatedByUserId = business.UserId,
             UpdatedByUserId = business.UserId,
         };

@@ -1,0 +1,49 @@
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.agent-card h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.meta {
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+  margin: 0.5rem 0;
+}
+
+.desc {
+  font-size: 0.875rem;
+  margin: 0 0 0.75rem;
+}
+
+.empty {
+  color: var(--p-text-muted-color);
+}

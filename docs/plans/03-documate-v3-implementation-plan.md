@@ -191,8 +191,8 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 | **AgentTemplate**            | Platform starter Agent customers clone (guided setup).                                                               |
 | **Agent**                    | Customer extraction brain: instructions + output schema + document-type intent.                                      |
 | **WorkflowDefinition**       | Internal post-extract step definition (not a public wire resource).                                                  |
-| **Queue**                    | Ops lane inside a Business: intake, webhook, email, workflow attach; not an Agent.                                   |
-| **QueueRoute**               | Many type→Agent mappings for one Queue (multi-doc / multi-type files).                                               |
+| **Queue**                    | Untyped **intake channel** inside a Business: webhook, email, allowlist, workflow; holds QueueRoutes. Phase 1: one **default** Queue per Business. |
+| **QueueRoute**               | Many type→Agent mappings for one Queue (multi-doc / multi-type files). Unique `(QueueId, DocumentTypeId)`. Auto-created on Agent create when Business has a single Queue. |
 | **QueueEmailAllowlistEntry** | Trusted sender email/domain for a Queue’s email intake gate.                                                         |
 | **Batch**                    | Optional log/correlation when ≥2 Files arrive together — not a delivery state machine.                               |
 | **File**                     | One stored upload/email artifact; owns split/classify/rollup.                                                        |
@@ -262,6 +262,8 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 ### 1b. `CorTenantBusiness`
 
 **Role:** Thin Documate record for an Iden **Business**. This is the **data isolation unit**: Agents, Queues, and work belong here. `TenantName` is a cached projection of the parent tenant name for UI/lists.
+
+**Bootstrap (DECIDED 2026-08-28):** When a `CorTenantBusiness` row is first created / ensured for an Iden Business, also create the Business’s **default Queue** (`IsDefault = true`) if none exists. Partners and UI discover that Queue’s UUID as the Phase 1 upload target.
 
 
 | Field                        | Type   | Notes                                                                                     |
@@ -425,6 +427,8 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 
 **Role:** Customer **AI Agent**: what to extract (**schema**), how to behave (**instructions**), document-type intent, and **post-processing** for that type. Schema + workflow bind here — not on the Queue.
 
+**Auto-route (DECIDED 2026-08-28):** On **create** or **guided clone**, if the Business has **exactly one** non-deleted Queue, insert `QueueRoute(that Queue, Agent.DocumentTypeId, Agent.Id)`. If a route for that DocumentType already exists on that Queue → **conflict** (do not overwrite). If the Business has **zero** Queues → treat as data error (default Queue should already exist). If **2+** Queues → create Agent only; no auto-route.
+
 
 | Field                        | Type    | Notes                     |
 | ---------------------------- | ------- | ------------------------- |
@@ -472,7 +476,9 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 
 ### 8. `Queue`
 
-**Role:** Operational lane inside a Business (department / stream): webhook, email intake, allowlist mode, workflow attach, and the routing map. Partners submit work to a Queue — not directly to an Agent.
+**Role:** Untyped **intake channel** inside a Business: webhook, email intake, allowlist mode, workflow attach, and the routing map. Partners submit work to a Queue — not directly to an Agent. **Not** bound to a single DocumentType (use `QueueRoute`).
+
+**Default channel (DECIDED 2026-08-28):** Every Business has one Queue with `IsDefault = true` created at Business bootstrap. Phase 1 product UI may hide multi-queue management and surface this Queue’s id on the Business page as **Default channel (Queue ID: …)**. Business-level intake settings (webhook/email/allowlist) **write through** to the default Queue.
 
 
 | Field                                                 | Type    | Notes                                                                                                                                                                                                                                                                  |
@@ -480,7 +486,8 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 | `Id`                                                  | UUID    | PK + wire `queue_id`                                                                                                                                                                                                                                                   |
 | `SequenceId`                                          | bigint  | Maintenance                                                                                                                                                                                                                                                            |
 | `BusinessId`                                          | string  | Iden Business — isolation                                                                                                                                                                                                                                              |
-| `Name` / `Description`                                |         |                                                                                                                                                                                                                                                                        |
+| `Name` / `Description`                                |         | Default name e.g. `Default` / `Default channel`                                                                                                                                                                                                                        |
+| `IsDefault`                                           | bool    | **true** for the Business bootstrap Queue; at most one non-deleted default per Business                                                                                                                                                                                |
 | `RoutingLocked` / `RoutingLockedAt`                   |         |                                                                                                                                                                                                                                                                        |
 | `WebhookUrl` / `WebhookSecretHash` / `WebhookEnabled` |         |                                                                                                                                                                                                                                                                        |
 | `EmailIntakeEnabled` / local-part / domain / version  |         |                                                                                                                                                                                                                                                                        |
@@ -491,6 +498,8 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 | *(soft-delete + RowVersion)*                          |         |                                                                                                                                                                                                                                                                        |
 
 
+**Unique filtered:** at most one `(BusinessId)` where `IsDefault = true` and not deleted.
+
 ---
 
 
@@ -498,6 +507,8 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 ### 9. `QueueRoute`
 
 **Role:** One row = “on this Queue, this **DocumentType** is handled by this **Agent**.” Needed because one Queue must support many types (mixed files). Frozen when `RoutingLocked` after first File. Not collapsed onto Queue as single DocumentTypeId/AgentId columns.
+
+**Why keep routes (2026-08-28):** Queue stays **untyped**. Agent selection after classify uses this map. Auto-created when an Agent is created/cloned and the Business has a single Queue (see Agent §6). **Ambiguity rule:** never two live Agents for the same DocumentType on the same Queue — unique constraint enforces pick = that one route.
 
 
 | Field            | Type   | Notes             |
@@ -1013,7 +1024,7 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 | 10   | Cancel + reprocess                                                                       |
 | 11   | Post-process platform tools (internal MCP)                                               |
 | 12   | Email inbound (per Decision D) + intake agent                                            |
-| 13   | Web UI: agents, queues, monitor                                                          |
+| 13   | Web UI: agents, default channel on Business, monitor                                     |
 | 14   | Hardening: allowlist enforce path, limits, observability                                 |
 | 15   | **Iden Integration & Validation** — discover APIs, live test via Documate, fix Iden, retire F2 |
 
@@ -1058,8 +1069,9 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 
 ### Wave 2 — Configuration APIs (FrontendSupport)
 
-- Agent templates + guided clone + schema CRUD.
+- Agent templates + guided clone + schema CRUD; **Agent create/clone auto-creates QueueRoute** when Business has exactly one Queue.
 - Queue CRUD, routing map, lock behavior, webhook settings, email address generation (even if inbound stubbed).
+- **Default Queue bootstrap** on CorTenantBusiness ensure/create (`IsDefault`); Business DTO/UI exposes default `queue_id`; intake settings write-through to default Queue.
 
 
 
@@ -1106,7 +1118,8 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 
 ### Wave 8 — Web UI
 
-- Agents, queues, monitor, rejections, cancel/reprocess actions.
+- Agents (clone/edit), monitor, rejections, cancel/reprocess actions.
+- Phase 1: **Default channel (Queue ID: …)** on Business page; webhook/email/allowlist as Business settings writing to default Queue. Multi-queue admin UI deferred (API may already support N Queues).
 
 
 
@@ -1193,7 +1206,8 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 | J   | Iden validation timing  | J1 Iden-first / J2 interleaved / **J3 late**                                   | **J3** |
 | —   | **Id strategy**         | User-facing: UUID PK + SequenceId; catalogs: bigint + prefixed `*Key`          | locked |
 | —   | **Iden tenancy**        | Tenant → Business; isolation = Business                                        | locked |
-| —   | **Queues + QueueRoute** | Multi-queue day one; type→Agent routes                                         | locked |
+| —   | **Queues + QueueRoute** | Keep both; Queue **untyped**; type→Agent via QueueRoute                        | locked |
+| K   | Default channel UX      | Business create → default Queue; Agent auto-route if 1 Queue; Phase 1 hide multi-queue UI | **K1 locked 2026-08-28** |
 | —   | **Iden phase**          | Discover APIs · live test via Documate · fix Iden · retire F2                  | Band 15 **after** Phase 1 (J3) |
 
 
@@ -1278,5 +1292,7 @@ Select a DQ item to implement (do not code until selected).
 | 2026-08-18 | **DQ-0703:** Mode 1 `documate_meta` extract + schema validate; External poll `resultJson`. |
 | 2026-08-18 | **DQ-0801:** per-Document HTTPS webhook + HMAC; poll still works if delivery fails. |
 | 2026-08-18 | **DQ-0901:** External sync-wait extract (60s, single Document, no webhook). |
+| 2026-08-28 | **Decision K1:** keep Queue + QueueRoute; default Queue on Business create (`IsDefault`); Agent create/clone auto-route when single Queue; Phase 1 UI = default channel id on Business; reject typed Queue. |
+| 2026-08-28 | **DQ-0304 / DQ-0204 executed:** `IsDefault` + bootstrap + `me.defaultQueueId`; Agent auto QueueRoute. |
 
 

@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { API_BASE_URL } from './api-base';
 
 export interface MeResponse {
   userId: string;
@@ -7,6 +8,7 @@ export interface MeResponse {
   businessId: string;
   tenantName?: string | null;
   businessName?: string | null;
+  defaultQueueId?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -15,6 +17,6 @@ export class MeApiService {
 
   /** Relative URL — configure proxy later; absolute for local API default. */
   getMe() {
-    return this.http.get<MeResponse>('http://localhost:5172/api/app/me');
+    return this.http.get<MeResponse>(`${API_BASE_URL}/api/app/me`);
   }
 }

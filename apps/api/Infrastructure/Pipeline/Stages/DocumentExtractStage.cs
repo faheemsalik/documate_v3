@@ -5,16 +5,19 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Extract;
+using Documate.Api.Infrastructure.Notifications;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Pipeline;
 using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Webhooks;
+using Documate.Api.Infrastructure.Work;
+using Documate.Api.Infrastructure.PostProcess;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// Per-Document extract via Documate meta-provider, then JSON Schema validate.
+/// Per-Document extract via live LLM (façade documate_meta on Document), then JSON Schema validate.
 /// Untyped / unrouted Documents fail with no_agent. Post-process is DQ-1101.
 /// </summary>
 public sealed class DocumentExtractStage(
@@ -23,12 +26,22 @@ public sealed class DocumentExtractStage(
     IDocumentExtractAdapter extract,
     IObjectStorage storage,
     IDocumentWebhookScheduler webhooks,
+    IOpsAlertSender alerts,
+    IAgentPostProcessRunner postProcess,
     IOptions<PipelineOptions> options,
     ILogger<DocumentExtractStage> logger) : IDocumentExtractStage
 {
     public async Task ExecuteAsync(FilePipelineContext context, CancellationToken cancellationToken = default)
     {
         var delay = Math.Max(0, options.Value.StubStageDelayMs);
+        var fileCancelled = enums.Require("file_public_status", "cancelled");
+        await db.Entry(context.File).ReloadAsync(cancellationToken);
+        if (context.File.PublicStatusEnumId == fileCancelled)
+        {
+            logger.LogInformation("File {FileId} cancelled; skipping extract", context.File.Id);
+            return;
+        }
+
         context.File.InternalStageEnumId = enums.Require("file_internal_stage", "extract");
         context.File.UpdatedByUserId = context.Item.UserId;
         await db.SaveChangesAsync(cancellationToken);
@@ -37,6 +50,7 @@ public sealed class DocumentExtractStage(
         var docProcessing = enums.Require("document_public_status", "processing");
         var docReady = enums.Require("document_public_status", "ready");
         var docFailed = enums.Require("document_public_status", "failed");
+        var docCancelled = enums.Require("document_public_status", "cancelled");
         var docExtract = enums.Require("document_internal_stage", "extract");
         var docValidate = enums.Require("document_internal_stage", "validate");
         var docComplete = enums.Require("document_internal_stage", "complete");
@@ -54,6 +68,18 @@ public sealed class DocumentExtractStage(
                 .Where(a => agentIds.Contains(a.Id) && a.BusinessId == context.Item.BusinessId && !a.IsDeleted)
                 .ToDictionaryAsync(a => a.Id, cancellationToken);
 
+        var llmCategoryId = enums.Require("provider_category", "llm");
+        var agentProviderIds = agents.Values
+            .Where(a => a.DefaultProviderId is long)
+            .Select(a => a.DefaultProviderId!.Value)
+            .Distinct()
+            .ToList();
+        var llmProviderKeys = agentProviderIds.Count == 0
+            ? new Dictionary<long, string>()
+            : await db.CorProviders.AsNoTracking()
+                .Where(p => agentProviderIds.Contains(p.Id) && p.IsActive && p.CategoryEnumId == llmCategoryId)
+                .ToDictionaryAsync(p => p.Id, p => p.ProviderKey, cancellationToken);
+
         var metaProviderId = await db.CorProviders.AsNoTracking()
             .Where(p => p.ProviderKey == "documate_meta" && p.IsActive)
             .Select(p => (long?)p.Id)
@@ -63,65 +89,104 @@ public sealed class DocumentExtractStage(
 
         foreach (var doc in context.Documents)
         {
-            if (doc.PublicStatusEnumId != docFailed)
+            await db.Entry(context.File).ReloadAsync(cancellationToken);
+            if (context.File.PublicStatusEnumId == fileCancelled)
             {
-                doc.PublicStatusEnumId = docProcessing;
-                doc.InternalStageEnumId = docExtract;
-                doc.UpdatedByUserId = context.Item.UserId;
-                await db.SaveChangesAsync(cancellationToken);
-                await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"processing","stage":"extract"}""", cancellationToken);
-                await DelayAsync(delay, cancellationToken);
+                logger.LogInformation("File {FileId} cancelled mid-extract; stopping", context.File.Id);
+                return;
+            }
 
-                if (doc.AgentId is not Guid agentId || !agents.TryGetValue(agentId, out var agent))
+            await db.Entry(doc).ReloadAsync(cancellationToken);
+            if (doc.PublicStatusEnumId == docCancelled
+                || doc.PublicStatusEnumId == docReady
+                || doc.PublicStatusEnumId == docFailed)
+            {
+                await webhooks.ScheduleIfTerminalAsync(doc, context.File, cancellationToken);
+                continue;
+            }
+
+            doc.PublicStatusEnumId = docProcessing;
+            doc.InternalStageEnumId = docExtract;
+            doc.UpdatedByUserId = context.Item.UserId;
+            await db.SaveChangesAsync(cancellationToken);
+            await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"processing","stage":"extract"}""", cancellationToken);
+            await DelayAsync(delay, cancellationToken);
+
+            if (doc.AgentId is not Guid agentId || !agents.TryGetValue(agentId, out var agent))
+            {
+                FailDocument(doc, docFailed, "no_agent", "Document has no routed Agent; cannot extract.", "extract", context.Item.UserId);
+                await db.SaveChangesAsync(cancellationToken);
+                await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"failed","stage":"extract","errorCode":"no_agent"}""", cancellationToken);
+            }
+            else
+            {
+                string? preferredLlm = null;
+                if (agent.DefaultProviderId is long pid
+                    && llmProviderKeys.TryGetValue(pid, out var key))
                 {
-                    FailDocument(doc, docFailed, "no_agent", "Document has no routed Agent; cannot extract.", "extract", context.Item.UserId);
-                    await db.SaveChangesAsync(cancellationToken);
-                    await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"failed","stage":"extract","errorCode":"no_agent"}""", cancellationToken);
+                    preferredLlm = key;
                 }
-                else
+
+                try
                 {
-                    try
+                    await ExtractOneAsync(
+                        context,
+                        doc,
+                        agent,
+                        sourceText,
+                        preferredLlm,
+                        metaProviderId,
+                        docReady,
+                        docFailed,
+                        docValidate,
+                        docComplete,
+                        docSubject,
+                        statusChanged,
+                        delay,
+                        cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Extract failed for Document {DocumentId}", doc.Id);
+                    await db.Entry(doc).ReloadAsync(cancellationToken);
+                    if (doc.PublicStatusEnumId == docCancelled)
                     {
-                        await ExtractOneAsync(
-                            context,
-                            doc,
-                            agent,
-                            sourceText,
-                            metaProviderId,
-                            docReady,
-                            docFailed,
-                            docValidate,
-                            docComplete,
-                            docSubject,
-                            statusChanged,
-                            delay,
-                            cancellationToken);
+                        await webhooks.ScheduleIfTerminalAsync(doc, context.File, cancellationToken);
+                        continue;
                     }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Extract failed for Document {DocumentId}", doc.Id);
-                        FailDocument(doc, docFailed, "extract_failed", ex.Message, "extract", context.Item.UserId);
-                        await db.SaveChangesAsync(cancellationToken);
-                        await AppendDocEventAsync(
-                            context,
+
+                    FailDocument(doc, docFailed, "extract_failed", ex.Message, "extract", context.Item.UserId);
+                    await db.SaveChangesAsync(cancellationToken);
+                    await AppendDocEventAsync(
+                        context,
+                        doc.Id,
+                        docSubject,
+                        statusChanged,
+                        JsonSerializer.Serialize(new
+                        {
+                            status = "failed",
+                            stage = "extract",
+                            errorCode = "extract_failed",
+                        }),
+                        cancellationToken);
+                    await alerts.NotifyLlmExtractFailedAsync(
+                        new OpsLlmFailureAlert(
+                            context.Item.BusinessId,
+                            context.File.Id,
                             doc.Id,
-                            docSubject,
-                            statusChanged,
-                            JsonSerializer.Serialize(new
-                            {
-                                status = "failed",
-                                stage = "extract",
-                                errorCode = "extract_failed",
-                            }),
-                            cancellationToken);
-                    }
+                            context.File.QueueId,
+                            preferredLlm ?? "unknown",
+                            "extract_failed",
+                            ex.Message,
+                            DateTimeOffset.UtcNow),
+                        cancellationToken);
                 }
             }
 
             await webhooks.ScheduleIfTerminalAsync(doc, context.File, cancellationToken);
         }
 
-        await CompleteFileAsync(context, docReady, docFailed, cancellationToken);
+        await CompleteFileAsync(context, cancellationToken);
     }
 
     private async Task ExtractOneAsync(
@@ -129,6 +194,7 @@ public sealed class DocumentExtractStage(
         OpsDocument doc,
         OpsAgent agent,
         string? sourceText,
+        string? preferredLlmProviderKey,
         long? metaProviderId,
         long docReady,
         long docFailed,
@@ -148,8 +214,15 @@ public sealed class DocumentExtractStage(
                 context.Normalize?.TextArtifactKey,
                 agent.OutputSchemaJson,
                 agent.Instructions,
-                sourceText),
+                sourceText,
+                preferredLlmProviderKey),
             cancellationToken);
+
+        await db.Entry(doc).ReloadAsync(cancellationToken);
+        if (doc.PublicStatusEnumId == enums.Require("document_public_status", "cancelled"))
+        {
+            return;
+        }
 
         doc.ResultJson = result.ResultJson;
         doc.SchemaVersion = agent.SchemaVersion;
@@ -214,6 +287,65 @@ public sealed class DocumentExtractStage(
             return;
         }
 
+        var finalJson = result.ResultJson;
+        if (agent.DefaultWorkflowId is long)
+        {
+            var postStage = enums.Require("document_internal_stage", "post_process");
+            doc.InternalStageEnumId = postStage;
+            doc.UpdatedByUserId = context.Item.UserId;
+            await db.SaveChangesAsync(cancellationToken);
+            await AppendDocEventAsync(
+                context,
+                doc.Id,
+                docSubject,
+                statusChanged,
+                """{"status":"processing","stage":"post_process"}""",
+                cancellationToken);
+            await DelayAsync(delay, cancellationToken);
+
+            try
+            {
+                var processed = await postProcess.RunAsync(agent, finalJson, cancellationToken);
+                finalJson = processed.ResultJson;
+                doc.ResultJson = finalJson;
+                await db.SaveChangesAsync(cancellationToken);
+                await TryWriteExtractArtifactAsync(context, doc, finalJson, cancellationToken);
+                await AppendDocEventAsync(
+                    context,
+                    doc.Id,
+                    docSubject,
+                    statusChanged,
+                    JsonSerializer.Serialize(new
+                    {
+                        status = "processing",
+                        stage = "post_process",
+                        ran = processed.Ran,
+                        workflowKey = processed.WorkflowKey,
+                    }),
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Post-process failed for Document {DocumentId}", doc.Id);
+                FailDocument(doc, docFailed, "post_process_failed", ex.Message, "post_process", context.Item.UserId);
+                await db.SaveChangesAsync(cancellationToken);
+                await AppendDocEventAsync(
+                    context,
+                    doc.Id,
+                    docSubject,
+                    statusChanged,
+                    JsonSerializer.Serialize(new
+                    {
+                        status = "failed",
+                        stage = "post_process",
+                        errorCode = "post_process_failed",
+                    }),
+                    cancellationToken);
+                return;
+            }
+        }
+
+        doc.ResultJson = finalJson;
         doc.PublicStatusEnumId = docReady;
         doc.InternalStageEnumId = docComplete;
         doc.CompletedAt = DateTimeOffset.UtcNow;
@@ -222,54 +354,36 @@ public sealed class DocumentExtractStage(
         doc.FailedStage = null;
         doc.UpdatedByUserId = context.Item.UserId;
         await db.SaveChangesAsync(cancellationToken);
-        await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"ready","stage":"validate"}""", cancellationToken);
-        logger.LogInformation("Document {DocumentId} extract+validate ready via {Provider}", doc.Id, result.ProviderKey);
+        await AppendDocEventAsync(context, doc.Id, docSubject, statusChanged, """{"status":"ready","stage":"complete"}""", cancellationToken);
+        logger.LogInformation("Document {DocumentId} extract+validate(+post) ready via {Provider}", doc.Id, result.ProviderKey);
     }
 
     private async Task CompleteFileAsync(
         FilePipelineContext context,
-        long docReady,
-        long docFailed,
         CancellationToken cancellationToken)
     {
-        var fileFailed = enums.Require("file_public_status", "failed");
-        var fileReady = enums.Require("file_public_status", "ready");
-        var filePartial = enums.Require("file_public_status", "partial_ready");
+        await db.Entry(context.File).ReloadAsync(cancellationToken);
+        var ids = FilePublicStatusRollup.Resolve(enums);
+        if (context.File.PublicStatusEnumId == ids.FileCancelled)
+        {
+            return;
+        }
 
-        var anyFailed = context.Documents.Any(d => d.PublicStatusEnumId == docFailed);
-        var anyReady = context.Documents.Any(d => d.PublicStatusEnumId == docReady);
+        // Refresh docs from DB so cancel-doc mid-extract is reflected in rollup.
+        var docs = await db.OpsDocuments
+            .Where(d => d.FileId == context.File.Id && d.BusinessId == context.Item.BusinessId && !d.IsDeleted)
+            .ToListAsync(cancellationToken);
 
         context.File.InternalStageEnumId = enums.Require("file_internal_stage", "complete");
-        context.File.CompletedAt = DateTimeOffset.UtcNow;
         context.File.UpdatedByUserId = context.Item.UserId;
-
-        if (!anyReady && anyFailed)
-        {
-            context.File.PublicStatusEnumId = fileFailed;
-            var codes = context.Documents
-                .Where(d => d.PublicStatusEnumId == docFailed && !string.IsNullOrWhiteSpace(d.ErrorCode))
-                .Select(d => d.ErrorCode!)
-                .Distinct()
-                .ToList();
-            context.File.ErrorCode = codes.Count == 1 ? codes[0] : (codes.Count == 0 ? "extract_failed" : "extract_failed");
-        }
-        else if (anyFailed && anyReady)
-        {
-            context.File.PublicStatusEnumId = filePartial;
-        }
-        else
-        {
-            context.File.PublicStatusEnumId = fileReady;
-            context.File.ErrorCode = null;
-            context.File.ErrorMessage = null;
-        }
+        FilePublicStatusRollup.Apply(context.File, docs, ids);
 
         await db.SaveChangesAsync(cancellationToken);
         var payload = JsonSerializer.Serialize(new
         {
-            status = context.File.PublicStatusEnumId == fileReady
+            status = context.File.PublicStatusEnumId == ids.FileReady
                 ? "ready"
-                : context.File.PublicStatusEnumId == filePartial ? "partial_ready" : "failed",
+                : context.File.PublicStatusEnumId == ids.FilePartial ? "partial_ready" : "failed",
             stage = "extract",
         });
         await AppendFileEventAsync(context, payload, null, cancellationToken);

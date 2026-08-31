@@ -3,6 +3,8 @@ namespace Documate.Api.Modules.FrontendSupport.Features.Agents;
 using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Persistence;
+using Documate.Api.Infrastructure.PostProcess;
+using Documate.Api.Infrastructure.Queues;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,8 +29,15 @@ public sealed class AgentsController(IMediator mediator) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<AgentDto>> Create([FromBody] CreateAgentRequest request, CancellationToken cancellationToken)
     {
-        var dto = await mediator.Send(new CreateAgentCommand(request), cancellationToken);
-        return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
+        try
+        {
+            var dto = await mediator.Send(new CreateAgentCommand(request), cancellationToken);
+            return CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
     }
 
     [HttpPut("{id:guid}")]
@@ -50,8 +59,15 @@ public sealed class AgentsController(IMediator mediator) : ControllerBase
         [FromBody] CloneAgentFromTemplateRequest request,
         CancellationToken cancellationToken)
     {
-        var dto = await mediator.Send(new CloneAgentFromTemplateCommand(request), cancellationToken);
-        return dto is null ? NotFound() : CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
+        try
+        {
+            var dto = await mediator.Send(new CloneAgentFromTemplateCommand(request), cancellationToken);
+            return dto is null ? NotFound() : CreatedAtAction(nameof(Get), new { id = dto.Id }, dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
     }
 }
 
@@ -173,7 +189,11 @@ public sealed class GetAgentByIdHandler(DocumateDbContext db, IBusinessContext b
     }
 }
 
-public sealed class CreateAgentHandler(DocumateDbContext db, IBusinessContext business)
+public sealed class CreateAgentHandler(
+    DocumateDbContext db,
+    IBusinessContext business,
+    IAgentQueueRouteAutoMapper autoMap,
+    IDefaultWorkflowBootstrap workflows)
     : IRequestHandler<CreateAgentCommand, AgentDto>
 {
     public async Task<AgentDto> Handle(CreateAgentCommand command, CancellationToken cancellationToken)
@@ -183,25 +203,43 @@ public sealed class CreateAgentHandler(DocumateDbContext db, IBusinessContext bu
             .FirstOrDefaultAsync(d => d.Id == request.DocumentTypeId && d.IsActive, cancellationToken)
             ?? throw new InvalidOperationException($"DocumentType {request.DocumentTypeId} not found.");
 
-        var agent = new OpsAgent
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
         {
-            BusinessId = business.BusinessId,
-            Name = request.Name.Trim(),
-            Description = request.Description,
-            DocumentTypeId = request.DocumentTypeId,
-            OutputSchemaJson = string.IsNullOrWhiteSpace(request.OutputSchemaJson) ? "{}" : request.OutputSchemaJson,
-            Instructions = request.Instructions ?? "",
-            DefaultWorkflowId = request.DefaultWorkflowId,
-            DefaultProviderId = request.DefaultProviderId,
-            SchemaVersion = request.SchemaVersion ?? 1,
-            IsActive = true,
-            CreatedByUserId = business.UserId,
-            UpdatedByUserId = business.UserId,
-        };
+            var defaultWorkflowId = request.DefaultWorkflowId;
+            if (defaultWorkflowId is null)
+            {
+                var wf = await workflows.EnsureNormalizeFieldsAsync(business.BusinessId, business.UserId, cancellationToken);
+                defaultWorkflowId = wf.Id;
+            }
 
-        db.OpsAgents.Add(agent);
-        await db.SaveChangesAsync(cancellationToken);
-        return AgentMapping.ToDto(agent, documentType.DocumentTypeKey);
+            var agent = new OpsAgent
+            {
+                BusinessId = business.BusinessId,
+                Name = request.Name.Trim(),
+                Description = request.Description,
+                DocumentTypeId = request.DocumentTypeId,
+                OutputSchemaJson = string.IsNullOrWhiteSpace(request.OutputSchemaJson) ? "{}" : request.OutputSchemaJson,
+                Instructions = request.Instructions ?? "",
+                DefaultWorkflowId = defaultWorkflowId,
+                DefaultProviderId = request.DefaultProviderId,
+                SchemaVersion = request.SchemaVersion ?? 1,
+                IsActive = true,
+                CreatedByUserId = business.UserId,
+                UpdatedByUserId = business.UserId,
+            };
+
+            db.OpsAgents.Add(agent);
+            await db.SaveChangesAsync(cancellationToken);
+            await autoMap.TryAutoMapAsync(agent, cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+            return AgentMapping.ToDto(agent, documentType.DocumentTypeKey);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 }
 
@@ -259,7 +297,11 @@ public sealed class DeleteAgentHandler(DocumateDbContext db, IBusinessContext bu
     }
 }
 
-public sealed class CloneAgentFromTemplateHandler(DocumateDbContext db, IBusinessContext business)
+public sealed class CloneAgentFromTemplateHandler(
+    DocumateDbContext db,
+    IBusinessContext business,
+    IAgentQueueRouteAutoMapper autoMap,
+    IDefaultWorkflowBootstrap workflows)
     : IRequestHandler<CloneAgentFromTemplateCommand, AgentDto?>
 {
     public async Task<AgentDto?> Handle(CloneAgentFromTemplateCommand command, CancellationToken cancellationToken)
@@ -278,24 +320,37 @@ public sealed class CloneAgentFromTemplateHandler(DocumateDbContext db, IBusines
         }
 
         var tmpl = template.Template;
-        var agent = new OpsAgent
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
         {
-            BusinessId = business.BusinessId,
-            Name = string.IsNullOrWhiteSpace(request.Name) ? tmpl.Name : request.Name.Trim(),
-            Description = request.Description ?? tmpl.Description,
-            DocumentTypeId = tmpl.DocumentTypeId,
-            OutputSchemaJson = tmpl.DefaultSchemaJson,
-            Instructions = tmpl.DefaultInstructions,
-            SourceTemplateId = tmpl.Id,
-            DefaultProviderId = tmpl.DefaultProviderId,
-            SchemaVersion = 1,
-            IsActive = true,
-            CreatedByUserId = business.UserId,
-            UpdatedByUserId = business.UserId,
-        };
+            var wf = await workflows.EnsureNormalizeFieldsAsync(business.BusinessId, business.UserId, cancellationToken);
+            var agent = new OpsAgent
+            {
+                BusinessId = business.BusinessId,
+                Name = string.IsNullOrWhiteSpace(request.Name) ? tmpl.Name : request.Name.Trim(),
+                Description = request.Description ?? tmpl.Description,
+                DocumentTypeId = tmpl.DocumentTypeId,
+                OutputSchemaJson = tmpl.DefaultSchemaJson,
+                Instructions = tmpl.DefaultInstructions,
+                SourceTemplateId = tmpl.Id,
+                DefaultProviderId = tmpl.DefaultProviderId,
+                DefaultWorkflowId = wf.Id,
+                SchemaVersion = 1,
+                IsActive = true,
+                CreatedByUserId = business.UserId,
+                UpdatedByUserId = business.UserId,
+            };
 
-        db.OpsAgents.Add(agent);
-        await db.SaveChangesAsync(cancellationToken);
-        return AgentMapping.ToDto(agent, template.DocumentTypeKey);
+            db.OpsAgents.Add(agent);
+            await db.SaveChangesAsync(cancellationToken);
+            await autoMap.TryAutoMapAsync(agent, cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+            return AgentMapping.ToDto(agent, template.DocumentTypeKey);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 }

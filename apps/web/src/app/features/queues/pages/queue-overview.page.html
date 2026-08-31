@@ -1,0 +1,101 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Channels & intake</h1>
+      @if (queue(); as q) {
+        <p class="subtitle">{{ q.name }} · {{ q.isDefault ? 'Default channel' : 'Channel' }}</p>
+      }
+    </div>
+    @if (queue()?.routingLocked) {
+      <p-tag severity="warn" value="Routes locked" />
+    }
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading channel…" />
+  } @else if (queue(); as q) {
+    <p-tabs value="0">
+      <p-tablist>
+        <p-tab value="0">Overview</p-tab>
+        <p-tab value="1">Intake</p-tab>
+        <p-tab value="2">Routes</p-tab>
+      </p-tablist>
+      <p-tabpanels>
+        <p-tabpanel value="0">
+          <dl class="meta-grid">
+            <dt>Status</dt><dd>{{ q.isActive ? 'Active' : 'Inactive' }}</dd>
+            <dt>Webhook</dt><dd>{{ q.webhookEnabled ? 'Enabled' : 'Off' }}</dd>
+            <dt>Email intake</dt><dd>{{ q.emailIntakeEnabled ? 'Enabled' : 'Off' }}</dd>
+            <dt>Email address</dt><dd>{{ q.emailAddress ?? 'Not minted' }}</dd>
+            <dt>Allowlist mode</dt><dd>{{ q.allowlistModeKey ?? '—' }}</dd>
+            <dt>Routes</dt><dd>{{ routes().length }}</dd>
+          </dl>
+        </p-tabpanel>
+        <p-tabpanel value="1">
+          <section class="block">
+            <h3>Webhook</h3>
+            <label class="checkbox-row"><p-checkbox [(ngModel)]="webhookEnabled" [binary]="true" /> Enabled</label>
+            <input pInputText [(ngModel)]="webhookUrl" placeholder="https://…" class="full" />
+            <input pInputText [(ngModel)]="webhookSecret" placeholder="Secret (optional)" class="full" type="password" />
+            <p-button label="Save webhook" (onClick)="saveWebhook()" [loading]="saving()" />
+          </section>
+          <section class="block">
+            <h3>Email intake</h3>
+            <p>{{ q.emailAddress ?? 'No address yet' }}</p>
+            <p-button label="Mint email address" (onClick)="mintEmail()" severity="secondary" />
+            <label class="checkbox-row"><p-checkbox [(ngModel)]="emailIntakeEnabled" [binary]="true" /> Email intake enabled</label>
+            <p-button label="Save email settings" (onClick)="saveEmailSettings()" />
+          </section>
+          <section class="block">
+            <h3>Allowlist</h3>
+            <div class="row">
+              <p-select
+                [options]="[{ label: 'Email', value: 'email' }, { label: 'Domain', value: 'domain' }]"
+                [(ngModel)]="allowlistMatchType"
+                optionLabel="label"
+                optionValue="value"
+              />
+              <input pInputText [(ngModel)]="allowlistValue" placeholder="value@example.com" />
+              <p-button label="Add" (onClick)="addAllowlist()" />
+            </div>
+            <p-table [value]="allowlist()">
+              <ng-template pTemplate="header">
+                <tr><th>Type</th><th>Value</th><th></th></tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-entry>
+                <tr>
+                  <td>{{ entry.matchTypeKey }}</td>
+                  <td>{{ entry.value }}</td>
+                  <td><p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removeAllowlist(entry.id)" /></td>
+                </tr>
+              </ng-template>
+            </p-table>
+          </section>
+        </p-tabpanel>
+        <p-tabpanel value="2">
+          <p-table [value]="routes()">
+            <ng-template pTemplate="header">
+              <tr><th>Document type</th><th>Agent</th></tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-route>
+              <tr>
+                <td>{{ route.documentTypeKey }}</td>
+                <td>{{ route.agentName ?? route.agentId }}</td>
+              </tr>
+            </ng-template>
+          </p-table>
+          @if (!q.routingLocked) {
+            <div class="row">
+              <p-select [options]="documentTypes()" [(ngModel)]="newRouteDocTypeId" optionLabel="name" optionValue="id" placeholder="Document type" />
+              <p-select [options]="agents()" [(ngModel)]="newRouteAgentId" optionLabel="name" optionValue="id" placeholder="Agent" />
+              <p-button label="Add route" (onClick)="addRoute()" />
+              <p-button label="Lock routing" severity="secondary" (onClick)="lockRoutes()" />
+            </div>
+          }
+        </p-tabpanel>
+      </p-tabpanels>
+    </p-tabs>
+  }
+</div>

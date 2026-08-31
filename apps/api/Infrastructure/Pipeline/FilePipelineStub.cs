@@ -44,10 +44,17 @@ public sealed class FilePipelineStub(
         var processing = enums.Require("file_public_status", "processing");
         var ready = enums.Require("file_public_status", "ready");
         var failed = enums.Require("file_public_status", "failed");
+        var cancelled = enums.Require("file_public_status", "cancelled");
 
         if (file.PublicStatusEnumId == ready)
         {
             logger.LogInformation("File {FileId} already ready; skipping pipeline", file.Id);
+            return;
+        }
+
+        if (file.PublicStatusEnumId == cancelled)
+        {
+            logger.LogInformation("File {FileId} cancelled; skipping pipeline", file.Id);
             return;
         }
 
@@ -63,7 +70,20 @@ public sealed class FilePipelineStub(
             .ToListAsync(cancellationToken);
         context.Documents.AddRange(existingDocs);
 
-        await SetStageAsync(context, processing, "normalize", cancellationToken);
+        if (await StopIfCancelledAsync(context, cancelled, cancellationToken))
+        {
+            return;
+        }
+
+        if (!await TrySetProcessingStageAsync(context, processing, "normalize", cancelled, cancellationToken))
+        {
+            return;
+        }
+
+        if (await StopIfCancelledAsync(context, cancelled, cancellationToken))
+        {
+            return;
+        }
 
         try
         {
@@ -100,19 +120,33 @@ public sealed class FilePipelineStub(
         catch (Exception ex)
         {
             logger.LogError(ex, "Normalize/OCR failed for File {FileId}", file.Id);
+            if (await StopIfCancelledAsync(context, cancelled, cancellationToken))
+            {
+                return;
+            }
+
             await FailFileAsync(context, failed, "normalize_failed", ex.Message, cancellationToken);
             return;
         }
 
         await DelayAsync(delay, cancellationToken);
+        if (await StopIfCancelledAsync(context, cancelled, cancellationToken))
+        {
+            return;
+        }
 
         await split.ExecuteAsync(context, cancellationToken);
         await DelayAsync(delay, cancellationToken);
+        if (await StopIfCancelledAsync(context, cancelled, cancellationToken))
+        {
+            return;
+        }
 
         await classify.ExecuteAsync(context, cancellationToken);
         await DelayAsync(delay, cancellationToken);
 
-        if (file.PublicStatusEnumId == failed)
+        if (file.PublicStatusEnumId == failed
+            || await StopIfCancelledAsync(context, cancelled, cancellationToken))
         {
             return;
         }
@@ -120,7 +154,8 @@ public sealed class FilePipelineStub(
         await route.ExecuteAsync(context, cancellationToken);
         await DelayAsync(delay, cancellationToken);
 
-        if (file.PublicStatusEnumId == failed)
+        if (file.PublicStatusEnumId == failed
+            || await StopIfCancelledAsync(context, cancelled, cancellationToken))
         {
             return;
         }
@@ -134,12 +169,35 @@ public sealed class FilePipelineStub(
             context.Normalize?.ProviderKey);
     }
 
-    private async Task SetStageAsync(
+    private async Task<bool> StopIfCancelledAsync(
+        FilePipelineContext context,
+        long cancelled,
+        CancellationToken cancellationToken)
+    {
+        await db.Entry(context.File).ReloadAsync(cancellationToken);
+        if (context.File.PublicStatusEnumId != cancelled)
+        {
+            return false;
+        }
+
+        logger.LogInformation("File {FileId} cancelled mid-pipeline; aborting remaining stages", context.File.Id);
+        return true;
+    }
+
+    private async Task<bool> TrySetProcessingStageAsync(
         FilePipelineContext context,
         long processing,
         string stageKey,
+        long cancelled,
         CancellationToken cancellationToken)
     {
+        await db.Entry(context.File).ReloadAsync(cancellationToken);
+        if (context.File.PublicStatusEnumId == cancelled)
+        {
+            logger.LogInformation("File {FileId} cancelled before stage {Stage}; aborting", context.File.Id, stageKey);
+            return false;
+        }
+
         context.File.PublicStatusEnumId = processing;
         context.File.InternalStageEnumId = enums.Require("file_internal_stage", stageKey);
         context.File.UpdatedByUserId = context.Item.UserId;
@@ -149,6 +207,7 @@ public sealed class FilePipelineStub(
             $"{{\"status\":\"processing\",\"stage\":\"{stageKey}\"}}",
             null,
             cancellationToken);
+        return true;
     }
 
     private async Task FailFileAsync(
@@ -158,6 +217,12 @@ public sealed class FilePipelineStub(
         string message,
         CancellationToken cancellationToken)
     {
+        await db.Entry(context.File).ReloadAsync(cancellationToken);
+        if (context.File.PublicStatusEnumId == enums.Require("file_public_status", "cancelled"))
+        {
+            return;
+        }
+
         var docFailed = enums.Require("document_public_status", "failed");
         context.File.PublicStatusEnumId = failed;
         context.File.ErrorCode = errorCode;
@@ -165,6 +230,11 @@ public sealed class FilePipelineStub(
         context.File.UpdatedByUserId = context.Item.UserId;
         foreach (var doc in context.Documents)
         {
+            if (doc.PublicStatusEnumId == enums.Require("document_public_status", "cancelled"))
+            {
+                continue;
+            }
+
             doc.PublicStatusEnumId = docFailed;
             doc.ErrorCode = errorCode;
             doc.FailedStage = "normalize";

@@ -1,0 +1,14 @@
+.subtitle {
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+}
+
+.create-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+code {
+  word-break: break-all;
+}

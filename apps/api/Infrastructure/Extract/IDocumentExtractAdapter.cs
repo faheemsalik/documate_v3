@@ -16,7 +16,9 @@ public sealed record ExtractAdapterRequest(
     string? TextArtifactKey,
     string OutputSchemaJson,
     string Instructions,
-    string? SourceText);
+    string? SourceText,
+    /// <summary>Agent/template LLM provider key (e.g. gpt_5_6); falls back to Llm:DefaultProviderKey.</summary>
+    string? PreferredLlmProviderKey = null);
 
 public sealed record ExtractAdapterResult(
     string ProviderKey,

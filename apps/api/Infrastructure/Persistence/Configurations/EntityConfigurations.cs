@@ -197,6 +197,10 @@ internal sealed class OpsQueueConfiguration : IEntityTypeConfiguration<OpsQueue>
         b.HasOne(x => x.AllowlistMode).WithMany().HasForeignKey(x => x.AllowlistModeEnumId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.WorkflowMode).WithMany().HasForeignKey(x => x.WorkflowModeEnumId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Workflow).WithMany().HasForeignKey(x => x.WorkflowId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => new { x.BusinessId, x.IsDefault })
+            .IsUnique()
+            .HasDatabaseName("IX_OpsQueues_BusinessId_IsDefault")
+            .HasFilter("[IsDefault] = 1 AND [IsDeleted] = 0");
     }
 }
 

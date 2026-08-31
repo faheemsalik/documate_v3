@@ -1,0 +1,15 @@
+<div class="page">
+  <h1>Switch business</h1>
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading…" />
+  } @else if (profile(); as p) {
+    <p-card>
+      <h2>{{ p.name }}</h2>
+      <p class="meta">{{ p.tenantName }} · Active business</p>
+    </p-card>
+    <p class="hint">Multi-business switching will connect to Iden in a later band. Edit profile in Settings.</p>
+    <a routerLink="/business/profile">Business profile →</a>
+  }
+</div>

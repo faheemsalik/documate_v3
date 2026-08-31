@@ -1,0 +1,32 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <a routerLink="/agents" class="back-link">← My agents</a>
+      <h1>New agent</h1>
+      <p class="subtitle">Start from a platform template</p>
+    </div>
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading templates…" />
+  } @else {
+    <div class="grid">
+      @for (t of templates(); track t.agentTemplateKey) {
+        <p-card>
+          <h2>{{ t.name }}</h2>
+          <p class="meta">{{ t.documentTypeKey }}</p>
+          @if (t.description) {
+            <p class="desc">{{ t.description }}</p>
+          }
+          <p-button
+            label="Use template"
+            [loading]="cloning() === t.agentTemplateKey"
+            (onClick)="clone(t)"
+          />
+        </p-card>
+      }
+    </div>
+  }
+</div>

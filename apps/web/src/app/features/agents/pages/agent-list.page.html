@@ -1,0 +1,36 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>My agents</h1>
+      <p class="subtitle">Configure extraction agents for your document types</p>
+    </div>
+    <p-button label="New agent" icon="pi pi-plus" routerLink="/agents/templates" />
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading agents…" />
+  } @else if (agents().length === 0) {
+    <p-card>
+      <p class="empty">No agents yet. Create one from a template.</p>
+      <p-button label="Browse templates" routerLink="/agents/templates" />
+    </p-card>
+  } @else {
+    <div class="grid">
+      @for (agent of agents(); track agent.id) {
+        <p-card class="agent-card">
+          <div class="card-top">
+            <h2>{{ agent.name }}</h2>
+            <p-tag [value]="agent.isActive ? 'Active' : 'Inactive'" [severity]="agent.isActive ? 'success' : 'secondary'" />
+          </div>
+          <p class="meta">{{ agent.documentTypeKey ?? 'Unknown type' }}</p>
+          @if (agent.description) {
+            <p class="desc">{{ agent.description }}</p>
+          }
+          <p-button label="Edit" [routerLink]="['/agents', agent.id]" size="small" />
+        </p-card>
+      }
+    </div>
+  }
+</div>

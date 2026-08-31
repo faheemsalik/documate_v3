@@ -45,8 +45,15 @@ public sealed class QueuesController(IMediator mediator) : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var ok = await mediator.Send(new DeleteQueueCommand(id), cancellationToken);
-        return ok ? NoContent() : NotFound();
+        try
+        {
+            var ok = await mediator.Send(new DeleteQueueCommand(id), cancellationToken);
+            return ok ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
     }
 
     [HttpGet("{id:guid}/routes")]
@@ -143,6 +150,7 @@ public sealed record QueueDto(
     Guid Id,
     string Name,
     string? Description,
+    bool IsDefault,
     bool IsActive,
     bool RoutingLocked,
     DateTimeOffset? RoutingLockedAt,
@@ -219,6 +227,7 @@ internal static class QueueHelpers
             q.Id,
             q.Name,
             q.Description,
+            q.IsDefault,
             q.IsActive,
             q.RoutingLocked,
             q.RoutingLockedAt,
@@ -308,6 +317,7 @@ public sealed class CreateQueueHandler(DocumateDbContext db, IBusinessContext bu
             BusinessId = business.BusinessId,
             Name = command.Request.Name.Trim(),
             Description = command.Request.Description,
+            IsDefault = false,
             AllowlistModeEnumId = openId,
             WorkflowModeEnumId = inheritId,
             IsActive = true,
@@ -354,6 +364,11 @@ public sealed class DeleteQueueHandler(DocumateDbContext db, IBusinessContext bu
         if (q is null)
         {
             return false;
+        }
+
+        if (q.IsDefault)
+        {
+            throw new InvalidOperationException("Cannot delete the default channel Queue for this Business.");
         }
 
         q.IsDeleted = true;

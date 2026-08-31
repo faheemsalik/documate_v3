@@ -166,7 +166,7 @@ Phase numbers below are **product capability phases**, not planning-process Phas
 | **Platform Agent template** | Pre-built agent; guided-clone starting point. |
 | **Agent** | Customer **AI Agent** (guided clone): schema + extraction instructions + **post-processing** for its document type. |
 | **System AI Agent** | Platform-owned AI steps (classify, intake decision, …). Not user-cloned; not QueueRoute targets in Phase 1. |
-| **Queue** | Ops lane **inside a Business** (multi-queue first-class): routing map, webhook, email. **Not** post-processing owner. **Not** an Iden Business. |
+| **Queue** | Untyped **intake channel** **inside a Business**: routing map, webhook, email. Phase 1: one **default** Queue auto-created per Business (UI may hide multi-queue). **Not** post-processing owner. **Not** an Iden Business / department label. |
 | **IntakeRejection** | Intake refused with **no File** created. |
 | **Intake source** | `Api` / `Email` / `ApiSync` — drives whether original File is included on Document webhook. |
 | **Post-processing / Workflow** | After extract; **bound to Agent** (document-type wise). Platform tools / internal MCP in Phase 1; user-customizable from day one. |
@@ -719,7 +719,7 @@ None blocking. Deferred by choice:
 
 ## 20. Mental design freeze (current)
 
-1. Three modules; guided-clone **Customer AI Agents** (schema + post-process); System AI Agents platform-only; routing map locked once files exist; **multi-queue day one**.
+1. Three modules; guided-clone **Customer AI Agents** (schema + post-process); System AI Agents platform-only; routing map locked once files exist; **Queues in model** (Phase 1 = default channel UX; multi-queue later).
 2. Hierarchy: Iden **Tenant → Business** → optional **Batch (log)** → **File** → **Document**; multi-doc/multi-type inside a File.  
    (**Job** is not a product term. Queue ≠ Iden Business.)
 3. Multi-file API/email intake **required**; must **not** block other processes.
@@ -730,12 +730,23 @@ None blocking. Deferred by choice:
 8. Later / deferred captured only: white-label SDK (§3.1), statements reconciliation (§3.2), MCM DN rebranding (§3.3), **classification strategy brainstorm (§3.4)**.
 9. Next: Implementation plan / DQ execution (Phase 1); bring §3.4 forward when hitting classify.
 
+### 20.1 Amendment — Default channel (2026-08-28) — DECIDED K1
+
+Does **not** unfreeze §6.1 (QueueRoute / multi-type). Adds Phase 1 bootstrap UX:
+
+- Keep **Queue** + **QueueRoute**; Queue stays **untyped**.
+- Business create → auto **default Queue** (`IsDefault`); Business page shows **Default channel (Queue ID: …)**.
+- Agent create/clone → auto `QueueRoute` when Business has **exactly one** Queue; one Agent per DocumentType per Queue.
+- Product copy may say **channel**; do not rename to Department / Biz unit.
+
+Detail: [02-document-queue-design.md](./02-document-queue-design.md) §3.1; Plan 03 Decision **K1**; DQ-0304 / DQ-0204.
+
 ---
 
 ## 21. Next documents
 
 1. **Document Queue design** — [02-document-queue-design.md](./02-document-queue-design.md).  
-2. **Implementation plan** — [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md) (draft — pending A–G).
+2. **Implementation plan** — [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md).
 
 ---
 
@@ -756,3 +767,4 @@ None blocking. Deferred by choice:
 | 2026-08-02 | **Agent = AI Agent** vocab; System AI vs Customer AI vs capabilities; **workflow Agent-primary**; multi-queue day one. |
 | 2026-08-02 | Sync-wait DECIDED: single-doc fail-if-multi, 60s, C2 no webhook; E3 async multi-doc kept. |
 | 2026-08-02 | **§3.4 deferred brainstorm:** document classification strategy / options — bring forward at split/classify (e.g. DQ-0702). |
+| 2026-08-28 | **§20.1 / K1:** default Queue on Business create; Agent auto-route if single Queue; Phase 1 hide multi-queue UI; keep QueueRoute. |

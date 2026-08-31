@@ -5,6 +5,8 @@ public sealed class OpsQueue : WireFacingEntity, IHasRowVersion
     public string BusinessId { get; set; } = "";
     public string Name { get; set; } = "";
     public string? Description { get; set; }
+    /// <summary>Business bootstrap / default intake channel. At most one non-deleted per Business.</summary>
+    public bool IsDefault { get; set; }
     public bool RoutingLocked { get; set; }
     public DateTimeOffset? RoutingLockedAt { get; set; }
     public string? WebhookUrl { get; set; }

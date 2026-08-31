@@ -2,6 +2,8 @@ namespace Documate.Api.Infrastructure.Pipeline;
 
 using Documate.Api.Infrastructure.Webhooks;
 using Hangfire;
+using Hangfire.Common;
+using Hangfire.States;
 
 /// <summary>Hangfire-backed File enqueue (Decision A1 + Hangfire SQL).</summary>
 public sealed class HangfireWorkDispatcher(IBackgroundJobClient jobs) : IWorkDispatcher
@@ -9,8 +11,12 @@ public sealed class HangfireWorkDispatcher(IBackgroundJobClient jobs) : IWorkDis
     public ValueTask EnqueueFileAsync(FileWorkItem item, CancellationToken cancellationToken = default)
     {
         _ = cancellationToken;
-        jobs.Enqueue<FilePipelineJobs>(j =>
+        var queue = string.Equals(item.Priority, "high", StringComparison.OrdinalIgnoreCase)
+            ? "priority"
+            : "default";
+        var job = Job.FromExpression<FilePipelineJobs>(j =>
             j.ProcessFileAsync(item.FileId, item.BusinessId, item.UserId));
+        jobs.Create(job, new EnqueuedState(queue));
         return ValueTask.CompletedTask;
     }
 }

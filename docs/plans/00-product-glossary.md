@@ -19,7 +19,9 @@ Iden Tenant
 
 Single-file intake: **no Batch** — just `File` → `Document`(s).
 
-**Iden:** Tenant → Businesses (two levels). Documate operational data hangs off **Business**. A **Queue** is an ops lane *inside* a Business, not a substitute for Business.
+**Iden:** Tenant → Businesses (two levels). Documate operational data hangs off **Business**. A **Queue** is an ops **intake channel** *inside* a Business, not a substitute for Business (and not an org “department” / “biz unit” — those words collide with Iden Business).
+
+**Phase 1 UX:** Each Business gets one **default Queue** at Business create (system channel). Multi-queue remains in the model for later; UI may hide Queues and show **Default channel (Queue ID: …)** on the Business page for External API targeting.
 
 ---
 
@@ -33,7 +35,8 @@ Single-file intake: **no Batch** — just `File` → `Document`(s).
 | **File** | — | One **stored** binary or artifact in a Queue (PDF, image, DOCX, email body artifact, etc.). Owns split/classify/route and **rollup status** for UI/ops. | A logical invoice/DN inside a PDF (that is a **Document**) |
 | **Document** | **Doc** | One **logical business document** produced after split + classify on a File (e.g. one invoice). Runs one Agent → one schema. Holds **ResultJson** when Ready. **Webhook unit** (async). | The whole uploaded PDF when that PDF contains multiple logical docs |
 | **Result** | — | Schema-shaped JSON on a **Document** when status is Ready | Webhook delivery success |
-| **Queue** | — | Operational lane **within a Business** (multi-queue day one): routing map, webhook URL, email intake | An Agent, a File, or an Iden Business |
+| **Queue** | Channel | Untyped **intake channel** within a Business: webhook, email, allowlist, workflow attach + **QueueRoute** map (`DocumentType` → `Agent`). Phase 1: one **default** Queue auto-created per Business. | An Agent, a File, an Iden Business, or a typed “one doc-type only” bucket |
+| **QueueRoute** | Route | On a Queue: this **DocumentType** → this **Agent**. Unique `(QueueId, DocumentTypeId)`. | Multiple Agents for the same type on one Queue |
 | **Agent** | — | Customer **AI Agent**: instructions + **output schema** + document-type intent + **post-processing** | A Queue or a System AI step |
 | **System AI Agent** | — | Platform AI step (classify, intake decision, …); not user-cloned | Customer Agent |
 
@@ -63,7 +66,7 @@ Plain English in narrative is fine (“the upload used to block other work”) �
 |------------|-----|--------|
 | `business_id` | Iden Business id | **Isolation scope** for Documate work (ops rows) |
 | `tenant_id` | Iden Tenant id | Auth/UI context; **not** repeated on Queue/File/Document — use `CorTenantBusiness` |
-| `queue_id` | Queue.Id (UUID PK) | SequenceId for support SQL only |
+| `queue_id` | Queue.Id (UUID PK) | External upload target; Phase 1 often the Business **default channel** id shown on the Business page |
 | `agent_id` | Agent.Id (UUID PK) | |
 | `batch_id` | Batch.Id (UUID PK) | |
 | `file_id` | File.Id (UUID PK) | |

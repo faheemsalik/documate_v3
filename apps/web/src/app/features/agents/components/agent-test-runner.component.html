@@ -1,0 +1,32 @@
+<div class="test-runner">
+  <p class="hint">
+    Uploads to the <strong>default queue</strong> with this agent's document type. Ensure the agent is mapped on
+    the channel route map before testing.
+  </p>
+
+  <input id="agent-test-file" type="file" hidden (change)="onFileSelected($event)" />
+  <p-button
+    label="Upload test file"
+    icon="pi pi-upload"
+    [loading]="uploading()"
+    (onClick)="triggerUpload()"
+  />
+
+  @if (polling()) {
+    <div class="polling">
+      <p-progressSpinner styleClass="spinner" strokeWidth="4" />
+      <span>Polling… attempt {{ pollCount() }}</span>
+    </div>
+  }
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (fileId(); as fid) {
+    <div class="result">
+      <app-status-pill [status]="statusKey()" />
+      <a [routerLink]="['/files', fid]">Open file detail</a>
+    </div>
+  }
+</div>

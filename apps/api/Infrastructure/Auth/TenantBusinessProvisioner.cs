@@ -2,6 +2,8 @@ namespace Documate.Api.Infrastructure.Auth;
 
 using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Persistence;
+using Documate.Api.Infrastructure.PostProcess;
+using Documate.Api.Infrastructure.Queues;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>Ensures CorTenant / CorTenantBusiness product-extension rows exist for the authenticated Business.</summary>
@@ -12,7 +14,9 @@ public interface ITenantBusinessProvisioner
 
 public sealed class TenantBusinessProvisioner(
     DocumateDbContext db,
-    ICorEnumIdResolver enumIds) : ITenantBusinessProvisioner
+    ICorEnumIdResolver enumIds,
+    IDefaultQueueBootstrap defaultQueues,
+    IDefaultWorkflowBootstrap defaultWorkflows) : ITenantBusinessProvisioner
 {
     public async Task EnsureAsync(IBusinessContext context, CancellationToken cancellationToken = default)
     {
@@ -89,5 +93,10 @@ public sealed class TenantBusinessProvisioner(
                 await db.SaveChangesAsync(cancellationToken);
             }
         }
+
+        // K1: every Business has a default intake channel Queue.
+        await defaultQueues.EnsureDefaultAsync(context.BusinessId, context.UserId, cancellationToken);
+        // DQ-1101: default post-process workflow (Agent may attach via DefaultWorkflowId).
+        await defaultWorkflows.EnsureNormalizeFieldsAsync(context.BusinessId, context.UserId, cancellationToken);
     }
 }

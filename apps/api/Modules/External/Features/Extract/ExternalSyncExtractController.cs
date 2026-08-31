@@ -2,6 +2,7 @@ namespace Documate.Api.Modules.External.Features.Extract;
 
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Options;
+using Documate.Api.Infrastructure.Ocr;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Pipeline;
 using Documate.Api.Infrastructure.Work;
@@ -104,6 +105,11 @@ public sealed class SyncExtractHandler(
                 throw new InvalidOperationException($"Unknown documentTypeKey '{request.DocumentTypeKey}'.");
             }
         }
+
+        SyncExtractGates.EnsureWithinLimits(
+            request.File,
+            pipeline.Value.SyncMaxPages,
+            pipeline.Value.SyncMaxBytes);
 
         var sourceId = enums.Require("intake_source", "api_sync");
         var hintsJson = IntakeHints.Serialize(request.DocumentTypeKey, request.DocumentCount);

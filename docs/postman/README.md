@@ -34,7 +34,7 @@ Client timeout for **POST sync extract** should be **> 60 seconds**.
 | 04 Queues | CRUD, routes, webhook, email, allowlist, lock |
 | 05 App files | upload with `documentTypeKey`, get, download-url, poll until ready |
 | 06 API keys | create, list, (revoke is in cleanup) |
-| 07 External async | multi-file upload, list/get files, list/get documents (`resultJson`, webhook status) |
+| 07 External async | multi-file upload; list files / by ids / by date range; get file; list/get documents (`resultJson`, webhook status) |
 | 08 External sync | `POST /extract` — wait up to 60s, no webhook |
 | 09 Negatives | unknown type 400, sync `documentCount=2` 400 |
 | 99 Cleanup | revoke key, delete agent/queue |

@@ -1,0 +1,12 @@
+<div class="page">
+  <h1>Business profile</h1>
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading…" />
+  } @else if (profile(); as p) {
+    <label>Name<input pInputText [(ngModel)]="name" /></label>
+    <p class="meta">Tenant: {{ p.tenantName }} · ID {{ p.businessId }}</p>
+    <p-button label="Save" (onClick)="save()" [loading]="saving()" />
+  }
+</div>

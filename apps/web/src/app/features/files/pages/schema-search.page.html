@@ -1,0 +1,48 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <a routerLink="/files" class="back-link">← Extract data</a>
+      <h1>Schema search</h1>
+      <p class="subtitle">Search extracted fields on the default queue</p>
+    </div>
+  </header>
+
+  <form class="search-form" (ngSubmit)="search()">
+    <div class="field">
+      <label for="fieldKey">Field key</label>
+      <input pInputText id="fieldKey" [(ngModel)]="fieldKey" name="fieldKey" placeholder="invoice_number" />
+    </div>
+    <div class="field">
+      <label for="searchValue">Value</label>
+      <input pInputText id="searchValue" [(ngModel)]="searchValue" name="searchValue" placeholder="INVO-005" />
+    </div>
+    <div class="field">
+      <label for="matchMode">Match</label>
+      <p-select
+        inputId="matchMode"
+        [options]="matchModes"
+        [(ngModel)]="matchMode"
+        name="matchMode"
+        optionLabel="label"
+        optionValue="value"
+      />
+    </div>
+    <p-button type="submit" label="Search" icon="pi pi-search" [loading]="loading()" />
+  </form>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  <p class="result-count">{{ totalCount() }} match(es)</p>
+
+  <div class="grid-wrap" [class.loading]="loading()">
+    <ag-grid-angular
+      style="width: 100%; height: min(60vh, 640px)"
+      [theme]="theme"
+      [rowData]="rows()"
+      [columnDefs]="columnDefs"
+      (rowClicked)="onRowClicked($event)"
+    />
+  </div>
+</div>

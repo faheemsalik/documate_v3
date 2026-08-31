@@ -1,1 +1,19 @@
-/* You can add global styles to this file, and also import other style files */
+@import 'primeicons/primeicons.css';
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--p-font-family, system-ui, sans-serif);
+  background: var(--p-surface-ground, #f8f9fa);
+  color: var(--p-text-color, #1c1c1c);
+}
+
+/* PrimeNG dark mode is toggled via ThemeService on <html class="app-dark"> */
+html.app-dark body {
+  background: var(--p-surface-ground);
+  color: var(--p-text-color);
+}

@@ -1,0 +1,26 @@
+<div class="page">
+  <h1>Documentation</h1>
+  <p class="subtitle">API references for integrating with Documate</p>
+
+  <p-card header="Customer app API">
+    <p>FrontendSupport endpoints used by this app:</p>
+    <ul>
+      <li><code>/api/app/me</code> — account context</li>
+      <li><code>/api/app/queues/…/files</code> — upload, list, search, summary</li>
+      <li><code>/api/app/agents</code> — agent CRUD</li>
+      <li><code>/api/app/queues</code> — channels, intake, routes</li>
+      <li><code>/api/app/api-keys</code> — partner keys</li>
+    </ul>
+  </p-card>
+
+  <p-card header="OpenAPI">
+    <p><a [href]="openApiUrl" target="_blank" rel="noopener">OpenAPI JSON</a></p>
+    <p><a [href]="swaggerUrl" target="_blank" rel="noopener">Swagger UI</a> (dev)</p>
+    <p class="hint">Base URL: {{ apiBase }}</p>
+  </p-card>
+
+  <p-card header="External partner API">
+    <p>Use API keys from Settings → API keys with <code>/api/v1</code> endpoints.</p>
+    <p>See Postman collection: <code>docs/postman/Documate-v3-API.postman_collection.json</code></p>
+  </p-card>
+</div>

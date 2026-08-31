@@ -5,6 +5,7 @@ using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Persistence.Seeding;
 using Documate.Api.Infrastructure.Pipeline;
+using Documate.Api.Infrastructure.Queues;
 using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Work;
 using Microsoft.EntityFrameworkCore;
@@ -16,12 +17,32 @@ builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
 
+// Customer Angular app (ng serve) calls /api/app cross-origin until a same-origin proxy is used.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CustomerWebDev", policy =>
+        policy.WithOrigins(
+                "http://localhost:4202",
+                "https://localhost:4202",
+                "http://127.0.0.1:4202",
+                "https://127.0.0.1:4202",
+                "http://localhost:4200",
+                "https://localhost:4200",
+                "http://127.0.0.1:4200",
+                "https://127.0.0.1:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
+
 builder.Services.Configure<ProviderCredentialsOptions>(builder.Configuration.GetSection(ProviderCredentialsOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<EmailIntakeOptions>(builder.Configuration.GetSection(EmailIntakeOptions.SectionName));
+LlmStartupGate.EnsureConfigured(builder.Configuration, builder.Environment);
 builder.Services.AddDocumateObjectStorage(builder.Configuration);
 builder.Services.AddDocumatePipeline(builder.Configuration);
 builder.Services.AddScoped<IWorkRecordService, WorkRecordService>();
+builder.Services.AddScoped<ICancelWorkService, CancelWorkService>();
+builder.Services.AddScoped<IReprocessWorkService, ReprocessWorkService>();
 
 builder.Services.AddDbContext<DocumateDbContext>(options =>
 {
@@ -36,6 +57,8 @@ builder.Services.AddHostedService<CorEnumSeedHostedService>();
 
 builder.Services.AddScoped<IBusinessContext, BusinessContextAccessor>();
 builder.Services.AddScoped<ITenantBusinessProvisioner, TenantBusinessProvisioner>();
+builder.Services.AddScoped<IDefaultQueueBootstrap, DefaultQueueBootstrap>();
+builder.Services.AddScoped<IAgentQueueRouteAutoMapper, AgentQueueRouteAutoMapper>();
 builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
 
 builder.Services
@@ -78,6 +101,11 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("CustomerWebDev");
+}
+
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -85,6 +113,9 @@ app.UseMiddleware<TenantBusinessProvisioningMiddleware>();
 app.UseDocumateHangfireDashboard();
 app.MapControllers();
 app.MapHealthChecks("/health");
+
+// Liveness for IIS deploy tooling — anonymous, no dependency checks.
+app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" }));
 
 app.Run();
 

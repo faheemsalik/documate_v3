@@ -2,6 +2,7 @@ namespace Documate.Api.Modules.External.Features.Documents;
 
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Persistence;
+using Documate.Api.Infrastructure.Work;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -35,6 +36,22 @@ public sealed class ExternalDocumentsController(IMediator mediator) : Controller
         var dto = await mediator.Send(new GetExternalDocumentQuery(documentId), cancellationToken);
         return dto is null ? NotFound() : Ok(dto);
     }
+
+    /// <summary>Cancel Document (Plan 02 §11.2 / DQ-1001). File rollup updates; webhook for newly cancelled.</summary>
+    [HttpPost("documents/{documentId:guid}/cancel")]
+    public async Task<ActionResult<ExternalDocumentDto>> Cancel(Guid documentId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dto = await mediator.Send(new CancelExternalDocumentCommand(documentId), cancellationToken);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("terminal", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("already cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict(new { error = ex.Message });
+        }
+    }
 }
 
 public sealed record ExternalDocumentDto(
@@ -65,6 +82,8 @@ public sealed record ListExternalDocumentsQuery(
     DateTimeOffset? CreatedTo) : IRequest<IReadOnlyList<ExternalDocumentDto>>;
 
 public sealed record GetExternalDocumentQuery(Guid DocumentId) : IRequest<ExternalDocumentDto?>;
+
+public sealed record CancelExternalDocumentCommand(Guid DocumentId) : IRequest<ExternalDocumentDto?>;
 
 public sealed class ListExternalDocumentsHandler(DocumateDbContext db, IBusinessContext business, ICorEnumIdResolver enums)
     : IRequestHandler<ListExternalDocumentsQuery, IReadOnlyList<ExternalDocumentDto>>
@@ -210,6 +229,35 @@ public sealed class GetExternalDocumentHandler(DocumateDbContext db, IBusinessCo
         }
 
         var list = await ListExternalDocumentsHandler.MapAsync(db, [doc], cancellationToken);
+        return list.FirstOrDefault();
+    }
+}
+
+public sealed class CancelExternalDocumentHandler(
+    ICancelWorkService cancel,
+    IBusinessContext business,
+    DocumateDbContext db) : IRequestHandler<CancelExternalDocumentCommand, ExternalDocumentDto?>
+{
+    public async Task<ExternalDocumentDto?> Handle(
+        CancelExternalDocumentCommand request,
+        CancellationToken cancellationToken)
+    {
+        var result = await cancel.CancelDocumentAsync(
+            request.DocumentId,
+            business.BusinessId,
+            business.UserId,
+            cancellationToken);
+        if (!result.Found || result.Document is null)
+        {
+            return null;
+        }
+
+        if (result.Conflict)
+        {
+            throw new InvalidOperationException(result.ConflictReason ?? "Cannot cancel document.");
+        }
+
+        var list = await ListExternalDocumentsHandler.MapAsync(db, [result.Document], cancellationToken);
         return list.FirstOrDefault();
     }
 }

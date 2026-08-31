@@ -1,0 +1,94 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <a routerLink="/files" class="back-link">← Extract data</a>
+      <h1>{{ file()?.originalFileName ?? 'File detail' }}</h1>
+      @if (file(); as f) {
+        <div class="meta-row">
+          <app-status-pill [status]="f.publicStatusKey" />
+          <span class="muted">{{ f.documentCount }} document(s)</span>
+        </div>
+      }
+    </div>
+    <p-button
+      label="Refresh"
+      icon="pi pi-refresh"
+      severity="secondary"
+      [loading]="loading()"
+      (onClick)="refresh()"
+    />
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (file(); as f) {
+    <div class="layout">
+      <section class="preview-panel">
+        <p-card header="Preview">
+          @if (safePreviewUrl(); as url) {
+            @if (canPreviewInline()) {
+              @if ((f.contentType?.toLowerCase() ?? '').includes('pdf')) {
+                <iframe class="preview-frame" [src]="url" title="File preview"></iframe>
+              } @else {
+                <img class="preview-image" [src]="url" alt="File preview" />
+              }
+            } @else {
+              <p class="muted">Inline preview unavailable for this file type.</p>
+              <a [href]="previewUrl()!" target="_blank" rel="noopener">Open download</a>
+            }
+          } @else {
+            <p class="muted">Preview not available.</p>
+          }
+        </p-card>
+      </section>
+
+      <section class="detail-panel">
+        <p-card header="Metadata">
+          <dl class="meta-grid">
+            <dt>Status</dt>
+            <dd><app-status-pill [status]="f.publicStatusKey" /></dd>
+            <dt>Uploaded</dt>
+            <dd>{{ f.createdAt | date: 'medium' }}</dd>
+            <dt>Completed</dt>
+            <dd>{{ f.completedAt ? (f.completedAt | date: 'medium') : '—' }}</dd>
+            <dt>Content type</dt>
+            <dd>{{ f.contentType ?? '—' }}</dd>
+            <dt>Size</dt>
+            <dd>{{ f.sizeBytes | number }} bytes</dd>
+            <dt>File id</dt>
+            <dd class="mono">{{ f.id }}</dd>
+          </dl>
+        </p-card>
+
+        <p-card header="Documents">
+          @if (documents().length === 0) {
+            <p class="muted">No documents yet.</p>
+          } @else {
+            <p-table [value]="documents()" [tableStyle]="{ 'min-width': '100%' }">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-doc>
+                <tr>
+                  <td>{{ doc.documentTypeKey ?? '—' }}</td>
+                  <td><app-status-pill [status]="doc.publicStatusKey" /></td>
+                  <td>{{ doc.createdAt | date: 'short' }}</td>
+                  <td>
+                    <a [routerLink]="['/files', f.id, 'documents', doc.id]">Open</a>
+                  </td>
+                </tr>
+              </ng-template>
+            </p-table>
+          }
+        </p-card>
+      </section>
+    </div>
+  }
+</div>

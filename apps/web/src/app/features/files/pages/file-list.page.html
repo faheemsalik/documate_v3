@@ -1,0 +1,52 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Extract data</h1>
+      <p class="subtitle">{{ totalCount() }} files · default queue</p>
+    </div>
+    <div class="actions">
+      <p-select
+        [options]="statusOptions"
+        [(ngModel)]="statusFilter"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Status"
+        (onChange)="onStatusFilterChange()"
+        styleClass="status-filter"
+      />
+      <p-button
+        label="Refresh"
+        icon="pi pi-refresh"
+        [loading]="loading()"
+        severity="secondary"
+        (onClick)="refresh()"
+      />
+      <p-button label="Schema search" icon="pi pi-search" severity="secondary" routerLink="/files/search" />
+      <input #fileInput type="file" hidden (change)="onUploadSelected($event)" />
+      <p-button
+        label="Upload"
+        icon="pi pi-upload"
+        [loading]="uploading()"
+        (onClick)="triggerUpload()"
+      />
+    </div>
+  </header>
+
+  @if (ctx.loading()) {
+    <p-message severity="info" text="Loading account…" />
+  } @else if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  <div class="grid-wrap" [class.loading]="loading()">
+    <ag-grid-angular
+      style="width: 100%; height: min(70vh, 720px)"
+      [theme]="theme"
+      [rowData]="rows()"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      [rowSelection]="{ mode: 'multiRow', checkboxes: true, headerCheckbox: true }"
+      (rowClicked)="onRowClicked($event)"
+    />
+  </div>
+</div>

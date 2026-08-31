@@ -1,7 +1,7 @@
 # Documate v3 — Document Queue Design
 
 > **Document type:** Product / system design (queue & work lifecycle)  
-> **Status:** Draft aligned to frozen mental design  
+> **Status:** Aligned to frozen mental design + **2026-08-28 default-channel amendment**  
 > **Depends on:** [01-project-exploration-mental-design.md](./01-project-exploration-mental-design.md)  
 > **Out of scope:** Tech stack, broker choice, DB schema DDL, API route paths, code structure, estimates  
 
@@ -24,7 +24,7 @@ Not an implementation plan — but §2.1 records a hard **implementation goal** 
 
 ## 2. Design principles
 
-1. **Queue = operational lane** (multi-queue day one). **Customer AI Agents** own schemas/extraction/**post-processing**; queue owns routing, intake, delivery.
+1. **Queue = untyped intake channel** (multi-queue in the model). **Customer AI Agents** own schemas/extraction/**post-processing**; queue owns intake, delivery, and the **type→Agent** routing map (`QueueRoute`). Queue is **not** typed to a single DocumentType.
 2. **Document is the result atom** and the **webhook unit**.
 3. **File** owns split/classify and rollup for UI/ops; may contain many Documents.
 4. **Batch is optional and log/correlation only** — created when **multiple files** arrive together (multi-file API upload or multi-target email). Not a status machine customers depend on.
@@ -35,6 +35,7 @@ Not an implementation plan — but §2.1 records a hard **implementation goal** 
 9. **Cancel** may target a **file** or a **Document**.
 10. Pack partial success at file level uses `PartialReady`; async consumers get **one webhook per Document**.
 11. **Two External API styles:** most intake is **async** (ids + webhook + poll); **one sync wait API** returns final results in the HTTP response (client-side).
+12. **Phase 1 default channel (DECIDED 2026-08-28):** Creating a **Business** auto-creates one **default Queue**. Phase 1 UI may hide multi-queue management and show **Default channel (Queue ID: …)** on the Business page. Creating/cloning an **Agent** **auto-creates a QueueRoute** onto that Queue when the Business has **exactly one** Queue. Webhook/email/allowlist configured under Business settings **write through** to the default Queue.
 
 ### 2.1 Implementation goal — concurrent multi-file intake (IMPORTANT)
 
@@ -52,9 +53,23 @@ In a previous Documate version, uploading / receiving multiple files was not pro
 
 ## 3. Queue as a configured object
 
-Identity, **type → Customer AI Agent** routing map + lock, webhook URL/secret/enable, email intake. Post-processing on **Agent** (not queue).
+Identity, **type → Customer AI Agent** routing map (`QueueRoute`) + lock, webhook URL/secret/enable, email intake. Post-processing on **Agent** (not queue). Queue stays **untyped** — many DocumentTypes via routes.
 
 While routing locked: map immutable; webhook/email/name still editable.
+
+### 3.1 Default channel — DECIDED (2026-08-28)
+
+| Rule | Behavior |
+|------|----------|
+| Business create | Always create one **default Queue** (`IsDefault = true`) for that Business |
+| Phase 1 UI | Queues may be **hidden** as a primary nav concept; Business page shows **Default channel (Queue ID: …)** for External API / support |
+| Intake settings | Webhook / email / allowlist edited as Business settings **write through** to the default Queue |
+| Agent create / guided clone | If Business has **exactly one** Queue → auto-insert `QueueRoute(Queue, Agent.DocumentType, Agent)` |
+| Same DocumentType already routed | Do **not** overwrite; reject auto-map (or Agent create) with a clear conflict — **one Agent per DocumentType per Queue** |
+| Business has **2+** Queues | Do **not** auto-map; caller must choose Queue / use route APIs |
+| Multi-queue later | Model already supports N Queues per Business; expose UI when a real second channel is needed |
+
+**Naming:** Product copy may say **channel**; domain/API keep **Queue** / `queue_id`. Do not rename to Department or Biz unit (collides with Iden Business).
 
 ---
 
@@ -315,7 +330,9 @@ Documents may be Ready and webhook **before** siblings finish (file still `Proce
 
 ## 12. Routing lock
 
-First file on queue locks type→Agent map. Fix via new queue. Webhook/email/name still editable.
+First file on queue locks type→Agent map. Fix via new queue (or unlock policy later — not Phase 1). Webhook/email/name still editable.
+
+Auto-created routes from Agent create count toward the same map and become immutable once `RoutingLocked`.
 
 ---
 
@@ -398,12 +415,15 @@ File → PartialReady (poll)
 - **Webhook per Document**  
 - Cancel file + document; explicit reprocess  
 - IntakeRejection; routing lock; PartialReady on file  
+- **Default Queue on Business create**; **Agent auto-route** when single Queue; Business-page Queue ID  
 
 **Out / later**
 - Batch as primary status/delivery object  
 - Batch webhook  
 - Auto-reprocess  
-- Upload that globally blocks other processing (explicitly forbidden)
+- Upload that globally blocks other processing (explicitly forbidden)  
+- Full multi-queue configuration UI (API may already allow N Queues; Phase 1 UX = default channel)  
+- Typed Queue (one DocumentType on Queue itself) — **rejected**; keep QueueRoute  
 
 ---
 
@@ -420,12 +440,15 @@ File → PartialReady (poll)
 | Cancel | File and Document |
 | Reprocess | Explicit only; new File |
 | Refuse no file | IntakeRejection |
+| Queue shape | **Untyped** intake channel + `QueueRoute` (not typed Queue; not drop Queue) |
+| Default channel | Business create → default Queue; show Queue ID on Business; settings write-through |
+| Agent → route | Auto `QueueRoute` when Business has exactly one Queue; unique type per Queue |
 
 ---
 
 ## 20. Next step
 
-**Implementation plan** — must call out non-blocking multi-file intake, per-Document webhooks, and the sync wait API (+ timeout policy).
+**Implementation plan / DQ** — default Queue bootstrap, Agent auto-route, Business UI Queue ID (see Plan 03 + DQ-0204 / DQ-0304).
 
 ---
 
@@ -437,5 +460,5 @@ File → PartialReady (poll)
 | 2026-07-31 | Temporarily removed Batch / multi-file API. |
 | 2026-07-31 | Optional log-only Batch; multi-file non-blocking; webhook per Document. |
 | 2026-07-31 | **Async default APIs + one sync wait API for in-call client results.** |
-
 | 2026-08-02 | Sync-wait: single-doc only, 60s, no webhook (C2); async keeps multi-doc (E3). |
+| 2026-08-28 | **Default channel:** keep Queue + QueueRoute; Business create → default Queue; Agent auto-route if single Queue; Phase 1 UI hides multi-queue; reject typed Queue. |

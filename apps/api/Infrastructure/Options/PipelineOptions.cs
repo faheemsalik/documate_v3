@@ -14,4 +14,10 @@ public sealed class PipelineOptions
 
     /// <summary>Decision G: max seconds the sync-wait HTTP call blocks.</summary>
     public int SyncWaitTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>Sync extract: reject when estimated pages exceed this (default 3).</summary>
+    public int SyncMaxPages { get; set; } = 3;
+
+    /// <summary>Sync extract: reject when file size exceeds this (default 5 MB).</summary>
+    public long SyncMaxBytes { get; set; } = 5_242_880;
 }
