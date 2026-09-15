@@ -6,13 +6,17 @@ using Amazon.Textract;
 using Amazon.Textract.Model;
 using Documate.Api.Infrastructure.Options;
 using Microsoft.Extensions.Options;
+using UglyToad.PdfPig;
+using UglyToad.PdfPig.Writer;
+using TextractDocument = Amazon.Textract.Model.Document;
 
 /// <summary>
 /// AWS Textract. Sync DetectDocumentText for images / single-page PDF bytes.
-/// Multi-page or &gt; SyncMaxPages: S3 StartDocumentTextDetection when storage is S3; else throws for fallback.
+/// Multi-page or &gt; SyncMaxPages: S3 StartDocumentTextDetection when storage is S3;
+/// otherwise page-by-page sync (local/dev storage) so normalize can proceed without Google.
 /// </summary>
 public sealed class TextractOcrEngine(
-    IOptions<OcrOptions> options,
+    IOptionsMonitor<OcrOptions> options,
     IOptions<AwsOptions> awsOptions,
     ILogger<TextractOcrEngine> logger) : IOcrEngine
 {
@@ -22,7 +26,7 @@ public sealed class TextractOcrEngine(
     {
         get
         {
-            var t = options.Value.Textract;
+            var t = options.CurrentValue.Textract;
             if (!string.IsNullOrWhiteSpace(t.AccessKey) && !string.IsNullOrWhiteSpace(t.SecretKey))
             {
                 return true;
@@ -45,7 +49,7 @@ public sealed class TextractOcrEngine(
             throw new InvalidOperationException("Textract is not configured (Aws:AccessKey/SecretKey or Ocr:Textract override).");
         }
 
-        var syncMax = Math.Max(1, options.Value.SyncMaxPages);
+        var syncMax = Math.Max(1, options.CurrentValue.SyncMaxPages);
         var isPdf = IsPdf(request.ContentType, request.OriginalFileName);
         var needsAsync = request.EstimatedPageCount > syncMax
             || (isPdf && request.EstimatedPageCount > 1);
@@ -58,6 +62,11 @@ public sealed class TextractOcrEngine(
                 && !string.IsNullOrWhiteSpace(request.StorageKey))
             {
                 return await RecognizeAsyncS3Async(request, cancellationToken);
+            }
+
+            if (isPdf)
+            {
+                return await RecognizePdfPageByPageSyncAsync(request, cancellationToken);
             }
 
             throw new InvalidOperationException(
@@ -75,7 +84,7 @@ public sealed class TextractOcrEngine(
         var response = await client.DetectDocumentTextAsync(
             new DetectDocumentTextRequest
             {
-                Document = new Document { Bytes = new MemoryStream(request.Bytes) },
+                Document = new TextractDocument { Bytes = new MemoryStream(request.Bytes) },
             },
             cancellationToken);
 
@@ -89,6 +98,57 @@ public sealed class TextractOcrEngine(
             text,
             pages.Count,
             "textract_detect_document_text",
+            pages);
+    }
+
+    /// <summary>
+    /// Local/dev multi-page PDFs cannot use Textract async (needs S3). Split to one-page PDFs and sync OCR each.
+    /// </summary>
+    private async Task<OcrEngineResult> RecognizePdfPageByPageSyncAsync(
+        OcrEngineRequest request,
+        CancellationToken cancellationToken)
+    {
+        using var source = PdfDocument.Open(request.Bytes);
+        var pageCount = source.NumberOfPages;
+        if (pageCount <= 0)
+        {
+            throw new InvalidOperationException("PDF has no pages for Textract page-by-page OCR.");
+        }
+
+        using var client = CreateClient();
+        var pages = new List<OcrPageText>(pageCount);
+
+        for (var pageNum = 1; pageNum <= pageCount; pageNum++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var builder = new PdfDocumentBuilder();
+            builder.AddPage(source, pageNum);
+            var pageBytes = builder.Build();
+
+            var response = await client.DetectDocumentTextAsync(
+                new DetectDocumentTextRequest
+                {
+                    Document = new TextractDocument { Bytes = new MemoryStream(pageBytes) },
+                },
+                cancellationToken);
+
+            var pageText = OcrPageSplitter.JoinDocumentText(
+                OcrPageSplitter.FromTextractBlocks(response.Blocks, estimatedPageCount: 1));
+            pages.Add(new OcrPageText(pageNum, pageText, string.IsNullOrWhiteSpace(pageText)));
+        }
+
+        var text = OcrPageSplitter.JoinDocumentText(pages);
+        EnsureQuality(text);
+
+        logger.LogInformation(
+            "Textract page-by-page sync OCR ok; pages={Pages}; chars={Chars}",
+            pages.Count,
+            text.Length);
+        return new OcrEngineResult(
+            ProviderKey,
+            text,
+            pages.Count,
+            "textract_detect_document_text_paged",
             pages);
     }
 
@@ -173,7 +233,7 @@ public sealed class TextractOcrEngine(
 
     private AmazonTextractClient CreateClient()
     {
-        var t = options.Value.Textract;
+        var t = options.CurrentValue.Textract;
         var region = RegionEndpoint.GetBySystemName(
             string.IsNullOrWhiteSpace(t.Region) ? "us-west-2" : t.Region!);
         var credentials =

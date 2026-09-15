@@ -17,8 +17,8 @@ public static class LlmStartupGate
             || string.IsNullOrWhiteSpace(provider.Model))
         {
             throw new InvalidOperationException(
-                $"Llm:Providers:{key} must set ApiKey and Model in all environments (user-secrets or env). "
-                + "Example: dotnet user-secrets set \"Llm:Providers:gpt_5_6:ApiKey\" \"...\"");
+                $"Llm:Providers:{key} must set ApiKey and Model (AWS Secrets Manager secret, see Plan 17). "
+                + "Ensure SecretsManager:Enabled=true and SecretId is readable, or set values via env for emergency override.");
         }
     }
 }

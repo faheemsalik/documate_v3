@@ -13,7 +13,7 @@ public interface ISignedDownloadUrlService
 
 public sealed class SignedDownloadUrlService(
     IObjectStorage storage,
-    IOptions<StorageOptions> options,
+    IOptionsMonitor<StorageOptions> options,
     DocumateDbContext db) : ISignedDownloadUrlService
 {
     public async Task RefreshFileAsync(OpsFile file, CancellationToken cancellationToken = default)
@@ -62,5 +62,5 @@ public sealed class SignedDownloadUrlService(
         || expiresAt <= DateTimeOffset.UtcNow.AddMinutes(1);
 
     private DateTimeOffset ExpiresAt() =>
-        DateTimeOffset.UtcNow.AddMinutes(options.Value.SignedUrlMinutes <= 0 ? 30 : options.Value.SignedUrlMinutes);
+        DateTimeOffset.UtcNow.AddMinutes(options.CurrentValue.SignedUrlMinutes <= 0 ? 30 : options.CurrentValue.SignedUrlMinutes);
 }

@@ -1,0 +1,111 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <a routerLink="/ops" class="back-link">← Files &amp; documents</a>
+      <h1>{{ file()?.originalFileName ?? 'File detail' }}</h1>
+      @if (file(); as f) {
+        <p class="meta">
+          {{ f.businessName }} · {{ f.publicStatusKey ?? '—' }} · {{ f.documentCount }} doc(s)
+        </p>
+      }
+    </div>
+    <div class="header-actions">
+      @if (canReset()) {
+        <p-button
+          label="Reset"
+          icon="pi pi-replay"
+          severity="warn"
+          [loading]="resetting()"
+          (onClick)="reset()"
+        />
+      }
+      <p-button label="Refresh" icon="pi pi-refresh" severity="secondary" [loading]="loading()" (onClick)="refresh()" />
+    </div>
+  </header>
+
+  @if (info()) {
+    <p-message severity="success" [text]="info()!" />
+  }
+
+  @if (loading()) {
+    <p-message severity="info" text="Loading file…" />
+  } @else if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (file(); as f) {
+    <div class="layout">
+      <section>
+        <p-card header="Preview">
+          @if (safePreviewUrl(); as url) {
+            @if (canPreviewInline()) {
+              @if (isPdf()) {
+                <iframe class="preview-frame" [src]="url" title="File preview"></iframe>
+              } @else {
+                <img class="preview-image" [src]="previewObjectUrl()!" alt="File preview" />
+              }
+            } @else {
+              <p class="muted">Inline preview unavailable ({{ f.contentType ?? 'unknown' }}).</p>
+            }
+          } @else if (previewLoading()) {
+            <p class="muted">Loading preview…</p>
+          } @else {
+            <p class="muted">Preview not available.</p>
+          }
+        </p-card>
+      </section>
+
+      <section class="side">
+        <p-card header="Metadata">
+          <dl class="meta-grid">
+            <dt>Status</dt><dd>{{ f.publicStatusKey ?? '—' }}</dd>
+            <dt>Stage</dt><dd>{{ f.internalStageKey ?? '—' }}</dd>
+            <dt>Business</dt>
+            <dd>
+              <a [routerLink]="['/businesses', f.businessId]">{{ f.businessName }}</a>
+            </dd>
+            <dt>Queue</dt><dd>{{ f.queueName ?? f.queueId }}</dd>
+            <dt>Uploaded</dt><dd>{{ f.createdAt | date: 'medium' }}</dd>
+            <dt>Completed</dt><dd>{{ f.completedAt ? (f.completedAt | date: 'medium') : '—' }}</dd>
+            <dt>Size</dt><dd>{{ f.sizeBytes }} bytes</dd>
+            <dt>Type</dt><dd>{{ f.contentType ?? '—' }}</dd>
+            @if (f.errorMessage) {
+              <dt>Error</dt><dd class="err">{{ f.errorMessage }}</dd>
+            }
+          </dl>
+        </p-card>
+
+        <p-card header="Documents in this file">
+          @if (documents().length === 0) {
+            <p class="muted">No documents yet.</p>
+          } @else {
+            <p-table [value]="documents()" [tableStyle]="{ 'min-width': '100%' }">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Pages</th>
+                  <th></th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-doc>
+                <tr>
+                  <td>{{ doc.documentTypeKey ?? '—' }}</td>
+                  <td>{{ doc.publicStatusKey ?? '—' }}</td>
+                  <td>
+                    @if (doc.pageStart != null && doc.pageEnd != null) {
+                      {{ doc.pageStart }}–{{ doc.pageEnd }}
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td><a [routerLink]="['/ops/documents', doc.id]">Open</a></td>
+                </tr>
+              </ng-template>
+            </p-table>
+          }
+        </p-card>
+      </section>
+    </div>
+  }
+</div>

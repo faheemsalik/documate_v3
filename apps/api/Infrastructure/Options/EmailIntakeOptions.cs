@@ -31,6 +31,6 @@ public sealed class EmailIntakeOptions
     /// <summary>Max chars of email body stored in EmailIntakeJson excerpt.</summary>
     public int BodyExcerptMaxChars { get; set; } = 4096;
 
-    /// <summary>Optional shared secret for SNS→HTTP webhook (Plan 14 EI-5). Secret — stays in appsettings.</summary>
+    /// <summary>Optional shared secret for SNS→HTTP webhook (Plan 14 EI-5). Secret — AWS Secrets Manager (Plan 17).</summary>
     public string? InboundWebhookSecret { get; set; }
 }

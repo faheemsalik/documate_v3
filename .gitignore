@@ -39,6 +39,9 @@ yarn-error.log*
 !.env.example
 appsettings.*.local.json
 **/secrets.json
+**/*.secret.json
+apps/api/secrets/*
+!apps/api/secrets/README.md
 
 # OS
 Thumbs.db

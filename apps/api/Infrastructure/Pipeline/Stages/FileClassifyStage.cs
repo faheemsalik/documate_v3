@@ -2,6 +2,7 @@ namespace Documate.Api.Infrastructure.Pipeline.Stages;
 
 using System.Text.Json;
 using Documate.Api.Domain;
+using Documate.Api.Infrastructure.Intelligence;
 using Documate.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -68,10 +69,7 @@ public sealed class FileClassifyStage(
                     .Where(x => x.Page >= doc.PageStart && x.Page <= doc.PageEnd)
                     .Select(x => x.DocumentType)
                     .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
-                if (!string.IsNullOrWhiteSpace(identifiedType))
-                {
-                    types.TryGetValue(identifiedType, out type);
-                }
+                type = QueueDocumentTypeResolver.Resolve(identifiedType, types);
             }
 
             if (type is null)

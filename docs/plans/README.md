@@ -42,6 +42,7 @@ Agents executing **engineering** DQs must not invent product behavior. Agents on
 | [14-email-intake-followon-implementation-plan.md](./14-email-intake-followon-implementation-plan.md) | Implementation plan | ✅ Phase 2 approved → DQ-1204…1206 |
 | [15-system-settings-db-exploration.md](./15-system-settings-db-exploration.md) | Exploration | ✅ Phase 1 complete — S1–S6 + N=30 locked |
 | [15-system-settings-db-implementation-plan.md](./15-system-settings-db-implementation-plan.md) | Implementation plan | ✅ Phase 2 approved → DQ-1410/1411 |
+| [17-platform-secrets-store.md](./17-platform-secrets-store.md) | Adopted decision | ✅ AWS Secrets Manager primary; Infisical backup; API startup loader |
 
 ## Plan-writing rules
 

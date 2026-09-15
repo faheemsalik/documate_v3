@@ -6,6 +6,7 @@ using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Intelligence;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Storage;
+using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Page intelligence → anchor grouping → per-Document slices and PDF artifacts.
@@ -41,13 +42,15 @@ public sealed class FileSplitStage(
             ?? throw new InvalidOperationException("Normalize result is required before split.");
         var bucket = context.File.StorageBucket ?? normalize.StorageBucket
             ?? throw new InvalidOperationException("Storage bucket is required for page intelligence.");
+        var routable = await LoadRoutableTypesAsync(context, cancellationToken);
         context.IntelligenceProfiles = await intelligence.AnalyzeAsync(
             new PageIntelligenceRequest(
                 context.Item.BusinessId,
                 context.File.Id,
                 bucket,
                 context.File.StorageKey,
-                normalize.PageArtifacts),
+                normalize.PageArtifacts,
+                routable),
             cancellationToken);
         IReadOnlyList<DocumentPageGroup> groups = DocumentBoundaryEngine.Group(context.IntelligenceProfiles);
         if (groups.Count == 0 && normalize.PageCount > 0)
@@ -173,6 +176,28 @@ public sealed class FileSplitStage(
             group.PrimaryNumber,
             intelligenceDocumentType = group.DocumentType,
         });
+    }
+
+    private async Task<IReadOnlyList<QueueRoutableDocumentType>> LoadRoutableTypesAsync(
+        FilePipelineContext context,
+        CancellationToken cancellationToken)
+    {
+        var routeTypeIds = await db.OpsQueueRoutes.AsNoTracking()
+            .Where(r => r.QueueId == context.File.QueueId
+                        && r.BusinessId == context.Item.BusinessId
+                        && !r.IsDeleted)
+            .Select(r => r.DocumentTypeId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (routeTypeIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await db.CorDocumentTypes.AsNoTracking()
+            .Where(t => routeTypeIds.Contains(t.Id) && t.IsActive && !t.IsDeleted)
+            .Select(t => new QueueRoutableDocumentType(t.DocumentTypeKey, t.Name, t.Id))
+            .ToListAsync(cancellationToken);
     }
 
     private async Task UploadAsync(

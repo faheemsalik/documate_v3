@@ -62,6 +62,70 @@ export interface AdminDocumentListItem {
   fileCreatedAt: string;
 }
 
+export interface AdminResetResult {
+  fileId: string;
+  businessId: string;
+  originalFileName: string | null;
+  softDeletedDocumentCount: number;
+}
+
+export interface AdminFileDetail {
+  id: string;
+  businessId: string;
+  businessName: string;
+  tenantId: string;
+  tenantName: string;
+  queueId: string;
+  queueName: string | null;
+  originalFileName: string | null;
+  contentType: string | null;
+  sizeBytes: number;
+  publicStatusKey: string | null;
+  internalStageKey: string | null;
+  sourceKey: string | null;
+  documentCount: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  isReprocess: boolean;
+  isCancelled: boolean;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface AdminFileDocumentItem {
+  id: string;
+  fileId: string;
+  documentTypeKey: string | null;
+  publicStatusKey: string | null;
+  internalStageKey: string | null;
+  pageStart: number | null;
+  pageEnd: number | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface AdminDocumentDetail {
+  id: string;
+  fileId: string;
+  businessId: string;
+  businessName: string;
+  queueId: string;
+  originalFileName: string | null;
+  contentType: string | null;
+  documentTypeKey: string | null;
+  publicStatusKey: string | null;
+  internalStageKey: string | null;
+  pageStart: number | null;
+  pageEnd: number | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  resultJson: Record<string, unknown> | null;
+  webhookStatusKey: string | null;
+  webhookAttempts: number;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 export interface AdminAnalyticsSummary {
   files: number;
   documents: number;
@@ -187,6 +251,14 @@ export interface SystemSetting {
   valueJson: string;
 }
 
+export interface AdminProvider {
+  id: number;
+  providerKey: string;
+  name: string;
+  vendorHint: string | null;
+  categoryKey: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private readonly http = inject(HttpClient);
@@ -220,6 +292,38 @@ export class AdminApiService {
   listDocuments(query: Record<string, unknown>): Observable<Paged<AdminDocumentListItem>> {
     return this.http.get<Paged<AdminDocumentListItem>>(this.url('/api/admin/ops/documents'), {
       params: this.params(query as Record<string, string | number | boolean | null | undefined | string[]>),
+    });
+  }
+
+  resetFile(fileId: string): Observable<AdminResetResult> {
+    return this.http.post<AdminResetResult>(this.url(`/api/admin/ops/files/${fileId}/reset`), {});
+  }
+
+  resetDocument(documentId: string): Observable<AdminResetResult> {
+    return this.http.post<AdminResetResult>(this.url(`/api/admin/ops/documents/${documentId}/reset`), {});
+  }
+
+  getFile(fileId: string): Observable<AdminFileDetail> {
+    return this.http.get<AdminFileDetail>(this.url(`/api/admin/ops/files/${fileId}`));
+  }
+
+  getFileContentBlob(fileId: string): Observable<Blob> {
+    return this.http.get(this.url(`/api/admin/ops/files/${fileId}/content`), {
+      responseType: 'blob',
+    });
+  }
+
+  listFileDocuments(fileId: string): Observable<AdminFileDocumentItem[]> {
+    return this.http.get<AdminFileDocumentItem[]>(this.url(`/api/admin/ops/files/${fileId}/documents`));
+  }
+
+  getDocument(documentId: string): Observable<AdminDocumentDetail> {
+    return this.http.get<AdminDocumentDetail>(this.url(`/api/admin/ops/documents/${documentId}`));
+  }
+
+  getDocumentContentBlob(documentId: string): Observable<Blob> {
+    return this.http.get(this.url(`/api/admin/ops/documents/${documentId}/content`), {
+      responseType: 'blob',
     });
   }
 
@@ -294,6 +398,12 @@ export class AdminApiService {
 
   listSettings(): Observable<SystemSetting[]> {
     return this.http.get<SystemSetting[]>(this.url('/api/admin/system-settings'));
+  }
+
+  listProviders(category?: string): Observable<AdminProvider[]> {
+    return this.http.get<AdminProvider[]>(this.url('/api/admin/providers'), {
+      params: this.params({ category }),
+    });
   }
 
   putSetting(key: string, valueJson: string): Observable<SystemSetting> {

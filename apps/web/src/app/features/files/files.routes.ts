@@ -10,6 +10,11 @@ export const FILES_ROUTES: Routes = [
     loadComponent: () => import('./pages/schema-search.page').then((m) => m.SchemaSearchPage),
   },
   {
+    path: 'documents',
+    loadComponent: () =>
+      import('./pages/document-list.page').then((m) => m.DocumentListPage),
+  },
+  {
     path: ':fileId/documents/:documentId',
     loadComponent: () =>
       import('./pages/document-detail.page').then((m) => m.DocumentDetailPage),

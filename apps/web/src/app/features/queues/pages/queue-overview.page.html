@@ -1,26 +1,31 @@
 <div class="page">
   <header class="page-header">
     <div>
-      <h1>Channels & intake</h1>
+      <h1>Channels &amp; intake</h1>
       @if (queue(); as q) {
         <p class="subtitle">{{ q.name }} · {{ q.isDefault ? 'Default channel' : 'Channel' }}</p>
       }
     </div>
     @if (queue()?.routingLocked) {
-      <p-tag severity="warn" value="Routes locked" />
+      <p-tag severity="warn" value="Document types locked" />
     }
   </header>
 
   @if (error()) {
-    <p-message severity="error" [text]="error()!" />
-  } @else if (loading()) {
+    <p-message severity="error" [text]="error()!" styleClass="mb" />
+  }
+  @if (info()) {
+    <p-message severity="success" [text]="info()!" styleClass="mb" />
+  }
+
+  @if (loading()) {
     <p-message severity="info" text="Loading channel…" />
   } @else if (queue(); as q) {
-    <p-tabs value="0">
+    <p-tabs [value]="activeTab" (valueChange)="onTabChange($event)">
       <p-tablist>
         <p-tab value="0">Overview</p-tab>
         <p-tab value="1">Intake</p-tab>
-        <p-tab value="2">Routes</p-tab>
+        <p-tab value="2">Document types</p-tab>
       </p-tablist>
       <p-tabpanels>
         <p-tabpanel value="0">
@@ -30,8 +35,24 @@
             <dt>Email intake</dt><dd>{{ q.emailIntakeEnabled ? 'Enabled' : 'Off' }}</dd>
             <dt>Email address</dt><dd>{{ q.emailAddress ?? 'Not minted' }}</dd>
             <dt>Allowlist mode</dt><dd>{{ q.allowlistModeKey ?? '—' }}</dd>
-            <dt>Routes</dt><dd>{{ routes().length }}</dd>
+            <dt>Document types</dt>
+            <dd>
+              {{ routes().length }} mapped
+              <p-button
+                label="Manage"
+                [text]="true"
+                size="small"
+                (onClick)="activeTab = '2'"
+              />
+            </dd>
           </dl>
+          @if (routes().length < 2) {
+            <p-message
+              severity="warn"
+              styleClass="mt"
+              text="Mixed packs (invoice + delivery note, etc.) need more than one document type on this channel. Open Document types to add them."
+            />
+          }
         </p-tabpanel>
         <p-tabpanel value="1">
           <section class="block">
@@ -117,25 +138,105 @@
           </section>
         </p-tabpanel>
         <p-tabpanel value="2">
-          <p-table [value]="routes()">
-            <ng-template pTemplate="header">
-              <tr><th>Document type</th><th>Agent</th></tr>
-            </ng-template>
-            <ng-template pTemplate="body" let-route>
-              <tr>
-                <td>{{ route.documentTypeKey }}</td>
-                <td>{{ route.agentName ?? route.agentId }}</td>
-              </tr>
-            </ng-template>
-          </p-table>
-          @if (!q.routingLocked) {
-            <div class="row">
-              <p-select [options]="documentTypes()" [(ngModel)]="newRouteDocTypeId" optionLabel="name" optionValue="id" placeholder="Document type" />
-              <p-select [options]="agents()" [(ngModel)]="newRouteAgentId" optionLabel="name" optionValue="id" placeholder="Agent" />
-              <p-button label="Add route" (onClick)="addRoute()" />
-              <p-button label="Lock routing" severity="secondary" (onClick)="lockRoutes()" />
-            </div>
-          }
+          <section class="block">
+            <h3>Document types on this channel</h3>
+            <p class="hint">
+              Each type maps to an Agent (schema + extract). Mixed PDFs (invoice + delivery note) need
+              <strong>every</strong> type listed here — otherwise classify forces the single mapped type.
+            </p>
+
+            @if (routes().length === 0) {
+              <p-message severity="info" text="No document types yet. Add the first type below." styleClass="mb" />
+            }
+
+            <p-table [value]="routes()" styleClass="routes-table">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th>Document type</th>
+                  <th>Key</th>
+                  <th>Agent</th>
+                  <th style="width: 4rem"></th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-route>
+                <tr>
+                  <td>{{ docTypeName(route.documentTypeId) }}</td>
+                  <td class="mono">{{ route.documentTypeKey ?? '—' }}</td>
+                  <td>{{ route.agentName ?? route.agentId }}</td>
+                  <td>
+                    @if (!q.routingLocked) {
+                      <p-button
+                        icon="pi pi-trash"
+                        [text]="true"
+                        severity="danger"
+                        [attr.aria-label]="'Remove ' + (route.documentTypeKey ?? 'route')"
+                        (onClick)="removeRoute(route.documentTypeId)"
+                      />
+                    }
+                  </td>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="emptymessage">
+                <tr><td colspan="4">No routes configured.</td></tr>
+              </ng-template>
+            </p-table>
+
+            @if (q.routingLocked) {
+              <p-message
+                severity="warn"
+                styleClass="mt"
+                text="Document types are locked on this channel, so Add is hidden. Unlock to map more types (e.g. delivery note for mixed PDFs)."
+              />
+              <div class="row">
+                <p-button
+                  label="Unlock document types"
+                  severity="secondary"
+                  (onClick)="unlockRoutes()"
+                />
+              </div>
+            } @else {
+              <h3 class="add-heading">Add document type</h3>
+              <div class="row add-row">
+                <p-select
+                  [options]="availableDocumentTypes()"
+                  [(ngModel)]="newRouteDocTypeId"
+                  optionLabel="label"
+                  optionValue="id"
+                  placeholder="Document type"
+                  [filter]="true"
+                  styleClass="doc-type-select"
+                />
+                <p-select
+                  [options]="agents()"
+                  [(ngModel)]="newRouteAgentId"
+                  optionLabel="name"
+                  optionValue="id"
+                  placeholder="Agent"
+                  styleClass="agent-select"
+                />
+                <p-button
+                  label="Add document type"
+                  icon="pi pi-plus"
+                  (onClick)="addRoute()"
+                  [loading]="savingRoutes()"
+                  [disabled]="!canAddRoute()"
+                />
+              </div>
+              @if (availableDocumentTypes().length === 0) {
+                <p class="hint">All catalog document types are already on this channel.</p>
+              } @else if (agents().length === 0) {
+                <p class="hint">Create an Agent first (My agents), then map it here.</p>
+              }
+              <div class="row">
+                <p-button
+                  label="Lock document types"
+                  severity="secondary"
+                  [text]="true"
+                  (onClick)="lockRoutes()"
+                />
+              </div>
+            }
+          </section>
         </p-tabpanel>
       </p-tabpanels>
     </p-tabs>

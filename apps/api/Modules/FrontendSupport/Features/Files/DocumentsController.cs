@@ -2,6 +2,7 @@ namespace Documate.Api.Modules.FrontendSupport.Features.Files;
 
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Persistence;
+using Documate.Api.Infrastructure.Storage;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,20 @@ using System.Text.Json.Nodes;
 [Route("api/app/queues/{queueId:guid}/documents")]
 public sealed class DocumentsController(IMediator mediator) : ControllerBase
 {
+    [HttpGet]
+    public async Task<ActionResult<PagedDocumentListDto>> List(
+        Guid queueId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var dto = await mediator.Send(
+            new ListAppQueueDocumentsQuery(queueId, page, pageSize, status),
+            cancellationToken);
+        return Ok(dto);
+    }
+
     [HttpGet("{documentId:guid}")]
     public async Task<ActionResult<DocumentDetailDto>> Get(
         Guid queueId,
@@ -22,6 +37,17 @@ public sealed class DocumentsController(IMediator mediator) : ControllerBase
     {
         var dto = await mediator.Send(new GetAppDocumentQuery(queueId, documentId), cancellationToken);
         return dto is null ? NotFound() : Ok(dto);
+    }
+
+    /// <summary>Document PDF slice when materialized; otherwise parent file bytes for preview.</summary>
+    [HttpGet("{documentId:guid}/content")]
+    public async Task<IActionResult> Content(
+        Guid queueId,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetAppDocumentContentQuery(queueId, documentId), cancellationToken);
+        return result is null ? NotFound() : File(result.Content, result.ContentType);
     }
 }
 
@@ -34,7 +60,14 @@ public sealed record DocumentListItemDto(
     string? PublicStatusKey,
     string? InternalStageKey,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    string? OriginalFileName = null);
+
+public sealed record PagedDocumentListDto(
+    IReadOnlyList<DocumentListItemDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize);
 
 public sealed record DocumentDetailDto(
     Guid Id,
@@ -55,11 +88,23 @@ public sealed record DocumentDetailDto(
     int WebhookAttempts,
     int? WebhookLastHttpStatus,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    string? OriginalFileName = null,
+    string? ContentType = null,
+    int? PageStart = null,
+    int? PageEnd = null);
 
 public sealed record GetAppDocumentQuery(Guid QueueId, Guid DocumentId) : IRequest<DocumentDetailDto?>;
 
 public sealed record ListAppFileDocumentsQuery(Guid QueueId, Guid FileId) : IRequest<IReadOnlyList<DocumentListItemDto>?>;
+
+public sealed record ListAppQueueDocumentsQuery(
+    Guid QueueId,
+    int Page,
+    int PageSize,
+    string? Status) : IRequest<PagedDocumentListDto>;
+
+public sealed record GetAppDocumentContentQuery(Guid QueueId, Guid DocumentId) : IRequest<FileContentResultDto?>;
 
 public sealed class GetAppDocumentHandler(DocumateDbContext db, IBusinessContext business)
     : IRequestHandler<GetAppDocumentQuery, DocumentDetailDto?>
@@ -112,6 +157,86 @@ public sealed class ListAppFileDocumentsHandler(DocumateDbContext db, IBusinessC
     }
 }
 
+public sealed class ListAppQueueDocumentsHandler(DocumateDbContext db, IBusinessContext business)
+    : IRequestHandler<ListAppQueueDocumentsQuery, PagedDocumentListDto>
+{
+    public async Task<PagedDocumentListDto> Handle(
+        ListAppQueueDocumentsQuery request,
+        CancellationToken cancellationToken)
+    {
+        var page = request.Page < 1 ? 1 : request.Page;
+        var pageSize = request.PageSize is < 1 or > 200 ? 50 : request.PageSize;
+
+        var query = db.OpsDocuments.AsNoTracking()
+            .Where(d => d.QueueId == request.QueueId
+                        && d.BusinessId == business.BusinessId
+                        && !d.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            var statusKey = request.Status.Trim();
+            var statusIds = await db.CorEnums.AsNoTracking()
+                .Where(e => e.EnumKey == statusKey)
+                .Select(e => e.Id)
+                .ToListAsync(cancellationToken);
+            query = query.Where(d => statusIds.Contains(d.PublicStatusEnumId));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var docs = await query
+            .OrderByDescending(d => d.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = await AppDocumentMapping.ToListItemsAsync(db, docs, cancellationToken);
+        return new PagedDocumentListDto(items, total, page, pageSize);
+    }
+}
+
+public sealed class GetAppDocumentContentHandler(
+    DocumateDbContext db,
+    IObjectStorage storage,
+    IBusinessContext business)
+    : IRequestHandler<GetAppDocumentContentQuery, FileContentResultDto?>
+{
+    public async Task<FileContentResultDto?> Handle(
+        GetAppDocumentContentQuery request,
+        CancellationToken cancellationToken)
+    {
+        var doc = await db.OpsDocuments.AsNoTracking().FirstOrDefaultAsync(
+            d => d.Id == request.DocumentId
+                 && d.QueueId == request.QueueId
+                 && d.BusinessId == business.BusinessId
+                 && !d.IsDeleted,
+            cancellationToken);
+        if (doc is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(doc.PdfStorageBucket) && !string.IsNullOrWhiteSpace(doc.PdfStorageKey))
+        {
+            var pdfStream = await storage.DownloadAsync(doc.PdfStorageBucket, doc.PdfStorageKey, cancellationToken);
+            return new FileContentResultDto(pdfStream, "application/pdf", $"document-{doc.Id}.pdf");
+        }
+
+        var file = await db.OpsFiles.AsNoTracking().FirstOrDefaultAsync(
+            f => f.Id == doc.FileId
+                 && f.BusinessId == business.BusinessId
+                 && !f.IsDeleted,
+            cancellationToken);
+        if (file is null || string.IsNullOrWhiteSpace(file.StorageBucket) || string.IsNullOrWhiteSpace(file.StorageKey))
+        {
+            return null;
+        }
+
+        var stream = await storage.DownloadAsync(file.StorageBucket, file.StorageKey, cancellationToken);
+        var contentType = GetFileContentHandler.ResolveContentType(file.ContentType, file.OriginalFileName);
+        return new FileContentResultDto(stream, contentType, file.OriginalFileName);
+    }
+}
+
 file static class AppDocumentMapping
 {
     public static async Task<IReadOnlyList<DocumentListItemDto>> ToListItemsAsync(
@@ -126,8 +251,9 @@ file static class AppDocumentMapping
 
         var enumKeys = await LoadEnumKeysAsync(db, docs, cancellationToken);
         var typeKeys = await LoadTypeKeysAsync(db, docs, cancellationToken);
+        var fileNames = await LoadFileNamesAsync(db, docs, cancellationToken);
 
-        return docs.Select(d => ToListItem(d, enumKeys, typeKeys)).ToList();
+        return docs.Select(d => ToListItem(d, enumKeys, typeKeys, fileNames)).ToList();
     }
 
     public static async Task<IReadOnlyList<DocumentDetailDto>> ToDetailListAsync(
@@ -142,14 +268,16 @@ file static class AppDocumentMapping
 
         var enumKeys = await LoadEnumKeysAsync(db, docs, cancellationToken);
         var typeKeys = await LoadTypeKeysAsync(db, docs, cancellationToken);
+        var files = await LoadFilesAsync(db, docs, cancellationToken);
 
-        return docs.Select(d => ToDetail(d, enumKeys, typeKeys)).ToList();
+        return docs.Select(d => ToDetail(d, enumKeys, typeKeys, files)).ToList();
     }
 
     private static DocumentListItemDto ToListItem(
         Domain.OpsDocument d,
         IReadOnlyDictionary<long, string> enumKeys,
-        IReadOnlyDictionary<long, string> typeKeys)
+        IReadOnlyDictionary<long, string> typeKeys,
+        IReadOnlyDictionary<Guid, string?> fileNames)
     {
         enumKeys.TryGetValue(d.PublicStatusEnumId, out var statusKey);
         string? stageKey = null;
@@ -164,6 +292,8 @@ file static class AppDocumentMapping
             typeKeys.TryGetValue(tid, out typeKey);
         }
 
+        fileNames.TryGetValue(d.FileId, out var fileName);
+
         return new DocumentListItemDto(
             d.Id,
             d.FileId,
@@ -173,13 +303,15 @@ file static class AppDocumentMapping
             statusKey,
             stageKey,
             d.CreatedAt,
-            d.CompletedAt);
+            d.CompletedAt,
+            fileName);
     }
 
     private static DocumentDetailDto ToDetail(
         Domain.OpsDocument d,
         IReadOnlyDictionary<long, string> enumKeys,
-        IReadOnlyDictionary<long, string> typeKeys)
+        IReadOnlyDictionary<long, string> typeKeys,
+        IReadOnlyDictionary<Guid, (string? Name, string? ContentType)> files)
     {
         enumKeys.TryGetValue(d.PublicStatusEnumId, out var statusKey);
         string? stageKey = null;
@@ -213,6 +345,11 @@ file static class AppDocumentMapping
             enumKeys.TryGetValue(wid, out webhookStatusKey);
         }
 
+        files.TryGetValue(d.FileId, out var fileInfo);
+        var contentType = !string.IsNullOrWhiteSpace(d.PdfStorageKey)
+            ? "application/pdf"
+            : GetFileContentHandler.ResolveContentType(fileInfo.ContentType, fileInfo.Name);
+
         return new DocumentDetailDto(
             d.Id,
             d.QueueId,
@@ -232,7 +369,11 @@ file static class AppDocumentMapping
             d.WebhookAttempts,
             d.WebhookLastHttpStatus,
             d.CreatedAt,
-            d.CompletedAt);
+            d.CompletedAt,
+            fileInfo.Name,
+            contentType,
+            d.PageStart,
+            d.PageEnd);
     }
 
     private static async Task<Dictionary<long, string>> LoadEnumKeysAsync(
@@ -265,5 +406,27 @@ file static class AppDocumentMapping
         return await db.CorDocumentTypes.AsNoTracking()
             .Where(t => typeIds.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, t => t.DocumentTypeKey, cancellationToken);
+    }
+
+    private static async Task<Dictionary<Guid, string?>> LoadFileNamesAsync(
+        DocumateDbContext db,
+        IReadOnlyList<Domain.OpsDocument> docs,
+        CancellationToken cancellationToken)
+    {
+        var fileIds = docs.Select(d => d.FileId).Distinct().ToList();
+        return await db.OpsFiles.AsNoTracking()
+            .Where(f => fileIds.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, f => f.OriginalFileName, cancellationToken);
+    }
+
+    private static async Task<Dictionary<Guid, (string? Name, string? ContentType)>> LoadFilesAsync(
+        DocumateDbContext db,
+        IReadOnlyList<Domain.OpsDocument> docs,
+        CancellationToken cancellationToken)
+    {
+        var fileIds = docs.Select(d => d.FileId).Distinct().ToList();
+        return await db.OpsFiles.AsNoTracking()
+            .Where(f => fileIds.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, f => (f.OriginalFileName, f.ContentType), cancellationToken);
     }
 }

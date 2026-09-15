@@ -8,7 +8,7 @@ using MimeKit;
 
 /// <summary>DR1-B: log always; SMTP only when Notifications:Enabled. Never throws to pipeline.</summary>
 public sealed class OpsAlertSender(
-    IOptions<NotificationOptions> options,
+    IOptionsMonitor<NotificationOptions> options,
     ILogger<OpsAlertSender> logger) : IOpsAlertSender
 {
     public async Task NotifyLlmExtractFailedAsync(
@@ -27,7 +27,7 @@ public sealed class OpsAlertSender(
                 alert.ErrorCode,
                 alert.ErrorMessage);
 
-            var opts = options.Value;
+            var opts = options.CurrentValue;
             if (!opts.Enabled)
             {
                 return;

@@ -8,7 +8,7 @@
 > **Downstream:** Phase 3 — amend [03-documate-v3-dispatch-queue.md](./03-documate-v3-dispatch-queue.md) after approve  
 > **Created:** 2026-09-14  
 
-**Outcome:** Platform operational settings (EmailIntake limits/caps/domain/S3 names/retention days + Pipeline sync gates) live in **`CorSystemSetting`**; seeded once from appsettings; afterward **DB is SoT**; secrets remain env/appsettings.
+**Outcome:** Platform operational settings (EmailIntake limits/caps/domain/S3 names/retention days + Pipeline sync gates) live in **`CorSystemSetting`**; seeded once from appsettings; afterward **DB is SoT**; secrets remain **AWS Secrets Manager** (Plan 17) or local user-secrets/env — never `CorSystemSetting`.
 
 ---
 
@@ -24,7 +24,7 @@
 
 ## Delivery Principles
 
-1. **Secrets never in `CorSystemSetting`** (Aws, LLM, OCR, SMTP, inbound webhook secret, auth passwords).  
+1. **Secrets never in `CorSystemSetting`** (Aws, LLM, OCR, SMTP, inbound webhook secret, auth passwords). Platform SoT for secrets: **AWS Secrets Manager** ([Plan 17](./17-platform-secrets-store.md)); Infisical documented as backup only.  
 2. **Platform-only** (S1) — no Business overrides in v1.  
 3. **Flat keys + ValueJson** (S2).  
 4. **Seed missing keys once**; then DB wins (S3).  
@@ -102,7 +102,12 @@ PUT admin API
 | `Pipeline:MaxConcurrentFiles` | `12` (optional include) |
 | `Pipeline:MaxConcurrentWebhooks` | `4` (optional include) |
 
-**Stay in appsettings/env only:** `Aws:*`, `Ocr:*` secrets, `Llm:*`, `Notifications:Smtp:*`, `Auth:*`, `EmailIntake:InboundWebhookSecret`, connection strings.
+**Stay in AWS Secrets Manager (Plan 17) / bootstrap appsettings only:**
+
+- Secrets: `Aws:*`, `Llm:Providers:*:ApiKey`, `Ocr` credential fields, `Notifications:Smtp:Password`, `Auth:*` passwords/tokens, `EmailIntake:InboundWebhookSecret`
+- Bootstrap (not admin DB): `ConnectionStrings:*`, `SecretsManager:*`, Auth Mode/usernames/DevBypass ids, Logging, AllowedHosts, `Llm:Providers:*:Model` (model id string alongside SM ApiKey)
+
+**Moved to `CorSystemSetting` (SoT after seed):** EmailIntake ops, Pipeline sync + concurrency + model ProviderKeys, Storage non-secrets, OCR non-secrets (primary/secondary keys, sync pages, regions), Notifications non-secrets, Admin dashboard URLs.
 
 ---
 
@@ -114,7 +119,7 @@ PUT admin API
 |----|--------|
 | **DR-SS1** | **A (amended)** — Human/session-style admin API for system settings, **not** on the customer app routes. Use a **separate route prefix** (e.g. `/api/admin/system-settings`) and **separate admin credentials** (dedicated InterimFeGate / Auth config for admin — not the partner portal username/token). No External API-key access. Aligns toward Plan 11 backoffice; v1 can be API-only until `apps/admin` UI exists. |
 | **DR-SS2** | **A** — Thin adapters read `ISystemSettings` per use (fresh after cache invalidate) |
-| **DR-SS3** | **B** — `MaxConcurrentFiles` / `MaxConcurrentWebhooks` stay in **appsettings** only |
+| **DR-SS3** | **Amended 2026-09-15** — `MaxConcurrentFiles` / `MaxConcurrentWebhooks` / `StubStageDelayMs` **are** DB settings (admin-editable). Hangfire worker counts still apply at process start — change may need API restart. |
 
 ### Prior options (superseded)
 

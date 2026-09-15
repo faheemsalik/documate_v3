@@ -26,6 +26,18 @@ export const routes: Routes = [
           import('./features/ops-monitor/pages/ops-monitor.page').then((m) => m.OpsMonitorPage),
       },
       {
+        path: 'ops/files/:fileId',
+        loadComponent: () =>
+          import('./features/ops-monitor/pages/ops-file-detail.page').then((m) => m.OpsFileDetailPage),
+      },
+      {
+        path: 'ops/documents/:documentId',
+        loadComponent: () =>
+          import('./features/ops-monitor/pages/ops-document-detail.page').then(
+            (m) => m.OpsDocumentDetailPage,
+          ),
+      },
+      {
         path: 'support',
         loadComponent: () =>
           import('./features/support/pages/support.page').then((m) => m.SupportPage),

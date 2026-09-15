@@ -146,6 +146,22 @@ public sealed class FilesController(IMediator mediator) : ControllerBase
         return dto is null ? NotFound() : Ok(dto);
     }
 
+    /// <summary>Authenticated byte stream for in-app preview (works for local + S3 without iframe auth/CORS issues).</summary>
+    [HttpGet("{fileId:guid}/content")]
+    public async Task<IActionResult> Content(
+        Guid queueId,
+        Guid fileId,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetFileContentQuery(queueId, fileId), cancellationToken);
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return File(result.Content, result.ContentType);
+    }
+
     [HttpGet("{fileId:guid}/documents")]
     public async Task<ActionResult<IReadOnlyList<DocumentListItemDto>>> ListDocuments(
         Guid queueId,
@@ -154,6 +170,45 @@ public sealed class FilesController(IMediator mediator) : ControllerBase
     {
         var items = await mediator.Send(new ListAppFileDocumentsQuery(queueId, fileId), cancellationToken);
         return items is null ? NotFound() : Ok(items);
+    }
+
+    /// <summary>Explicit reprocess (Plan 02 §11.3). New File from same bytes + enqueue; source unchanged.</summary>
+    [HttpPost("{fileId:guid}/reprocess")]
+    public async Task<ActionResult<FileDto>> Reprocess(
+        Guid queueId,
+        Guid fileId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dto = await mediator.Send(new ReprocessAppFileCommand(queueId, fileId), cancellationToken);
+            return dto is null ? NotFound() : Accepted(dto);
+        }
+        catch (InvalidOperationException ex) when (
+            ex.Message.Contains("storage", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("Queue not found", StringComparison.Ordinal)
+            || ex.Message.Contains("not failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>In-place reset: soft-delete docs, set received, re-enqueue same FileId.</summary>
+    [HttpPost("{fileId:guid}/reset")]
+    public async Task<ActionResult<FileDto>> Reset(
+        Guid queueId,
+        Guid fileId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dto = await mediator.Send(new ResetAppFileCommand(queueId, fileId), cancellationToken);
+            return dto is null ? NotFound() : Accepted(dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }
 
@@ -222,6 +277,8 @@ public sealed record PagedFileSchemaSearchDto(
 
 public sealed record FileDownloadUrlDto(Guid FileId, string Url);
 
+public sealed record FileContentResultDto(Stream Content, string ContentType, string? FileName);
+
 public sealed record UploadFileCommand(
     Guid QueueId,
     string FileName,
@@ -234,6 +291,9 @@ public sealed record UploadFileCommand(
 
 public sealed record GetFileQuery(Guid QueueId, Guid FileId) : IRequest<FileDto?>;
 public sealed record GetFileDownloadUrlQuery(Guid QueueId, Guid FileId) : IRequest<FileDownloadUrlDto?>;
+public sealed record GetFileContentQuery(Guid QueueId, Guid FileId) : IRequest<FileContentResultDto?>;
+public sealed record ReprocessAppFileCommand(Guid QueueId, Guid FileId) : IRequest<FileDto?>;
+public sealed record ResetAppFileCommand(Guid QueueId, Guid FileId) : IRequest<FileDto?>;
 
 public sealed record ListAppFilesQuery(
     Guid QueueId,
@@ -283,7 +343,7 @@ public sealed class UploadFileHandler(
                 BatchId: null,
                 sourceId,
                 request.FileName,
-                request.ContentType,
+                GetFileContentHandler.ResolveContentType(request.ContentType, request.FileName),
                 request.Content,
                 request.SizeBytes,
                 IntakeHints.Serialize(request.DocumentTypeKey, request.DocumentCount)),
@@ -325,6 +385,84 @@ public sealed class GetFileHandler(DocumateDbContext db, IBusinessContext busine
                  && !f.IsDeleted,
             cancellationToken);
         return file is null ? null : await FileDtoMapping.ToDto(db, file, cancellationToken);
+    }
+}
+
+public sealed class ReprocessAppFileHandler(
+    DocumateDbContext db,
+    IBusinessContext business,
+    IReprocessWorkService reprocess,
+    ICorEnumIdResolver enums) : IRequestHandler<ReprocessAppFileCommand, FileDto?>
+{
+    public async Task<FileDto?> Handle(ReprocessAppFileCommand request, CancellationToken cancellationToken)
+    {
+        var source = await db.OpsFiles.AsNoTracking().FirstOrDefaultAsync(
+            f => f.Id == request.FileId
+                 && f.QueueId == request.QueueId
+                 && f.BusinessId == business.BusinessId
+                 && !f.IsDeleted,
+            cancellationToken);
+        if (source is null)
+        {
+            return null;
+        }
+
+        var failedId = enums.Require("file_public_status", "failed");
+        if (source.PublicStatusEnumId != failedId)
+        {
+            throw new InvalidOperationException("Only failed files can be reprocessed from the app.");
+        }
+
+        var result = await reprocess.ReprocessFileAsync(
+            source.Id,
+            business.BusinessId,
+            business.UserId,
+            cancellationToken);
+        if (result is null)
+        {
+            return null;
+        }
+
+        return await FileDtoMapping.ToDto(db, result.NewFile, cancellationToken);
+    }
+}
+
+public sealed class ResetAppFileHandler(
+    DocumateDbContext db,
+    IBusinessContext business,
+    IResetWorkService reset,
+    ICorEnumIdResolver enums) : IRequestHandler<ResetAppFileCommand, FileDto?>
+{
+    public async Task<FileDto?> Handle(ResetAppFileCommand request, CancellationToken cancellationToken)
+    {
+        var source = await db.OpsFiles.AsNoTracking().FirstOrDefaultAsync(
+            f => f.Id == request.FileId
+                 && f.QueueId == request.QueueId
+                 && f.BusinessId == business.BusinessId
+                 && !f.IsDeleted,
+            cancellationToken);
+        if (source is null)
+        {
+            return null;
+        }
+
+        var failedId = enums.Require("file_public_status", "failed");
+        if (source.PublicStatusEnumId != failedId)
+        {
+            throw new InvalidOperationException("Only failed files can be reset from the app.");
+        }
+
+        var result = await reset.ResetFileAsync(
+            source.Id,
+            business.BusinessId,
+            business.UserId,
+            cancellationToken);
+        if (result is null)
+        {
+            return null;
+        }
+
+        return await FileDtoMapping.ToDto(db, result.File, cancellationToken);
     }
 }
 
@@ -594,7 +732,9 @@ public sealed class SearchAppFilesBySchemaHandler(DocumateDbContext db, IBusines
 public sealed class GetFileDownloadUrlHandler(
     DocumateDbContext db,
     IObjectStorage storage,
-    IBusinessContext business)
+    IBusinessContext business,
+    IHttpContextAccessor httpContextAccessor,
+    Microsoft.Extensions.Options.IOptionsMonitor<Documate.Api.Infrastructure.Options.StorageOptions> storageOptions)
     : IRequestHandler<GetFileDownloadUrlQuery, FileDownloadUrlDto?>
 {
     public async Task<FileDownloadUrlDto?> Handle(GetFileDownloadUrlQuery request, CancellationToken cancellationToken)
@@ -610,8 +750,73 @@ public sealed class GetFileDownloadUrlHandler(
             return null;
         }
 
-        var url = await storage.GetSignedUrlAsync(file.StorageBucket, file.StorageKey, cancellationToken);
-        return new FileDownloadUrlDto(file.Id, url);
+        // Local storage returns file:// which browsers cannot embed. Prefer same-origin content URL.
+        var provider = storageOptions.CurrentValue.Provider ?? "local";
+        if (string.Equals(provider, "local", StringComparison.OrdinalIgnoreCase)
+            || storage is LocalObjectStorage)
+        {
+            var http = httpContextAccessor.HttpContext?.Request;
+            if (http is not null)
+            {
+                var url =
+                    $"{http.Scheme}://{http.Host}/api/app/queues/{request.QueueId}/files/{request.FileId}/content";
+                return new FileDownloadUrlDto(file.Id, url);
+            }
+
+            return new FileDownloadUrlDto(
+                file.Id,
+                $"/api/app/queues/{request.QueueId}/files/{request.FileId}/content");
+        }
+
+        var signed = await storage.GetSignedUrlAsync(file.StorageBucket, file.StorageKey, cancellationToken);
+        return new FileDownloadUrlDto(file.Id, signed);
+    }
+}
+
+public sealed class GetFileContentHandler(
+    DocumateDbContext db,
+    IObjectStorage storage,
+    IBusinessContext business)
+    : IRequestHandler<GetFileContentQuery, FileContentResultDto?>
+{
+    public async Task<FileContentResultDto?> Handle(GetFileContentQuery request, CancellationToken cancellationToken)
+    {
+        var file = await db.OpsFiles.AsNoTracking().FirstOrDefaultAsync(
+            f => f.Id == request.FileId
+                 && f.QueueId == request.QueueId
+                 && f.BusinessId == business.BusinessId
+                 && !f.IsDeleted,
+            cancellationToken);
+        if (file is null || string.IsNullOrWhiteSpace(file.StorageBucket) || string.IsNullOrWhiteSpace(file.StorageKey))
+        {
+            return null;
+        }
+
+        var stream = await storage.DownloadAsync(file.StorageBucket, file.StorageKey, cancellationToken);
+        var contentType = ResolveContentType(file.ContentType, file.OriginalFileName);
+        return new FileContentResultDto(stream, contentType, file.OriginalFileName);
+    }
+
+    internal static string ResolveContentType(string? contentType, string? fileName)
+    {
+        if (!string.IsNullOrWhiteSpace(contentType)
+            && !contentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)
+            && !contentType.Equals("binary/octet-stream", StringComparison.OrdinalIgnoreCase))
+        {
+            return contentType;
+        }
+
+        var ext = Path.GetExtension(fileName ?? string.Empty).ToLowerInvariant();
+        return ext switch
+        {
+            ".pdf" => "application/pdf",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".tif" or ".tiff" => "image/tiff",
+            _ => string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
+        };
     }
 }
 

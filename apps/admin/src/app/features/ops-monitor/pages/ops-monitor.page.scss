@@ -103,3 +103,24 @@ h1 {
   font-size: 0.72rem;
   font-family: ui-monospace, monospace;
 }
+
+:host ::ng-deep .ops-reset-btn {
+  appearance: none;
+  border: 1px solid var(--p-surface-300);
+  background: var(--p-surface-0);
+  color: var(--p-text-color);
+  border-radius: 4px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+:host ::ng-deep .ops-reset-btn:hover:not(:disabled) {
+  background: var(--p-surface-100);
+}
+
+:host ::ng-deep .ops-reset-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

@@ -30,7 +30,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Documents',
     items: [
-      { label: 'Extract data', route: '/files' },
+      { label: 'Files', route: '/files' },
+      { label: 'Documents', route: '/files/documents' },
       { label: 'Schema search', route: '/files/search' },
     ],
   },

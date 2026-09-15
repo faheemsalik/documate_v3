@@ -1,0 +1,44 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Documents</h1>
+      <p class="subtitle">{{ totalCount() }} documents · default queue</p>
+    </div>
+    <div class="actions">
+      <p-select
+        [options]="statusOptions"
+        [(ngModel)]="statusFilter"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Status"
+        (onChange)="onStatusFilterChange()"
+        styleClass="status-filter"
+      />
+      <p-button
+        label="Refresh"
+        icon="pi pi-refresh"
+        [loading]="loading()"
+        severity="secondary"
+        (onClick)="refresh()"
+      />
+      <p-button label="Files" icon="pi pi-folder" severity="secondary" routerLink="/files" />
+    </div>
+  </header>
+
+  @if (ctx.loading()) {
+    <p-message severity="info" text="Loading account…" />
+  } @else if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  <div class="grid-wrap" [class.loading]="loading()">
+    <ag-grid-angular
+      style="width: 100%; height: min(70vh, 720px)"
+      [theme]="theme"
+      [rowData]="rows()"
+      [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
+      (rowClicked)="onRowClicked($event)"
+    />
+  </div>
+</div>

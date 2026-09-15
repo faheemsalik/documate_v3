@@ -2,6 +2,7 @@ namespace Documate.Api.Modules.PlatformAdmin.Features.Ops;
 
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Persistence;
+using Documate.Api.Infrastructure.Work;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -67,6 +68,138 @@ public sealed class AdminOpsController(IMediator mediator) : ControllerBase
                 hasError, isCancelled, createdFrom, createdTo),
             cancellationToken);
         return Ok(dto);
+    }
+
+    /// <summary>
+    /// Ops Reset: same FileId — soft-delete Documents, set status to received, re-enqueue pipeline.
+    /// New Documents/webhooks are produced when the run completes.
+    /// </summary>
+    [HttpPost("files/{fileId:guid}/reset")]
+    public async Task<ActionResult<AdminResetResultDto>> ResetFile(
+        Guid fileId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var dto = await mediator.Send(new ResetAdminFileCommand(fileId), cancellationToken);
+            if (dto is null)
+            {
+                return NotFound();
+            }
+
+            return Accepted(dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Ops Reset for a Document: resets the parent File (same FileId).</summary>
+    [HttpPost("documents/{documentId:guid}/reset")]
+    public async Task<ActionResult<AdminResetResultDto>> ResetDocument(
+        Guid documentId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var dto = await mediator.Send(new ResetAdminDocumentCommand(documentId), cancellationToken);
+            if (dto is null)
+            {
+                return NotFound();
+            }
+
+            return Accepted(dto);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+}
+
+public sealed record AdminResetResultDto(
+    Guid FileId,
+    string BusinessId,
+    string? OriginalFileName,
+    int SoftDeletedDocumentCount);
+
+public sealed record ResetAdminFileCommand(Guid FileId) : IRequest<AdminResetResultDto?>;
+
+public sealed record ResetAdminDocumentCommand(Guid DocumentId) : IRequest<AdminResetResultDto?>;
+
+public sealed class ResetAdminFileHandler(
+    DocumateDbContext db,
+    IResetWorkService reset,
+    IBusinessContextSetter businessSetter) : IRequestHandler<ResetAdminFileCommand, AdminResetResultDto?>
+{
+    public async Task<AdminResetResultDto?> Handle(
+        ResetAdminFileCommand request,
+        CancellationToken cancellationToken)
+    {
+        var source = await db.OpsFiles.AsNoTracking()
+            .Where(f => f.Id == request.FileId && !f.IsDeleted)
+            .Select(f => new { f.Id, f.BusinessId, f.OriginalFileName })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (source is null)
+        {
+            return null;
+        }
+
+        var biz = await db.CorTenantBusinesses.AsNoTracking()
+            .FirstOrDefaultAsync(b => b.IdenBusinessId == source.BusinessId && !b.IsDeleted, cancellationToken);
+        if (biz is null)
+        {
+            throw new InvalidOperationException("Business for this file was not found.");
+        }
+
+        using (businessSetter.Use(new BusinessContext
+               {
+                   IsAuthenticated = true,
+                   BusinessId = source.BusinessId,
+                   TenantId = biz.TenantId.ToString(),
+                   UserId = "ops-admin",
+                   BusinessName = biz.Name,
+                   TenantName = biz.TenantName,
+               }))
+        {
+            var result = await reset.ResetFileAsync(
+                source.Id,
+                source.BusinessId,
+                userId: "ops-admin",
+                cancellationToken);
+            if (result is null)
+            {
+                return null;
+            }
+
+            return new AdminResetResultDto(
+                result.File.Id,
+                source.BusinessId,
+                result.File.OriginalFileName ?? source.OriginalFileName,
+                result.SoftDeletedDocumentCount);
+        }
+    }
+}
+
+public sealed class ResetAdminDocumentHandler(
+    DocumateDbContext db,
+    IMediator mediator) : IRequestHandler<ResetAdminDocumentCommand, AdminResetResultDto?>
+{
+    public async Task<AdminResetResultDto?> Handle(
+        ResetAdminDocumentCommand request,
+        CancellationToken cancellationToken)
+    {
+        var fileId = await db.OpsDocuments.AsNoTracking()
+            .Where(d => d.Id == request.DocumentId && !d.IsDeleted)
+            .Select(d => (Guid?)d.FileId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (fileId is null)
+        {
+            return null;
+        }
+
+        return await mediator.Send(new ResetAdminFileCommand(fileId.Value), cancellationToken);
     }
 }
 

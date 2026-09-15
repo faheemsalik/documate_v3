@@ -45,6 +45,14 @@ export interface DocumentListItem {
   internalStageKey?: string | null;
   createdAt: string;
   completedAt?: string | null;
+  originalFileName?: string | null;
+}
+
+export interface PagedDocumentList {
+  items: DocumentListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface DocumentDetail extends DocumentListItem {
@@ -58,6 +66,9 @@ export interface DocumentDetail extends DocumentListItem {
   webhookStatusKey?: string | null;
   webhookAttempts: number;
   webhookLastHttpStatus?: number | null;
+  contentType?: string | null;
+  pageStart?: number | null;
+  pageEnd?: number | null;
 }
 
 export interface ListFilesParams {

@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.100.7" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.101.6" />
+    <PackageReference Include="AWSSDK.SecretsManager" Version="4.0.3.1" />
     <PackageReference Include="AWSSDK.Textract" Version="4.0.2.1" />
     <PackageReference Include="Google.Cloud.DocumentAI.V1" Version="3.21.0" />
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />

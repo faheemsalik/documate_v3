@@ -1,5 +1,6 @@
 using System.Reflection;
 using Documate.Api.Infrastructure.Auth;
+using Documate.Api.Infrastructure.Configuration;
 using Documate.Api.Infrastructure.EmailIntake;
 using Documate.Api.Infrastructure.Health;
 using Documate.Api.Infrastructure.Options;
@@ -12,8 +13,17 @@ using Documate.Api.Infrastructure.Work;
 using Documate.Api.Modules.External.Features.EmailIntake;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Plan 17: optional AWS Secrets Manager JSON blob → IConfiguration (once per process).
+// Local default: disabled (user-secrets/env). Staging/prod: Enabled=true + SecretId.
+using (var startupLoggerFactory = LoggerFactory.Create(b => b.AddConsole().SetMinimumLevel(LogLevel.Information)))
+{
+    var secretsLogger = startupLoggerFactory.CreateLogger("Documate.SecretsManager");
+    builder.Configuration.AddDocumateSecretsManager(builder.Environment, secretsLogger);
+}
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -48,10 +58,32 @@ builder.Services.Configure<AwsOptions>(builder.Configuration.GetSection(AwsOptio
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<EmailIntakeOptions>(builder.Configuration.GetSection(EmailIntakeOptions.SectionName));
 builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.SectionName));
+builder.Services.AddSingleton<Documate.Api.Infrastructure.Settings.SystemSettingsOptionsChangeSource>();
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<Documate.Api.Infrastructure.Options.StorageOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.SystemSettingsOptionsChangeSource>());
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<Documate.Api.Infrastructure.Options.OcrOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.SystemSettingsOptionsChangeSource>());
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<Documate.Api.Infrastructure.Options.PipelineOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.SystemSettingsOptionsChangeSource>());
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<Documate.Api.Infrastructure.Options.NotificationOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.SystemSettingsOptionsChangeSource>());
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptionsChangeTokenSource<Documate.Api.Infrastructure.Options.AdminOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.SystemSettingsOptionsChangeSource>());
 builder.Services.AddSingleton<Documate.Api.Infrastructure.Settings.ISystemSettings, Documate.Api.Infrastructure.Settings.MemoryCachedSystemSettings>();
 builder.Services.AddSingleton<Documate.Api.Infrastructure.Settings.IEmailIntakeSettings, Documate.Api.Infrastructure.Settings.EmailIntakeSettings>();
 builder.Services.AddSingleton<Documate.Api.Infrastructure.Settings.IPipelineSyncSettings, Documate.Api.Infrastructure.Settings.PipelineSyncSettings>();
 builder.Services.AddSingleton<Documate.Api.Infrastructure.Settings.IPipelineModelSettings, Documate.Api.Infrastructure.Settings.PipelineModelSettings>();
+builder.Services.AddSingleton<Documate.Api.Infrastructure.Settings.DbBackedOptionsPostConfigure>();
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IPostConfigureOptions<Documate.Api.Infrastructure.Options.StorageOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.DbBackedOptionsPostConfigure>());
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IPostConfigureOptions<Documate.Api.Infrastructure.Options.OcrOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.DbBackedOptionsPostConfigure>());
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IPostConfigureOptions<Documate.Api.Infrastructure.Options.PipelineOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.DbBackedOptionsPostConfigure>());
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IPostConfigureOptions<Documate.Api.Infrastructure.Options.NotificationOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.DbBackedOptionsPostConfigure>());
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IPostConfigureOptions<Documate.Api.Infrastructure.Options.AdminOptions>>(
+    sp => sp.GetRequiredService<Documate.Api.Infrastructure.Settings.DbBackedOptionsPostConfigure>());
 LlmStartupGate.EnsureConfigured(builder.Configuration, builder.Environment);
 builder.Services.AddDocumateObjectStorage(builder.Configuration);
 builder.Services.AddDocumatePipeline(builder.Configuration);
@@ -59,6 +91,7 @@ builder.Services.AddScoped<IWorkRecordService, WorkRecordService>();
 builder.Services.AddSingleton<IUploadIntakeMetrics, UploadIntakeMetrics>();
 builder.Services.AddScoped<ICancelWorkService, CancelWorkService>();
 builder.Services.AddScoped<IReprocessWorkService, ReprocessWorkService>();
+builder.Services.AddScoped<IResetWorkService, ResetWorkService>();
 
 builder.Services.AddDbContext<DocumateDbContext>(options =>
 {

@@ -87,6 +87,13 @@ public sealed class QueuesController(IMediator mediator) : ControllerBase
         return dto is null ? NotFound() : Ok(dto);
     }
 
+    [HttpPost("{id:guid}/routing/unlock")]
+    public async Task<ActionResult<QueueDto>> UnlockRouting(Guid id, CancellationToken cancellationToken)
+    {
+        var dto = await mediator.Send(new UnlockQueueRoutingCommand(id), cancellationToken);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
     [HttpPut("{id:guid}/webhook")]
     public async Task<ActionResult<QueueDto>> UpdateWebhook(
         Guid id,
@@ -193,6 +200,7 @@ public sealed record DeleteQueueCommand(Guid Id) : IRequest<bool>;
 public sealed record ListQueueRoutesQuery(Guid QueueId) : IRequest<IReadOnlyList<QueueRouteDto>?>;
 public sealed record ReplaceQueueRoutesCommand(Guid QueueId, ReplaceQueueRoutesRequest Request) : IRequest<IReadOnlyList<QueueRouteDto>?>;
 public sealed record LockQueueRoutingCommand(Guid QueueId) : IRequest<QueueDto?>;
+public sealed record UnlockQueueRoutingCommand(Guid QueueId) : IRequest<QueueDto?>;
 public sealed record UpdateQueueWebhookCommand(Guid QueueId, UpdateQueueWebhookRequest Request) : IRequest<QueueDto?>;
 public sealed record MintQueueEmailCommand(Guid QueueId) : IRequest<QueueEmailAddressDto?>;
 public sealed record UpdateQueueEmailSettingsCommand(Guid QueueId, UpdateQueueEmailSettingsRequest Request) : IRequest<QueueDto?>;
@@ -488,6 +496,38 @@ public sealed class LockQueueRoutingHandler(DocumateDbContext db, IBusinessConte
                 setters => setters
                     .SetProperty(x => x.RoutingLocked, true)
                     .SetProperty(x => x.RoutingLockedAt, DateTimeOffset.UtcNow)
+                    .SetProperty(x => x.UpdatedByUserId, business.UserId)
+                    .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow),
+                cancellationToken);
+
+        var q = await db.OpsQueues.AsNoTracking().FirstAsync(
+            x => x.Id == command.QueueId && x.BusinessId == business.BusinessId,
+            cancellationToken);
+        return await QueueHelpers.ToDtoAsync(db, enums, q, cancellationToken);
+    }
+}
+
+public sealed class UnlockQueueRoutingHandler(DocumateDbContext db, IBusinessContext business, ICorEnumIdResolver enums)
+    : IRequestHandler<UnlockQueueRoutingCommand, QueueDto?>
+{
+    public async Task<QueueDto?> Handle(UnlockQueueRoutingCommand command, CancellationToken cancellationToken)
+    {
+        var exists = await db.OpsQueues.AsNoTracking().AnyAsync(
+            x => x.Id == command.QueueId && x.BusinessId == business.BusinessId,
+            cancellationToken);
+        if (!exists)
+        {
+            return null;
+        }
+
+        await db.OpsQueues
+            .Where(x => x.Id == command.QueueId
+                        && x.BusinessId == business.BusinessId
+                        && x.RoutingLocked)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(x => x.RoutingLocked, false)
+                    .SetProperty(x => x.RoutingLockedAt, (DateTimeOffset?)null)
                     .SetProperty(x => x.UpdatedByUserId, business.UserId)
                     .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow),
                 cancellationToken);

@@ -5,7 +5,6 @@ using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 public static class SystemSettingsSeeder
 {
@@ -27,6 +26,14 @@ public static class SystemSettingsSeeder
                        ?? new PipelineOptions();
         var llm = configuration.GetSection(LlmOptions.SectionName).Get<LlmOptions>()
                   ?? new LlmOptions();
+        var storage = configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>()
+                      ?? new StorageOptions();
+        var ocr = configuration.GetSection(OcrOptions.SectionName).Get<OcrOptions>()
+                  ?? new OcrOptions();
+        var notifications = configuration.GetSection(NotificationOptions.SectionName).Get<NotificationOptions>()
+                            ?? new NotificationOptions();
+        var admin = configuration.GetSection(AdminOptions.SectionName).Get<AdminOptions>()
+                    ?? new AdminOptions();
 
         var defaults = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
@@ -45,10 +52,34 @@ public static class SystemSettingsSeeder
             [SystemSettingKeys.PipelineSyncWaitTimeoutSeconds] = pipeline.SyncWaitTimeoutSeconds,
             [SystemSettingKeys.PipelineSyncMaxPages] = pipeline.SyncMaxPages,
             [SystemSettingKeys.PipelineSyncMaxBytes] = pipeline.SyncMaxBytes,
+            [SystemSettingKeys.PipelineMaxConcurrentFiles] = pipeline.MaxConcurrentFiles,
+            [SystemSettingKeys.PipelineMaxConcurrentWebhooks] = pipeline.MaxConcurrentWebhooks,
+            [SystemSettingKeys.PipelineStubStageDelayMs] = pipeline.StubStageDelayMs,
             [SystemSettingKeys.PipelineIntelligenceT1ProviderKey] = llm.DefaultProviderKey,
             [SystemSettingKeys.PipelineIntelligenceFallbackProviderKey] = llm.DefaultProviderKey,
             [SystemSettingKeys.PipelineExtractProviderKey] = llm.DefaultProviderKey,
             [SystemSettingKeys.PipelineIntelligenceMaxCallsPerFile] = 40,
+            [SystemSettingKeys.StorageProvider] = storage.Provider,
+            [SystemSettingKeys.StorageBucketOrContainer] = storage.BucketOrContainer,
+            [SystemSettingKeys.StorageLocalRootPath] = storage.LocalRootPath,
+            [SystemSettingKeys.StorageRegion] = storage.Region,
+            [SystemSettingKeys.StorageServiceUrl] = storage.ServiceUrl,
+            [SystemSettingKeys.StorageSignedUrlMinutes] = storage.SignedUrlMinutes,
+            [SystemSettingKeys.OcrPrimaryProviderKey] = ocr.PrimaryProviderKey,
+            [SystemSettingKeys.OcrSecondaryProviderKey] = ocr.SecondaryProviderKey,
+            [SystemSettingKeys.OcrSyncMaxPages] = ocr.SyncMaxPages,
+            [SystemSettingKeys.OcrTextractRegion] = ocr.Textract.Region,
+            [SystemSettingKeys.OcrGoogleLocation] = ocr.GoogleDocumentAi.Location,
+            [SystemSettingKeys.OcrGoogleProjectId] = ocr.GoogleDocumentAi.ProjectId,
+            [SystemSettingKeys.OcrGoogleProcessorId] = ocr.GoogleDocumentAi.ProcessorId,
+            [SystemSettingKeys.NotificationsEnabled] = notifications.Enabled,
+            [SystemSettingKeys.NotificationsToAddress] = notifications.ToAddress,
+            [SystemSettingKeys.NotificationsSmtpHost] = notifications.Smtp.Host,
+            [SystemSettingKeys.NotificationsSmtpPort] = notifications.Smtp.Port,
+            [SystemSettingKeys.NotificationsSmtpUser] = notifications.Smtp.User,
+            [SystemSettingKeys.NotificationsSmtpFrom] = notifications.Smtp.From,
+            [SystemSettingKeys.AdminHangfireDashboardUrl] = admin.HangfireDashboardUrl,
+            [SystemSettingKeys.AdminDatadogDashboardUrl] = admin.DatadogDashboardUrl,
         };
 
         foreach (var (key, value) in defaults)

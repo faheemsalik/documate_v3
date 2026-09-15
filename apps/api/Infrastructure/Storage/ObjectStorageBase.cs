@@ -4,9 +4,9 @@ using System.Text.RegularExpressions;
 using Documate.Api.Infrastructure.Options;
 using Microsoft.Extensions.Options;
 
-public abstract class ObjectStorageBase(IOptions<StorageOptions> options) : IObjectStorage
+public abstract class ObjectStorageBase(IOptionsMonitor<StorageOptions> options) : IObjectStorage
 {
-    protected StorageOptions Options => options.Value;
+    protected StorageOptions Options => options.CurrentValue;
 
     public virtual string ResolveBucket() =>
         string.IsNullOrWhiteSpace(Options.BucketOrContainer)

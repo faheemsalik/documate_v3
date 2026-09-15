@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 /// <summary>Google Document AI ProcessDocument with raw bytes (PDF/images).</summary>
 public sealed class GoogleDocumentAiOcrEngine(
-    IOptions<OcrOptions> options,
+    IOptionsMonitor<OcrOptions> options,
     ILogger<GoogleDocumentAiOcrEngine> logger) : IOcrEngine
 {
     public string ProviderKey => "google_document_ai";
@@ -16,7 +16,7 @@ public sealed class GoogleDocumentAiOcrEngine(
     {
         get
         {
-            var g = options.Value.GoogleDocumentAi;
+            var g = options.CurrentValue.GoogleDocumentAi;
             return !string.IsNullOrWhiteSpace(g.ProjectId)
                 && !string.IsNullOrWhiteSpace(g.ProcessorId)
                 && !string.IsNullOrWhiteSpace(g.Location);
@@ -31,7 +31,7 @@ public sealed class GoogleDocumentAiOcrEngine(
                 "Google Document AI is not configured (Ocr:GoogleDocumentAi ProjectId/Location/ProcessorId).");
         }
 
-        var g = options.Value.GoogleDocumentAi;
+        var g = options.CurrentValue.GoogleDocumentAi;
         var clientBuilder = new DocumentProcessorServiceClientBuilder();
         if (!string.IsNullOrWhiteSpace(g.CredentialsJson))
         {

@@ -5,6 +5,7 @@ import { AgGridAngular } from 'ag-grid-angular';
 import {
   AllCommunityModule,
   ModuleRegistry,
+  type CellClickedEvent,
   type ColDef,
   type GridApi,
   type RowClickedEvent,
@@ -54,6 +55,8 @@ export class OpsMonitorPage implements OnInit {
   readonly theme = documateAgTheme;
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly info = signal<string | null>(null);
+  readonly resettingIds = signal<ReadonlySet<string>>(new Set());
   readonly fileRows = signal<AdminFileListItem[]>([]);
   readonly docRows = signal<AdminDocumentListItem[]>([]);
   readonly fileTotal = signal(0);
@@ -135,6 +138,16 @@ export class OpsMonitorPage implements OnInit {
     { field: 'errorMessage', headerName: 'Error', flex: 1, minWidth: 120, hide: true },
     { field: 'businessId', headerName: 'Business ID', width: 140, hide: true },
     { field: 'id', headerName: 'File ID', width: 140, hide: true },
+    {
+      colId: 'actions',
+      headerName: '',
+      width: 100,
+      pinned: 'right',
+      sortable: false,
+      filter: false,
+      suppressHeaderMenuButton: true,
+      cellRenderer: (p: { data?: AdminFileListItem }) => this.resetCell(p.data?.id),
+    },
   ];
 
   readonly docColumnDefs: ColDef<AdminDocumentListItem>[] = [
@@ -172,6 +185,16 @@ export class OpsMonitorPage implements OnInit {
     },
     { field: 'errorMessage', headerName: 'Error', flex: 1, minWidth: 120, hide: true },
     { field: 'id', headerName: 'Doc ID', width: 140, hide: true },
+    {
+      colId: 'actions',
+      headerName: '',
+      width: 100,
+      pinned: 'right',
+      sortable: false,
+      filter: false,
+      suppressHeaderMenuButton: true,
+      cellRenderer: (p: { data?: AdminDocumentListItem }) => this.resetCell(p.data?.id),
+    },
   ];
 
   readonly defaultColDef: ColDef = { sortable: true, resizable: true, filter: false };
@@ -185,14 +208,18 @@ export class OpsMonitorPage implements OnInit {
   private docGridApi: GridApi | null = null;
 
   ngOnInit(): void {
-    this.fileColOptions = this.fileColumnDefs.map((c) => ({
-      label: c.headerName ?? String(c.field ?? c.colId),
-      value: String(c.colId ?? c.field),
-    }));
-    this.docColOptions = this.docColumnDefs.map((c) => ({
-      label: c.headerName ?? String(c.field ?? c.colId),
-      value: String(c.colId ?? c.field),
-    }));
+    this.fileColOptions = this.fileColumnDefs
+      .map((c) => ({
+        label: c.headerName ?? String(c.field ?? c.colId),
+        value: String(c.colId ?? c.field),
+      }))
+      .filter((c) => c.label);
+    this.docColOptions = this.docColumnDefs
+      .map((c) => ({
+        label: c.headerName ?? String(c.field ?? c.colId),
+        value: String(c.colId ?? c.field),
+      }))
+      .filter((c) => c.label);
 
     const q = this.route.snapshot.queryParamMap;
     this.businessId = q.get('businessId') ?? '';
@@ -203,6 +230,12 @@ export class OpsMonitorPage implements OnInit {
 
     this.fileVisibleCols = this.loadCols(FILE_COLS_KEY, this.fileColumnDefs);
     this.docVisibleCols = this.loadCols(DOC_COLS_KEY, this.docColumnDefs);
+    if (!this.fileVisibleCols.includes('actions')) {
+      this.fileVisibleCols = [...this.fileVisibleCols, 'actions'];
+    }
+    if (!this.docVisibleCols.includes('actions')) {
+      this.docVisibleCols = [...this.docVisibleCols, 'actions'];
+    }
 
     this.reload();
   }
@@ -248,17 +281,102 @@ export class OpsMonitorPage implements OnInit {
     this.applyVisible(this.docGridApi, this.docVisibleCols);
   }
 
-  openBusiness(businessId: string | undefined): void {
-    if (!businessId) return;
-    void this.router.navigate(['/businesses', businessId]);
-  }
-
   onFileRowClicked(event: RowClickedEvent<AdminFileListItem>): void {
-    this.openBusiness(event.data?.businessId);
+    if (event.column?.getColId() === 'actions') return;
+    const id = event.data?.id;
+    if (id) void this.router.navigate(['/ops/files', id]);
   }
 
   onDocRowClicked(event: RowClickedEvent<AdminDocumentListItem>): void {
-    this.openBusiness(event.data?.businessId);
+    if (event.column?.getColId() === 'actions') return;
+    const id = event.data?.id;
+    if (id) void this.router.navigate(['/ops/documents', id]);
+  }
+
+  onFileCellClicked(event: CellClickedEvent<AdminFileListItem>): void {
+    if (!this.isResetClick(event)) return;
+    const row = event.data;
+    if (!row) return;
+    this.resetFile(row);
+  }
+
+  onDocCellClicked(event: CellClickedEvent<AdminDocumentListItem>): void {
+    if (!this.isResetClick(event)) return;
+    const row = event.data;
+    if (!row) return;
+    this.resetDocument(row);
+  }
+
+  private resetFile(row: AdminFileListItem): void {
+    const name = row.originalFileName ?? row.id;
+    if (
+      !confirm(
+        `Reset file "${name}"?\n\nReuses the same file entry: clears prior documents, sets status to received, and re-runs the pipeline. Webhooks will fire again when docs complete.`,
+      )
+    ) {
+      return;
+    }
+    if (this.resettingIds().has(row.id)) return;
+    this.setResetting(row.id, true);
+    this.error.set(null);
+    this.info.set(null);
+    this.api.resetFile(row.id).subscribe({
+      next: (res) => {
+        this.setResetting(row.id, false);
+        this.info.set(
+          `Reset queued for ${res.fileId}` +
+            (res.softDeletedDocumentCount
+              ? ` (cleared ${res.softDeletedDocumentCount} prior doc${res.softDeletedDocumentCount === 1 ? '' : 's'})`
+              : ''),
+        );
+        this.reload();
+      },
+      error: (err: { error?: { error?: string }; message?: string }) => {
+        this.setResetting(row.id, false);
+        this.error.set(err?.error?.error ?? err?.message ?? 'Reset failed.');
+      },
+    });
+  }
+
+  private resetDocument(row: AdminDocumentListItem): void {
+    const name = row.originalFileName ?? row.fileId;
+    if (
+      !confirm(
+        `Reset parent file for document "${name}"?\n\nResets the same file entry (whole PDF), not just this document. Prior docs are cleared; pipeline re-runs; webhooks fire again on completion.`,
+      )
+    ) {
+      return;
+    }
+    if (this.resettingIds().has(row.id)) return;
+    this.setResetting(row.id, true);
+    this.error.set(null);
+    this.info.set(null);
+    this.api.resetDocument(row.id).subscribe({
+      next: (res) => {
+        this.setResetting(row.id, false);
+        this.info.set(`Reset queued for file ${res.fileId}`);
+        this.reload();
+      },
+      error: (err: { error?: { error?: string }; message?: string }) => {
+        this.setResetting(row.id, false);
+        this.error.set(err?.error?.error ?? err?.message ?? 'Reset failed.');
+      },
+    });
+  }
+
+  private setResetting(id: string, busy: boolean): void {
+    const next = new Set(this.resettingIds());
+    if (busy) next.add(id);
+    else next.delete(id);
+    this.resettingIds.set(next);
+    this.fileGridApi?.refreshCells({ force: true, columns: ['actions'] });
+    this.docGridApi?.refreshCells({ force: true, columns: ['actions'] });
+  }
+
+  private isResetClick(event: CellClickedEvent): boolean {
+    if (event.colDef.colId !== 'actions') return false;
+    const target = event.event?.target as HTMLElement | null;
+    return !!target?.closest('[data-action="reset"]');
   }
 
   private reload(): void {
@@ -328,6 +446,7 @@ export class OpsMonitorPage implements OnInit {
   private applyVisible(api: GridApi | null, visible: string[]): void {
     if (!api) return;
     const set = new Set(visible);
+    set.add('actions');
     const allIds = [
       ...this.fileColumnDefs.map((d) => String(d.colId ?? d.field)),
       ...this.docColumnDefs.map((d) => String(d.colId ?? d.field)),
@@ -335,6 +454,14 @@ export class OpsMonitorPage implements OnInit {
     api.applyColumnState({
       state: allIds.map((colId) => ({ colId, hide: !set.has(colId) })),
     });
+  }
+
+  private resetCell(id?: string): string {
+    if (!id) return '';
+    const busy = this.resettingIds().has(id);
+    const label = busy ? '…' : 'Reset';
+    const disabled = busy ? ' disabled' : '';
+    return `<button type="button" class="ops-reset-btn" data-action="reset"${disabled}>${label}</button>`;
   }
 
   private orgCell(business?: string, tenant?: string): string {

@@ -12,7 +12,7 @@ using Microsoft.Extensions.Options;
 /// </summary>
 public sealed class S3ObjectStorage(
     IAmazonS3 s3,
-    IOptions<StorageOptions> options,
+    IOptionsMonitor<StorageOptions> options,
     ILogger<S3ObjectStorage> logger) : ObjectStorageBase(options)
 {
     public override async Task UploadAsync(ObjectStoragePutRequest request, CancellationToken cancellationToken = default)

@@ -6,7 +6,9 @@ using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-public sealed class MemoryCachedSystemSettings(IServiceScopeFactory scopeFactory) : ISystemSettings
+public sealed class MemoryCachedSystemSettings(
+    IServiceScopeFactory scopeFactory,
+    SystemSettingsOptionsChangeSource? optionsChangeSource = null) : ISystemSettings
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -44,10 +46,13 @@ public sealed class MemoryCachedSystemSettings(IServiceScopeFactory scopeFactory
         {
             _cache.Clear();
             _loaded = false;
-            return;
+        }
+        else
+        {
+            _cache.TryRemove(key, out _);
         }
 
-        _cache.TryRemove(key, out _);
+        optionsChangeSource?.Signal();
     }
 
     public async Task UpsertAsync(
@@ -84,6 +89,7 @@ public sealed class MemoryCachedSystemSettings(IServiceScopeFactory scopeFactory
         await db.SaveChangesAsync(cancellationToken);
         _cache[key] = valueJson;
         _loaded = true;
+        optionsChangeSource?.Signal();
     }
 
     public async Task<IReadOnlyDictionary<string, string>> GetAllAsync(CancellationToken cancellationToken = default)

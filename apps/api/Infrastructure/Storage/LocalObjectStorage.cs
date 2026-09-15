@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 /// <summary>Dev/local stand-in when AWS is not configured.</summary>
 public sealed class LocalObjectStorage(
-    IOptions<StorageOptions> options,
+    IOptionsMonitor<StorageOptions> options,
     ILogger<LocalObjectStorage> logger) : ObjectStorageBase(options)
 {
     private string Root =>

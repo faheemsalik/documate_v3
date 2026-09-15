@@ -58,3 +58,43 @@
   align-items: center;
   margin-top: 0.75rem;
 }
+
+.hint {
+  margin: 0 0 0.75rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  max-width: 42rem;
+}
+
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+.add-heading {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.add-row {
+  margin-top: 0.25rem;
+}
+
+.mb {
+  margin-bottom: 0.75rem;
+}
+
+.mt {
+  margin-top: 0.75rem;
+  display: block;
+}
+
+:host ::ng-deep .doc-type-select,
+:host ::ng-deep .agent-select {
+  min-width: 14rem;
+}
+
+:host ::ng-deep .routes-table {
+  margin-top: 0.5rem;
+}

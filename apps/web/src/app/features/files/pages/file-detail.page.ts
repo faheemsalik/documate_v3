@@ -1,8 +1,8 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { DomSanitizer } from '@angular/platform-browser';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { Button } from 'primeng/button';
 import { Card } from 'primeng/card';
 import { Message } from 'primeng/message';
@@ -12,6 +12,7 @@ import { AppContextService } from '../../../core/app-context.service';
 import { FilesApiService } from '../data/files-api.service';
 import type { DocumentListItem, FileDetail } from '../models/file.models';
 import { StatusPillComponent } from '../components/status-pill.component';
+import { blobForPreview, isInlinePreviewable, isPdfMime } from '../utils/preview-mime.util';
 
 @Component({
   selector: 'app-file-detail-page',
@@ -31,29 +32,45 @@ import { StatusPillComponent } from '../components/status-pill.component';
 export class FileDetailPage {
   private readonly route = inject(ActivatedRoute);
   private readonly filesApi = inject(FilesApiService);
-  private readonly ctx = inject(AppContextService);
+  readonly ctx = inject(AppContextService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(true);
+  readonly previewLoading = signal(false);
+  readonly resetting = signal(false);
   readonly error = signal<string | null>(null);
+  readonly docsError = signal<string | null>(null);
+  readonly info = signal<string | null>(null);
   readonly file = signal<FileDetail | null>(null);
   readonly documents = signal<DocumentListItem[]>([]);
-  readonly previewUrl = signal<string | null>(null);
+  readonly previewObjectUrl = signal<string | null>(null);
 
   private readonly fileId = toSignal(
     this.route.paramMap.pipe(map((p) => p.get('fileId') ?? '')),
     { initialValue: this.route.snapshot.paramMap.get('fileId') ?? '' },
   );
 
+  private lastLoadedKey: string | null = null;
+
   readonly safePreviewUrl = computed(() => {
-    const url = this.previewUrl();
+    const url = this.previewObjectUrl();
     return url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
   });
 
   readonly canPreviewInline = computed(() => {
-    const ct = this.file()?.contentType?.toLowerCase() ?? '';
-    return ct.includes('pdf') || ct.startsWith('image/');
+    const f = this.file();
+    return isInlinePreviewable(f?.contentType, f?.originalFileName);
   });
+
+  readonly isPdf = computed(() => {
+    const f = this.file();
+    return isPdfMime(f?.contentType, f?.originalFileName);
+  });
+
+  readonly canReset = computed(
+    () => (this.file()?.publicStatusKey ?? '').toLowerCase() === 'failed',
+  );
 
   readonly emailIntake = computed(() => {
     const raw = this.file()?.emailIntakeJson;
@@ -79,54 +96,138 @@ export class FileDetailPage {
   });
 
   constructor() {
-    this.load();
+    this.destroyRef.onDestroy(() => this.revokePreviewUrl());
+
+    effect(() => {
+      const queueId = this.ctx.defaultQueueId();
+      const fileId = this.fileId();
+      const ctxLoading = this.ctx.loading();
+
+      if (ctxLoading) {
+        this.loading.set(true);
+        return;
+      }
+
+      if (!queueId || !fileId) {
+        this.loading.set(false);
+        this.error.set(
+          this.ctx.loadError() ?? (!fileId ? 'Missing file id.' : 'No default queue configured.'),
+        );
+        return;
+      }
+
+      const key = `${queueId}:${fileId}`;
+      if (this.lastLoadedKey === key && this.file()) {
+        return;
+      }
+      this.lastLoadedKey = key;
+      this.load(queueId, fileId);
+    });
   }
 
   refresh(): void {
-    this.load();
-  }
-
-  private load(): void {
     const queueId = this.ctx.defaultQueueId();
     const fileId = this.fileId();
-    if (!queueId || !fileId) {
-      this.loading.set(false);
-      this.error.set('Missing queue or file id.');
+    if (!queueId || !fileId) return;
+    this.lastLoadedKey = null;
+    this.load(queueId, fileId);
+  }
+
+  reset(): void {
+    const queueId = this.ctx.defaultQueueId();
+    const file = this.file();
+    if (!queueId || !file || !this.canReset() || this.resetting()) return;
+
+    const name = file.originalFileName ?? file.id;
+    if (
+      !confirm(
+        `Reset "${name}"?\n\nClears prior documents on this file, sets status to received, and re-runs processing on the same file.`,
+      )
+    ) {
       return;
     }
 
-    this.loading.set(true);
+    this.resetting.set(true);
     this.error.set(null);
-    this.filesApi.getFile(queueId, fileId).subscribe({
-      next: (f) => {
-        this.file.set(f);
-        this.loadDocuments(queueId, fileId);
-        this.loadPreview(queueId, fileId);
+    this.info.set(null);
+    this.filesApi.resetFile(queueId, file.id).subscribe({
+      next: () => {
+        this.resetting.set(false);
+        this.info.set('Reset queued — refreshing…');
+        this.lastLoadedKey = null;
+        this.refresh();
       },
-      error: () => {
-        this.loading.set(false);
-        this.error.set('File not found.');
+      error: (err: { error?: { error?: string } }) => {
+        this.resetting.set(false);
+        this.error.set(err?.error?.error ?? 'Reset failed.');
       },
     });
+  }
+
+  private load(queueId: string, fileId: string): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.docsError.set(null);
+
+    this.filesApi
+      .getFile(queueId, fileId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (f) => {
+          this.file.set(f);
+          this.loading.set(false);
+          this.loadDocuments(queueId, fileId);
+          this.loadPreviewBlob(queueId, fileId);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.file.set(null);
+          this.error.set('File not found.');
+        },
+      });
   }
 
   private loadDocuments(queueId: string, fileId: string): void {
-    this.filesApi.listDocuments(queueId, fileId).subscribe({
-      next: (docs) => {
-        this.documents.set(docs);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.documents.set([]);
-        this.loading.set(false);
-      },
-    });
+    this.filesApi
+      .listDocuments(queueId, fileId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (docs) => {
+          this.documents.set(docs);
+          this.docsError.set(null);
+        },
+        error: () => {
+          this.documents.set([]);
+          this.docsError.set('Could not load documents for this file.');
+        },
+      });
   }
 
-  private loadPreview(queueId: string, fileId: string): void {
-    this.filesApi.getDownloadUrl(queueId, fileId).subscribe({
-      next: (d) => this.previewUrl.set(d.url),
-      error: () => this.previewUrl.set(null),
-    });
+  private loadPreviewBlob(queueId: string, fileId: string): void {
+    this.revokePreviewUrl();
+    this.previewLoading.set(true);
+    this.filesApi
+      .getFileContentBlob(queueId, fileId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          const typed = blobForPreview(blob, this.file()?.contentType, this.file()?.originalFileName);
+          const objectUrl = URL.createObjectURL(typed);
+          this.previewObjectUrl.set(objectUrl);
+          this.previewLoading.set(false);
+        },
+        error: () => {
+          this.previewObjectUrl.set(null);
+          this.previewLoading.set(false);
+        },
+      });
+  }
+
+  private revokePreviewUrl(): void {
+    const url = this.previewObjectUrl();
+    if (url) {
+      URL.revokeObjectURL(url);
+      this.previewObjectUrl.set(null);
+    }
   }
 }

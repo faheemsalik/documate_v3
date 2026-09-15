@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Button } from 'primeng/button';
 import { Checkbox } from 'primeng/checkbox';
@@ -47,7 +47,9 @@ export class QueueOverviewPage {
 
   readonly loading = signal(true);
   readonly saving = signal(false);
+  readonly savingRoutes = signal(false);
   readonly error = signal<string | null>(null);
+  readonly info = signal<string | null>(null);
   readonly queue = signal<Queue | null>(null);
   readonly routes = signal<QueueRoute[]>([]);
   readonly allowlist = signal<MailboxAllowlistEntry[]>([]);
@@ -56,6 +58,7 @@ export class QueueOverviewPage {
   readonly mailboxes = signal<IntakeMailbox[]>([]);
   readonly selectedMailbox = signal<IntakeMailbox | null>(null);
 
+  activeTab: string | number = '0';
   webhookEnabled = false;
   webhookUrl = '';
   webhookSecret = '';
@@ -66,6 +69,16 @@ export class QueueOverviewPage {
   allowlistValue = '';
   allowlistModeEnumId: number | null = null;
   readonly allowlistModes = signal<{ label: string; value: number }[]>([]);
+
+  readonly availableDocumentTypes = computed(() => {
+    const used = new Set(this.routes().map((r) => r.documentTypeId));
+    return this.documentTypes()
+      .filter((d) => !used.has(d.id))
+      .map((d) => ({
+        id: d.id,
+        label: d.description ? `${d.name} (${d.documentTypeKey})` : `${d.name} · ${d.documentTypeKey}`,
+      }));
+  });
 
   constructor() {
     effect(() => {
@@ -78,6 +91,18 @@ export class QueueOverviewPage {
       next: (modes) =>
         this.allowlistModes.set(modes.map((m) => ({ label: m.displayName || m.enumKey, value: m.id }))),
     });
+  }
+
+  onTabChange(value: string | number | undefined): void {
+    this.activeTab = value ?? '0';
+  }
+
+  canAddRoute(): boolean {
+    return this.newRouteDocTypeId != null && !!this.newRouteAgentId && !this.savingRoutes();
+  }
+
+  docTypeName(documentTypeId: number): string {
+    return this.documentTypes().find((d) => d.id === documentTypeId)?.name ?? '—';
   }
 
   saveWebhook(): void {
@@ -160,26 +185,51 @@ export class QueueOverviewPage {
   addRoute(): void {
     const q = this.queue();
     if (!q || this.newRouteDocTypeId == null || !this.newRouteAgentId) return;
-    const routes = [
+    const next = [
       ...this.routes().map((r) => ({ documentTypeId: r.documentTypeId, agentId: r.agentId })),
       { documentTypeId: this.newRouteDocTypeId, agentId: this.newRouteAgentId },
     ];
-    this.queuesApi.replaceRoutes(q.id, routes).subscribe({
-      next: (updated) => {
-        this.routes.set(updated);
-        this.newRouteDocTypeId = null;
-        this.newRouteAgentId = null;
-      },
-      error: () => this.error.set('Could not add route.'),
-    });
+    this.persistRoutes(q.id, next, 'Document type added to channel.');
+  }
+
+  removeRoute(documentTypeId: number): void {
+    const q = this.queue();
+    if (!q) return;
+    const typeName = this.docTypeName(documentTypeId);
+    if (!confirm(`Remove document type "${typeName}" from this channel?`)) return;
+    const next = this.routes()
+      .filter((r) => r.documentTypeId !== documentTypeId)
+      .map((r) => ({ documentTypeId: r.documentTypeId, agentId: r.agentId }));
+    this.persistRoutes(q.id, next, 'Document type removed.');
   }
 
   lockRoutes(): void {
     const q = this.queue();
     if (!q) return;
+    if (!confirm('Lock document types on this channel? You will need to unlock before adding or removing types again.')) {
+      return;
+    }
     this.queuesApi.lockRouting(q.id).subscribe({
-      next: (updated) => this.queue.set(updated),
+      next: (updated) => {
+        this.queue.set(updated);
+        this.info.set('Document types locked.');
+      },
       error: () => this.error.set('Could not lock routing.'),
+    });
+  }
+
+  unlockRoutes(): void {
+    const q = this.queue();
+    if (!q) return;
+    if (!confirm('Unlock document types so you can add or remove type→agent mappings on this channel?')) {
+      return;
+    }
+    this.queuesApi.unlockRouting(q.id).subscribe({
+      next: (updated) => {
+        this.queue.set(updated);
+        this.info.set('Document types unlocked — you can add more types now.');
+      },
+      error: () => this.error.set('Could not unlock routing.'),
     });
   }
 
@@ -203,6 +253,31 @@ export class QueueOverviewPage {
     this.mailboxesApi.deleteAllowlist(mb.id, entryId).subscribe({
       next: () => this.allowlist.update((a) => a.filter((e) => e.id !== entryId)),
       error: () => this.error.set('Could not remove entry.'),
+    });
+  }
+
+  private persistRoutes(
+    queueId: string,
+    routes: { documentTypeId: number; agentId: string }[],
+    successMessage: string,
+  ): void {
+    this.savingRoutes.set(true);
+    this.error.set(null);
+    this.info.set(null);
+    this.queuesApi.replaceRoutes(queueId, routes).subscribe({
+      next: (updated) => {
+        this.routes.set(updated);
+        this.newRouteDocTypeId = null;
+        this.newRouteAgentId = null;
+        this.savingRoutes.set(false);
+        this.info.set(successMessage);
+      },
+      error: (err: { error?: { error?: string; title?: string }; message?: string }) => {
+        this.savingRoutes.set(false);
+        this.error.set(
+          err?.error?.error ?? err?.error?.title ?? err?.message ?? 'Could not update document types.',
+        );
+      },
     });
   }
 

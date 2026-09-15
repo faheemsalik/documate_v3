@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Documate.Api.Infrastructure.Llm;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Settings;
 using Documate.Api.Infrastructure.Storage;
@@ -43,6 +44,7 @@ public sealed partial class PageIntelligenceService(
                     text,
                     settings.IntelligenceT1ProviderKey,
                     "t1",
+                    request.RoutableTypes,
                     cancellationToken);
             }
 
@@ -54,10 +56,12 @@ public sealed partial class PageIntelligenceService(
                     text,
                     settings.IntelligenceFallbackProviderKey,
                     "fallback",
+                    request.RoutableTypes,
                     cancellationToken);
             }
 
             profile ??= BuildHeuristic(artifact.Page, text, artifact.IsBlank);
+            profile = NormalizeRoutableType(profile, request.RoutableTypes);
             profiles.Add(profile);
             await PersistAsync(request, profile, cancellationToken);
         }
@@ -70,15 +74,16 @@ public sealed partial class PageIntelligenceService(
         string text,
         string providerKey,
         string tier,
+        IReadOnlyList<QueueRoutableDocumentType> routableTypes,
         CancellationToken cancellationToken)
     {
         try
         {
             var provider = ResolveProvider(providerKey);
-            var json = providerKey.Contains("claude", StringComparison.OrdinalIgnoreCase)
-                || (provider.BaseUrl ?? "").Contains("anthropic", StringComparison.OrdinalIgnoreCase)
-                ? await CallAnthropicAsync(provider, page, text, cancellationToken)
-                : await CallOpenAiAsync(provider, page, text, cancellationToken);
+            var systemPrompt = BuildSystemPrompt(routableTypes);
+            var json = LlmEndpointResolver.IsAnthropic(providerKey, provider.BaseUrl)
+                ? await CallAnthropicAsync(provider, page, text, systemPrompt, cancellationToken)
+                : await CallOpenAiAsync(providerKey, provider, page, text, systemPrompt, cancellationToken);
             return ParseProfile(page, tier, json);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -102,19 +107,14 @@ public sealed partial class PageIntelligenceService(
     }
 
     private async Task<JsonObject> CallOpenAiAsync(
+        string providerKey,
         LlmProviderOptions provider,
         int page,
         string text,
+        string systemPrompt,
         CancellationToken cancellationToken)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(provider.BaseUrl)
-            ? "https://api.openai.com/v1"
-            : provider.BaseUrl.TrimEnd('/');
-        if (!baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
-            && !baseUrl.Contains("/v1/", StringComparison.OrdinalIgnoreCase))
-        {
-            baseUrl += "/v1";
-        }
+        var baseUrl = LlmEndpointResolver.ResolveOpenAiCompatibleBase(providerKey, provider.BaseUrl);
 
         var body = new
         {
@@ -122,7 +122,7 @@ public sealed partial class PageIntelligenceService(
             response_format = new { type = "json_object" },
             messages = new object[]
             {
-                new { role = "system", content = SystemPrompt },
+                new { role = "system", content = systemPrompt },
                 new { role = "user", content = $"Page number: {page}\n\nOCR text:\n{text}" },
             },
         };
@@ -140,17 +140,16 @@ public sealed partial class PageIntelligenceService(
         LlmProviderOptions provider,
         int page,
         string text,
+        string systemPrompt,
         CancellationToken cancellationToken)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(provider.BaseUrl)
-            ? "https://api.anthropic.com"
-            : provider.BaseUrl.TrimEnd('/');
+        var baseUrl = LlmEndpointResolver.ResolveAnthropicBase(provider.BaseUrl);
         var body = new
         {
             model = provider.Model,
             max_tokens = 1024,
             temperature = 0,
-            system = SystemPrompt,
+            system = systemPrompt,
             messages = new[] { new { role = "user", content = $"Page number: {page}\n\nOCR text:\n{text}" } },
         };
         using var msg = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v1/messages");
@@ -243,9 +242,47 @@ public sealed partial class PageIntelligenceService(
             ?? throw new InvalidOperationException("Page intelligence response must be a JSON object.");
     }
 
-    private const string SystemPrompt =
+    private static PageIntelligenceProfile NormalizeRoutableType(
+        PageIntelligenceProfile profile,
+        IReadOnlyList<QueueRoutableDocumentType> routableTypes)
+    {
+        if (routableTypes.Count == 0 || string.IsNullOrWhiteSpace(profile.DocumentType))
+        {
+            return profile;
+        }
+
+        var key = QueueDocumentTypeResolver.ResolveKey(profile.DocumentType, routableTypes);
+        return key is null || string.Equals(key, profile.DocumentType, StringComparison.OrdinalIgnoreCase)
+            ? profile
+            : profile with { DocumentType = key };
+    }
+
+    private static string BuildSystemPrompt(IReadOnlyList<QueueRoutableDocumentType> routableTypes)
+    {
+        if (routableTypes.Count == 0)
+        {
+            return SystemPromptBase;
+        }
+
+        var expected = string.Join(
+            ", ",
+            routableTypes.Select(t => $"{t.Name} (`{t.DocumentTypeKey}`)"));
+        return
+            $"""
+            {SystemPromptBase}
+            This queue commonly receives: {expected}.
+            Prefer those labels when the page matches one of them, but still identify the real
+            document type from the page content if it is something else. Do not invent fields
+            beyond the JSON schema above.
+            """;
+    }
+
+    private const string SystemPromptBase =
         """
-        Identify page-level document boundaries. Return only JSON with:
+        Identify page-level document boundaries and what kind of business document this page is.
+        Infer documentType yourself from the page content (natural label or catalog key).
+        Use null only when the page is blank or the type cannot be judged.
+        Return only JSON with:
         documentType (string|null), primaryDocumentNumber (string|null),
         startsNewDocument, continuesPrevious, documentComplete, isBlank (booleans),
         evidence (short string array). Identification only: never return extracted document data.

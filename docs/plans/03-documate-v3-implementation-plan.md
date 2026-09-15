@@ -1015,7 +1015,7 @@ Numeric choice after B (e.g. 60 vs 120). Record with B.
    - **External `GET` Document:** include `download_url` only when Document PDF exists (refresh if needed).  
    - **External `GET` File:** File `download_url` (original) + list of **full Document objects**; each Document follows the Document URL rule above.  
    - Do not log full signed URLs in WorkEvents by default.
-7. Provider credentials (Mode 1) only in server secret store — never to browser.
+7. Provider credentials (Mode 1) only in **server secret store** (**AWS Secrets Manager** — [Plan 17](./17-platform-secrets-store.md); Infisical reserved as backup) — never to browser. Local: user-secrets/env.
 8. Sync wait: same authz as async upload on that queue; sync response Documents include download URLs when present.
 9. Do not log full document PII in events by default; store refs + error codes.
 

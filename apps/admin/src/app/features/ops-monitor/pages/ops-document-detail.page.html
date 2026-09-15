@@ -1,0 +1,101 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      @if (document(); as d) {
+        <a [routerLink]="['/ops/files', d.fileId]" class="back-link">← File detail</a>
+      } @else {
+        <a routerLink="/ops" class="back-link">← Files &amp; documents</a>
+      }
+      <h1>{{ document()?.documentTypeKey ?? 'Document' }}</h1>
+      @if (document(); as d) {
+        <p class="meta">
+          {{ d.businessName }} · {{ d.publicStatusKey ?? '—' }}
+          @if (d.pageStart != null && d.pageEnd != null) {
+            · pages {{ d.pageStart }}–{{ d.pageEnd }}
+          }
+        </p>
+      }
+    </div>
+    <p-button label="Refresh" icon="pi pi-refresh" severity="secondary" [loading]="loading()" (onClick)="refresh()" />
+  </header>
+
+  @if (loading()) {
+    <p-message severity="info" text="Loading document…" />
+  } @else if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (document(); as d) {
+    <div class="layout">
+      <section>
+        <p-card header="Preview">
+          @if (safePreviewUrl(); as url) {
+            @if (canPreviewInline()) {
+              @if (isPdf()) {
+                <iframe class="preview-frame" [src]="url" title="Document preview"></iframe>
+              } @else {
+                <img class="preview-image" [src]="previewObjectUrl()!" alt="Document preview" />
+              }
+            } @else {
+              <p class="muted">Inline preview unavailable ({{ d.contentType ?? 'unknown' }}).</p>
+            }
+          } @else if (previewLoading()) {
+            <p class="muted">Loading preview…</p>
+          } @else {
+            <p class="muted">Preview not available.</p>
+          }
+        </p-card>
+      </section>
+
+      <section class="side">
+        <p-card header="Status">
+          <dl class="meta-grid">
+            <dt>Status</dt><dd>{{ d.publicStatusKey ?? '—' }}</dd>
+            <dt>Stage</dt><dd>{{ d.internalStageKey ?? '—' }}</dd>
+            <dt>Type</dt><dd>{{ d.documentTypeKey ?? '—' }}</dd>
+            <dt>Source file</dt><dd>{{ d.originalFileName ?? '—' }}</dd>
+            <dt>Created</dt><dd>{{ d.createdAt | date: 'medium' }}</dd>
+            <dt>Completed</dt><dd>{{ d.completedAt ? (d.completedAt | date: 'medium') : '—' }}</dd>
+            @if (d.errorMessage) {
+              <dt>Error</dt><dd class="err">{{ d.errorMessage }}</dd>
+            }
+          </dl>
+        </p-card>
+
+        <p-card header="Extracted data">
+          @if (parsedResult().scalars.length === 0 && parsedResult().tables.length === 0) {
+            <p class="muted">No extracted result yet.</p>
+          } @else {
+            @if (parsedResult().scalars.length) {
+              <dl class="fields-grid">
+                @for (field of parsedResult().scalars; track field.key) {
+                  <dt>{{ field.key }}</dt>
+                  <dd>{{ formatFieldValue(field.value) }}</dd>
+                }
+              </dl>
+            }
+            @for (table of parsedResult().tables; track table.key) {
+              <h3 class="table-title">{{ table.key }}</h3>
+              <p-table [value]="table.rows" styleClass="compact-table" [tableStyle]="{ 'min-width': '100%' }">
+                <ng-template pTemplate="header">
+                  <tr>
+                    @for (col of table.columns; track col) {
+                      <th>{{ col }}</th>
+                    }
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row>
+                  <tr>
+                    @for (col of table.columns; track col) {
+                      <td>{{ formatFieldValue(row[col]) }}</td>
+                    }
+                  </tr>
+                </ng-template>
+              </p-table>
+            }
+          }
+        </p-card>
+      </section>
+    </div>
+  }
+</div>

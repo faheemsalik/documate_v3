@@ -78,6 +78,10 @@ export class QueuesApiService {
     return this.http.post<Queue>(`${this.base}/${id}/routing/lock`, {});
   }
 
+  unlockRouting(id: string) {
+    return this.http.post<Queue>(`${this.base}/${id}/routing/unlock`, {});
+  }
+
   updateWebhook(id: string, body: { enabled: boolean; url?: string | null; secret?: string | null }) {
     return this.http.put<Queue>(`${this.base}/${id}/webhook`, body);
   }

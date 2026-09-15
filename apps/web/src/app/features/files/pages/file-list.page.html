@@ -1,7 +1,7 @@
 <div class="page">
   <header class="page-header">
     <div>
-      <h1>Extract data</h1>
+      <h1>Files</h1>
       <p class="subtitle">{{ totalCount() }} files · default queue</p>
     </div>
     <div class="actions">
@@ -21,6 +21,7 @@
         severity="secondary"
         (onClick)="refresh()"
       />
+      <p-button label="Documents" icon="pi pi-file" severity="secondary" routerLink="/files/documents" />
       <p-button label="Schema search" icon="pi pi-search" severity="secondary" routerLink="/files/search" />
       <input #fileInput type="file" hidden (change)="onUploadSelected($event)" />
       <p-button

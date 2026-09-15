@@ -12,9 +12,42 @@ public static class PlatformCatalogSeeder
         var llmId = enumIds.Require("provider_category", "llm");
         var metaId = enumIds.Require("provider_category", "meta");
 
-        await EnsureProvider(db, "documate_meta", "Documate Meta", metaId, "Documate", now, cancellationToken);
+        await EnsureProvider(db, "documate_meta", "Documate Meta (façade)", metaId, "Documate", now, cancellationToken);
+
+        // OpenAI
         await EnsureProvider(db, "gpt_5_6", "GPT 5.6", llmId, "OpenAI", now, cancellationToken);
+        await EnsureProvider(db, "gpt_4o", "GPT-4o", llmId, "OpenAI", now, cancellationToken);
+        await EnsureProvider(db, "gpt_4o_mini", "GPT-4o mini", llmId, "OpenAI", now, cancellationToken);
+        await EnsureProvider(db, "gpt_4_1", "GPT-4.1", llmId, "OpenAI", now, cancellationToken);
+        await EnsureProvider(db, "gpt_4_1_mini", "GPT-4.1 mini", llmId, "OpenAI", now, cancellationToken);
+        await EnsureProvider(db, "o4_mini", "o4-mini", llmId, "OpenAI", now, cancellationToken);
+
+        // Anthropic
         await EnsureProvider(db, "claude_sonnet_6", "Claude Sonnet 6", llmId, "Anthropic", now, cancellationToken);
+        await EnsureProvider(db, "claude_sonnet_4", "Claude Sonnet 4", llmId, "Anthropic", now, cancellationToken);
+        await EnsureProvider(db, "claude_3_5_sonnet", "Claude 3.5 Sonnet", llmId, "Anthropic", now, cancellationToken);
+        await EnsureProvider(db, "claude_3_5_haiku", "Claude 3.5 Haiku", llmId, "Anthropic", now, cancellationToken);
+        await EnsureProvider(db, "claude_haiku_4_5", "Claude Haiku 4.5", llmId, "Anthropic", now, cancellationToken);
+
+        // Google Gemini
+        await EnsureProvider(db, "gemini_2_5_flash", "Gemini 2.5 Flash", llmId, "Google", now, cancellationToken);
+        await EnsureProvider(db, "gemini_2_0_flash", "Gemini 2.0 Flash", llmId, "Google", now, cancellationToken);
+        await EnsureProvider(db, "gemini_1_5_pro", "Gemini 1.5 Pro", llmId, "Google", now, cancellationToken);
+
+        // DeepSeek
+        await EnsureProvider(db, "deepseek_v3", "DeepSeek V3 (chat)", llmId, "DeepSeek", now, cancellationToken);
+        await EnsureProvider(db, "deepseek_r1", "DeepSeek R1", llmId, "DeepSeek", now, cancellationToken);
+
+        // Zhipu GLM
+        await EnsureProvider(db, "glm_4", "GLM-4", llmId, "Zhipu", now, cancellationToken);
+        await EnsureProvider(db, "glm_4_flash", "GLM-4-Flash", llmId, "Zhipu", now, cancellationToken);
+
+        // Moonshot / Kimi
+        await EnsureProvider(db, "kimi_k2", "Kimi K2", llmId, "Moonshot", now, cancellationToken);
+        await EnsureProvider(db, "moonshot_v1_8k", "Moonshot v1 8k", llmId, "Moonshot", now, cancellationToken);
+        await EnsureProvider(db, "moonshot_v1_32k", "Moonshot v1 32k", llmId, "Moonshot", now, cancellationToken);
+        await EnsureProvider(db, "moonshot_v1_128k", "Moonshot v1 128k", llmId, "Moonshot", now, cancellationToken);
+
         await EnsureProvider(db, "aws_textract", "AWS Textract", ocrId, "AWS", now, cancellationToken);
         await EnsureProvider(db, "google_document_ai", "Google Document AI", ocrId, "Google", now, cancellationToken);
 
@@ -94,6 +127,32 @@ public static class PlatformCatalogSeeder
             row.IsDeleted = false;
             row.DeletedAt = null;
             row.IsActive = true;
+            row.UpdatedAt = now;
+            await db.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var dirty = false;
+        if (!string.Equals(row.Name, name, StringComparison.Ordinal))
+        {
+            row.Name = name;
+            dirty = true;
+        }
+
+        if (!string.Equals(row.VendorHint, vendorHint, StringComparison.Ordinal))
+        {
+            row.VendorHint = vendorHint;
+            dirty = true;
+        }
+
+        if (row.CategoryEnumId != categoryEnumId)
+        {
+            row.CategoryEnumId = categoryEnumId;
+            dirty = true;
+        }
+
+        if (dirty)
+        {
             row.UpdatedAt = now;
             await db.SaveChangesAsync(cancellationToken);
         }

@@ -13,8 +13,8 @@ using Microsoft.Extensions.Options;
 public sealed class Mode1OcrNormalizeAdapter(
     IObjectStorage storage,
     IEnumerable<IOcrEngine> engines,
-    IOptions<OcrOptions> ocrOptions,
-    IOptions<StorageOptions> storageOptions,
+    IOptionsMonitor<OcrOptions> ocrOptions,
+    IOptionsMonitor<StorageOptions> storageOptions,
     ILogger<Mode1OcrNormalizeAdapter> logger) : IOcrNormalizeAdapter
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
@@ -197,7 +197,7 @@ public sealed class Mode1OcrNormalizeAdapter(
         OcrEngineRequest request,
         CancellationToken cancellationToken)
     {
-        var opts = ocrOptions.Value;
+        var opts = ocrOptions.CurrentValue;
         var byKey = engines.ToDictionary(e => e.ProviderKey, StringComparer.OrdinalIgnoreCase);
         var order = new[] { opts.PrimaryProviderKey, opts.SecondaryProviderKey }
             .Where(k => !string.IsNullOrWhiteSpace(k))
@@ -225,7 +225,7 @@ public sealed class Mode1OcrNormalizeAdapter(
                 {
                     return await textract.RecognizeSmartAsync(
                         request,
-                        storageOptions.Value,
+                        storageOptions.CurrentValue,
                         cancellationToken);
                 }
 
@@ -238,9 +238,10 @@ public sealed class Mode1OcrNormalizeAdapter(
             }
         }
 
-        throw new InvalidOperationException(
-            "All configured OCR providers failed or are unavailable.",
-            last);
+        var detail = last is null
+            ? "All configured OCR providers failed or are unavailable."
+            : $"All configured OCR providers failed or are unavailable. Last: {last.GetType().Name}: {last.Message}";
+        throw new InvalidOperationException(detail, last);
     }
 
     private static async Task<byte[]> ReadAllBytesAsync(Stream source, CancellationToken cancellationToken)

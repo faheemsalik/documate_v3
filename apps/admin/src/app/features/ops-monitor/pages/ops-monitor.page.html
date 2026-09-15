@@ -10,6 +10,9 @@
   @if (error()) {
     <p-message severity="error" [text]="error()!" styleClass="mb" />
   }
+  @if (info()) {
+    <p-message severity="success" [text]="info()!" styleClass="mb" />
+  }
 
   <div class="filters">
     <input pInputText placeholder="Business ID" [(ngModel)]="businessId" class="f-input" />
@@ -51,6 +54,7 @@
           [overlayNoRowsTemplate]="loading() ? 'Loading…' : 'No files match filters'"
           (gridReady)="onFileGridReady($event)"
           (rowClicked)="onFileRowClicked($event)"
+          (cellClicked)="onFileCellClicked($event)"
         />
         <div class="pager">
           <p-button label="Prev" [disabled]="page() <= 1" [text]="true" (onClick)="prevPage()" />
@@ -83,6 +87,7 @@
           [overlayNoRowsTemplate]="loading() ? 'Loading…' : 'No documents match filters'"
           (gridReady)="onDocGridReady($event)"
           (rowClicked)="onDocRowClicked($event)"
+          (cellClicked)="onDocCellClicked($event)"
         />
         <div class="pager">
           <p-button label="Prev" [disabled]="page() <= 1" [text]="true" (onClick)="prevPage()" />

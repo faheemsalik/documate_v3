@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Documate.Api.Infrastructure.Llm;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Storage;
 using Microsoft.Extensions.Options;
@@ -113,29 +114,22 @@ public sealed class LiveLlmDocumentExtractAdapter(
         string sourceText,
         CancellationToken cancellationToken)
     {
-        if (providerKey.Contains("claude", StringComparison.OrdinalIgnoreCase)
-            || (provider.BaseUrl ?? "").Contains("anthropic", StringComparison.OrdinalIgnoreCase))
+        if (LlmEndpointResolver.IsAnthropic(providerKey, provider.BaseUrl))
         {
             return await CallAnthropicAsync(provider, request, sourceText, cancellationToken);
         }
 
-        return await CallOpenAiCompatibleAsync(provider, request, sourceText, cancellationToken);
+        return await CallOpenAiCompatibleAsync(providerKey, provider, request, sourceText, cancellationToken);
     }
 
     private async Task<JsonObject> CallOpenAiCompatibleAsync(
+        string providerKey,
         LlmProviderOptions provider,
         ExtractAdapterRequest request,
         string sourceText,
         CancellationToken cancellationToken)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(provider.BaseUrl)
-            ? "https://api.openai.com/v1"
-            : provider.BaseUrl!.TrimEnd('/');
-        if (!baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
-            && !baseUrl.Contains("/v1/", StringComparison.OrdinalIgnoreCase))
-        {
-            baseUrl = baseUrl.TrimEnd('/') + "/v1";
-        }
+        var baseUrl = LlmEndpointResolver.ResolveOpenAiCompatibleBase(providerKey, provider.BaseUrl);
 
         var body = new
         {
@@ -158,7 +152,7 @@ public sealed class LiveLlmDocumentExtractAdapter(
         };
 
         using var http = httpClientFactory.CreateClient("documate-llm");
-        using var msg = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/chat/completions");
+        using var msg = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions");
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", provider.ApiKey);
         msg.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 
@@ -185,9 +179,7 @@ public sealed class LiveLlmDocumentExtractAdapter(
         string sourceText,
         CancellationToken cancellationToken)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(provider.BaseUrl)
-            ? "https://api.anthropic.com"
-            : provider.BaseUrl!.TrimEnd('/');
+        var baseUrl = LlmEndpointResolver.ResolveAnthropicBase(provider.BaseUrl);
 
         var body = new
         {

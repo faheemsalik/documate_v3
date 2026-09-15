@@ -1,25 +1,45 @@
 <div class="page">
   <header class="page-header">
     <div>
-      <a routerLink="/files" class="back-link">← Extract data</a>
+      <a routerLink="/files" class="back-link">← Files</a>
       <h1>{{ file()?.originalFileName ?? 'File detail' }}</h1>
       @if (file(); as f) {
         <div class="meta-row">
           <app-status-pill [status]="f.publicStatusKey" />
+          @if (f.internalStageKey) {
+            <span class="stage">Stage: {{ f.internalStageKey }}</span>
+          }
           <span class="muted">{{ f.documentCount }} document(s)</span>
         </div>
       }
     </div>
-    <p-button
-      label="Refresh"
-      icon="pi pi-refresh"
-      severity="secondary"
-      [loading]="loading()"
-      (onClick)="refresh()"
-    />
+    <div class="header-actions">
+      @if (canReset()) {
+        <p-button
+          label="Reset"
+          icon="pi pi-replay"
+          severity="warn"
+          [loading]="resetting()"
+          (onClick)="reset()"
+        />
+      }
+      <p-button
+        label="Refresh"
+        icon="pi pi-refresh"
+        severity="secondary"
+        [loading]="loading()"
+        (onClick)="refresh()"
+      />
+    </div>
   </header>
 
-  @if (error()) {
+  @if (info()) {
+    <p-message severity="success" [text]="info()!" />
+  }
+
+  @if (ctx.loading() || loading()) {
+    <p-message severity="info" text="Loading file…" />
+  } @else if (error()) {
     <p-message severity="error" [text]="error()!" />
   }
 
@@ -29,26 +49,36 @@
         <p-card header="Preview">
           @if (safePreviewUrl(); as url) {
             @if (canPreviewInline()) {
-              @if ((f.contentType?.toLowerCase() ?? '').includes('pdf')) {
+              @if (isPdf()) {
                 <iframe class="preview-frame" [src]="url" title="File preview"></iframe>
               } @else {
-                <img class="preview-image" [src]="url" alt="File preview" />
+                <img class="preview-image" [src]="previewObjectUrl()!" alt="File preview" />
               }
             } @else {
-              <p class="muted">Inline preview unavailable for this file type.</p>
-              <a [href]="previewUrl()!" target="_blank" rel="noopener">Open download</a>
+              <div class="preview-fallback">
+                <p class="muted">Inline preview unavailable for this file type ({{ f.contentType ?? 'unknown' }}).</p>
+                <a [href]="previewObjectUrl()!" download="{{ f.originalFileName ?? 'download' }}">Download file</a>
+              </div>
             }
+          } @else if (previewLoading()) {
+            <div class="preview-fallback">
+              <p class="muted">Loading preview…</p>
+            </div>
           } @else {
-            <p class="muted">Preview not available.</p>
+            <div class="preview-fallback">
+              <p class="muted">Preview not available.</p>
+            </div>
           }
         </p-card>
       </section>
 
       <section class="detail-panel">
-        <p-card header="Metadata">
+        <p-card header="Status & metadata">
           <dl class="meta-grid">
             <dt>Status</dt>
             <dd><app-status-pill [status]="f.publicStatusKey" /></dd>
+            <dt>Stage</dt>
+            <dd>{{ f.internalStageKey ?? '—' }}</dd>
             <dt>Uploaded</dt>
             <dd>{{ f.createdAt | date: 'medium' }}</dd>
             <dt>Completed</dt>
@@ -57,6 +87,8 @@
             <dd>{{ f.contentType ?? '—' }}</dd>
             <dt>Size</dt>
             <dd>{{ f.sizeBytes | number }} bytes</dd>
+            <dt>Documents</dt>
+            <dd>{{ f.documentCount }}</dd>
             <dt>File id</dt>
             <dd class="mono">{{ f.id }}</dd>
           </dl>
@@ -95,15 +127,24 @@
           </p-card>
         }
 
-        <p-card header="Documents">
-          @if (documents().length === 0) {
-            <p class="muted">No documents yet.</p>
+        <p-card header="Documents in this file">
+          @if (docsError()) {
+            <p-message severity="warn" [text]="docsError()!" />
+          } @else if (documents().length === 0) {
+            <p class="muted">
+              @if (f.documentCount > 0) {
+                Documents were created but could not be listed. Try Refresh.
+              } @else {
+                No documents yet — still processing or none split from this file.
+              }
+            </p>
           } @else {
             <p-table [value]="documents()" [tableStyle]="{ 'min-width': '100%' }">
               <ng-template pTemplate="header">
                 <tr>
                   <th>Type</th>
                   <th>Status</th>
+                  <th>Stage</th>
                   <th>Created</th>
                   <th></th>
                 </tr>
@@ -112,6 +153,7 @@
                 <tr>
                   <td>{{ doc.documentTypeKey ?? '—' }}</td>
                   <td><app-status-pill [status]="doc.publicStatusKey" /></td>
+                  <td>{{ doc.internalStageKey ?? '—' }}</td>
                   <td>{{ doc.createdAt | date: 'short' }}</td>
                   <td>
                     <a [routerLink]="['/files', f.id, 'documents', doc.id]">Open</a>

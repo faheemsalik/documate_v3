@@ -12,7 +12,7 @@ using Microsoft.Extensions.Options;
 [Route("api/admin/monitoring")]
 public sealed class AdminMonitoringController(
     HealthCheckService healthChecks,
-    IOptions<AdminOptions> adminOptions) : ControllerBase
+    IOptionsMonitor<AdminOptions> adminOptions) : ControllerBase
 {
     [HttpGet("snapshot")]
     public async Task<ActionResult<AdminMonitoringSnapshotDto>> Snapshot(CancellationToken cancellationToken)
@@ -26,7 +26,7 @@ public sealed class AdminMonitoringController(
             .OrderBy(c => c.Name)
             .ToList();
 
-        var opts = adminOptions.Value;
+        var opts = adminOptions.CurrentValue;
         return Ok(new AdminMonitoringSnapshotDto(
             report.Status.ToString(),
             checks,

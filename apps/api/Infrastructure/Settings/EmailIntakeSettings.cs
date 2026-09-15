@@ -19,7 +19,7 @@ public sealed class EmailIntakeEffectiveSettings
     public string? AwsRegion { get; init; }
     public int MimeRetentionDays { get; init; } = 30;
     public int BodyExcerptMaxChars { get; init; } = 4096;
-    /// <summary>Secret — always from appsettings/env, never DB.</summary>
+    /// <summary>Secret — always from AWS Secrets Manager / env, never DB (Plan 17).</summary>
     public string? InboundWebhookSecret { get; init; }
 }
 

@@ -16,7 +16,8 @@ public sealed record PageIntelligenceRequest(
     Guid FileId,
     string StorageBucket,
     string FileStorageKey,
-    IReadOnlyList<Documate.Api.Infrastructure.Ocr.NormalizePageArtifactRef> PageArtifacts);
+    IReadOnlyList<Documate.Api.Infrastructure.Ocr.NormalizePageArtifactRef> PageArtifacts,
+    IReadOnlyList<QueueRoutableDocumentType> RoutableTypes);
 
 public interface IPageIntelligenceService
 {
