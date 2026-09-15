@@ -29,6 +29,10 @@ public static class CorEnumSeedCatalog
             ("email", "Email"),
             ("domain", "Domain"),
         ]),
+        ("intake_mailbox_kind", "Intake mailbox kind", [
+            ("typed_agent", "Typed agent inbox"),
+            ("multi_type", "Multi-type inbox"),
+        ]),
         ("intake_source", "Intake source", [
             ("api", "API"),
             ("email", "Email"),

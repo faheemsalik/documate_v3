@@ -29,10 +29,15 @@ public sealed class CatalogsController(IMediator mediator) : ControllerBase
         var dto = await mediator.Send(new GetAgentTemplateByKeyQuery(key), cancellationToken);
         return dto is null ? NotFound() : Ok(dto);
     }
+
+    [HttpGet("enums/{typeKey}")]
+    public Task<IReadOnlyList<CatalogEnumDto>> ListEnums(string typeKey, CancellationToken cancellationToken) =>
+        mediator.Send(new ListCatalogEnumsQuery(typeKey), cancellationToken);
 }
 
 public sealed record DocumentTypeDto(long Id, string DocumentTypeKey, string Name, string? Description);
 public sealed record ProviderDto(long Id, string ProviderKey, string Name, string? VendorHint, long CategoryEnumId);
+public sealed record CatalogEnumDto(long Id, string EnumKey, string DisplayName);
 public sealed record AgentTemplateDto(
     long Id,
     string AgentTemplateKey,
@@ -49,6 +54,7 @@ public sealed record ListDocumentTypesQuery : IRequest<IReadOnlyList<DocumentTyp
 public sealed record ListProvidersQuery : IRequest<IReadOnlyList<ProviderDto>>;
 public sealed record ListAgentTemplatesQuery : IRequest<IReadOnlyList<AgentTemplateDto>>;
 public sealed record GetAgentTemplateByKeyQuery(string Key) : IRequest<AgentTemplateDto?>;
+public sealed record ListCatalogEnumsQuery(string TypeKey) : IRequest<IReadOnlyList<CatalogEnumDto>>;
 
 public sealed class ListDocumentTypesHandler(DocumateDbContext db)
     : IRequestHandler<ListDocumentTypesQuery, IReadOnlyList<DocumentTypeDto>>
@@ -122,5 +128,22 @@ public sealed class GetAgentTemplateByKeyHandler(DocumateDbContext db)
                 t.DefaultProviderId,
                 t.Version)
         ).FirstOrDefaultAsync(cancellationToken);
+    }
+}
+
+public sealed class ListCatalogEnumsHandler(DocumateDbContext db)
+    : IRequestHandler<ListCatalogEnumsQuery, IReadOnlyList<CatalogEnumDto>>
+{
+    public async Task<IReadOnlyList<CatalogEnumDto>> Handle(
+        ListCatalogEnumsQuery request,
+        CancellationToken cancellationToken)
+    {
+        return await (
+            from e in db.CorEnums.AsNoTracking()
+            join t in db.CorEnumTypes.AsNoTracking() on e.TypeId equals t.Id
+            where t.EnumTypeKey == request.TypeKey && !e.IsDeleted && !t.IsDeleted
+            orderby e.EnumKey
+            select new CatalogEnumDto(e.Id, e.EnumKey, e.Name)
+        ).ToListAsync(cancellationToken);
     }
 }

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { API_BASE_URL } from '../api-base';
+import { apiBaseUrl } from '../api-base';
 
 export interface Agent {
   id: string;
@@ -42,7 +42,7 @@ export interface CloneFromTemplateBody {
 @Injectable({ providedIn: 'root' })
 export class AgentsApiService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${API_BASE_URL}/api/app/agents`;
+  private readonly base = `${apiBaseUrl()}/api/app/agents`;
 
   list() {
     return this.http.get<Agent[]>(this.base);

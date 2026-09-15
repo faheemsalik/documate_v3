@@ -5,6 +5,7 @@ using Documate.Api.Infrastructure.Ocr;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Pipeline.Stages;
+using Documate.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -25,6 +26,7 @@ public sealed class FilePipelineStub(
     IFileClassifyStage classify,
     IDocumentRouteStage route,
     IDocumentExtractStage extract,
+    IDocumentPdfMaterializer pdfMaterializer,
     IOptions<PipelineOptions> options,
     ILogger<FilePipelineStub> logger) : IFilePipelineStub
 {
@@ -113,6 +115,8 @@ public sealed class FilePipelineStub(
                     pageCount = context.Normalize.PageCount,
                     textArtifactKey = context.Normalize.TextArtifactKey,
                     layoutArtifactKey = context.Normalize.LayoutArtifactKey,
+                    pageArtifactCount = context.Normalize.PageArtifacts.Count,
+                    blankPageCount = context.Normalize.PageArtifacts.Count(p => p.IsBlank),
                 }),
                 providerId,
                 cancellationToken);
@@ -152,6 +156,11 @@ public sealed class FilePipelineStub(
         }
 
         await route.ExecuteAsync(context, cancellationToken);
+        foreach (var document in context.Documents.Where(d => string.IsNullOrWhiteSpace(d.PdfStorageKey)))
+        {
+            await pdfMaterializer.MaterializeAsync(file, document, cancellationToken);
+        }
+        await db.SaveChangesAsync(cancellationToken);
         await DelayAsync(delay, cancellationToken);
 
         if (file.PublicStatusEnumId == failed

@@ -1,0 +1,66 @@
+import { Routes } from '@angular/router';
+import { authGuard, guestGuard } from './core/auth.guard';
+
+export const routes: Routes = [
+  {
+    path: 'login',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/login/pages/login.page').then((m) => m.LoginPage),
+  },
+  {
+    path: '',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./shared/layout/app-shell.component').then((m) => m.AppShellComponent),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      {
+        path: 'dashboard',
+        loadComponent: () =>
+          import('./features/dashboard/pages/dashboard.page').then((m) => m.DashboardPage),
+      },
+      {
+        path: 'ops',
+        loadComponent: () =>
+          import('./features/ops-monitor/pages/ops-monitor.page').then((m) => m.OpsMonitorPage),
+      },
+      {
+        path: 'support',
+        loadComponent: () =>
+          import('./features/support/pages/support.page').then((m) => m.SupportPage),
+      },
+      {
+        path: 'tenants',
+        loadComponent: () =>
+          import('./features/tenants/pages/tenants.page').then((m) => m.TenantsPage),
+      },
+      {
+        path: 'tenants/:id',
+        loadComponent: () =>
+          import('./features/tenants/pages/tenant-detail.page').then((m) => m.TenantDetailPage),
+      },
+      {
+        path: 'businesses',
+        loadComponent: () =>
+          import('./features/businesses/pages/businesses.page').then((m) => m.BusinessesPage),
+      },
+      {
+        path: 'businesses/:businessId',
+        loadComponent: () =>
+          import('./features/businesses/pages/business-detail.page').then((m) => m.BusinessDetailPage),
+      },
+      {
+        path: 'monitoring',
+        loadComponent: () =>
+          import('./features/monitoring/pages/monitoring.page').then((m) => m.MonitoringPage),
+      },
+      {
+        path: 'settings',
+        loadComponent: () =>
+          import('./features/settings/pages/settings.page').then((m) => m.SettingsPage),
+      },
+    ],
+  },
+  { path: '**', redirectTo: 'dashboard' },
+];

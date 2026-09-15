@@ -42,7 +42,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Settings',
     items: [
       { label: 'Business profile', route: '/business/profile' },
-      { label: 'Switch business', route: '/business/switch' },
+      { label: 'Businesses', route: '/business/switch' },
       { label: 'API keys', route: '/api-keys' },
     ],
   },

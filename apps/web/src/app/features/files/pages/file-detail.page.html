@@ -62,6 +62,39 @@
           </dl>
         </p-card>
 
+        @if (hasEmailContext()) {
+          <p-card header="Email intake">
+            <dl class="meta-grid">
+              <dt>Subject</dt>
+              <dd>{{ f.emailSubject ?? '—' }}</dd>
+              <dt>From</dt>
+              <dd>{{ emailIntake()?.from?.name ? (emailIntake()!.from!.name + ' <' + (emailIntake()!.from!.email ?? '') + '>') : (f.emailFrom ?? '—') }}</dd>
+              <dt>Originator</dt>
+              <dd>
+                @if (emailIntake()?.originator; as o) {
+                  {{ o.name ? o.name + ' <' + (o.email ?? '') + '>' : (o.email ?? '—') }}
+                } @else {
+                  —
+                }
+              </dd>
+              <dt>Message id</dt>
+              <dd class="mono">{{ f.emailMessageId ?? '—' }}</dd>
+            </dl>
+            @if (emailIntake()?.emailBodyExcerpt; as excerpt) {
+              <p class="muted">Body excerpt</p>
+              <pre class="excerpt">{{ excerpt }}</pre>
+            }
+            @if (emailIntake()?.skippedAttachments?.length) {
+              <p class="muted">Skipped attachments</p>
+              <ul>
+                @for (s of emailIntake()!.skippedAttachments!; track s.fileName) {
+                  <li>{{ s.fileName }} — {{ s.reason }}</li>
+                }
+              </ul>
+            }
+          </p-card>
+        }
+
         <p-card header="Documents">
           @if (documents().length === 0) {
             <p class="muted">No documents yet.</p>

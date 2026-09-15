@@ -251,6 +251,7 @@ IDs are stable for mockup filenames: `INT-xx`, `CUS-xx`.
 | INT-03 | Tenant detail | Businesses, usage summary, suspend/flags |
 | INT-04 | Businesses list (cross-tenant) | Filter by tenant, open business |
 | INT-05 | Business detail (support view) | Queue id, recent files, agent list, health |
+| **INT-20** | **Files & documents monitor** | Cross-tenant grid; status + webhook; column picker; rich filters — see **Plan 11** |
 | INT-06 | Users list | Search; link to Iden where applicable |
 | INT-07 | User detail / memberships | Roles, business access |
 | INT-08 | System settings | Feature flags, global limits, maintenance |
@@ -292,7 +293,7 @@ IDs are stable for mockup filenames: `INT-xx`, `CUS-xx`.
 | CUS-21 | API keys (ops) | Create/revoke (if in customer app) |
 | CUS-22 | Workflow management | **Phase 2** — mock as “coming soon” or skip |
 
-**Mockup set (locked P4):** customer `CUS-01`…`CUS-21` + optional `CUS-22` stub ≈ **21–22 canvases**. Internal screens listed for later build scope only — **not mocked**.
+**Mockup set (locked P4):** customer `CUS-01`…`CUS-21` + optional `CUS-22` stub ≈ **21–22 canvases**. Internal screens listed for later build scope only — **not mocked in P4**; see **[11-backoffice-frontend-exploration.md](./11-backoffice-frontend-exploration.md)** for internal MVP mockups (2026-09-02).
 
 ---
 

@@ -1,9 +1,10 @@
 # Documate v3 — Split & Classify Strategy (Exploration)
 
-> **Status:** Exploration — brainstorm open for **real** split/classify; Phase 1 skip = type + one page only  
+> **Status:** Exploration — ✅ Phase 1 complete; Plan 03 amended; **Phase 3 Wave 4b DQs filed** (DQ-0705…0710, DQ-0802)  
+> **Plain-language guide:** [04-split-classify-explained.md](./04-split-classify-explained.md)  
 > **Type:** Product / Core pipeline exploration (feeds later split work after DQ-0702 Phase 1 slice)  
-> **Upstream:** [01-project-exploration-mental-design.md](./01-project-exploration-mental-design.md) §3.4, §6.1 B; [02-document-queue-design.md](./02-document-queue-design.md) §6.3; [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md) Decision E3 + intake hints; [Documate_Multi_Document_Splitting_Final_Conclusions.md](./Documate_Multi_Document_Splitting_Final_Conclusions.md)  
-> **Downstream:** After developer chooses remaining options → amend Plan 03 + implement **real split** (do not invent classify architecture inside a DQ)  
+> **Upstream:** [01-project-exploration-mental-design.md](./01-project-exploration-mental-design.md) §3.4, §6.1 B; [02-document-queue-design.md](./02-document-queue-design.md) §6.3; [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md) Decision E3 + intake hints; [Documate_Multi_Document_Splitting_Final_Conclusions.md](./Documate_Multi_Document_Splitting_Final_Conclusions.md); [02_GPT_Documate_Multi_Document_Splitting_Proposed_Solution_for_Dev_Agent.md](./02_GPT_Documate_Multi_Document_Splitting_Proposed_Solution_for_Dev_Agent.md)  
+> **Downstream:** [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md) Decision E / Wave 4b; follow-on DQ in [03-documate-v3-dispatch-queue.md](./03-documate-v3-dispatch-queue.md) after Phase 3 filing  
 > **Created:** 2026-08-04  
 
 **Goal of this doc:** Compare ways to **split** multi-doc Files and **classify** DocumentTypes that are **fast**, **cheap** (minimize LLM/OCR spend), and **reliable enough** for Phase 1 — plus decide **where split artifacts live**.
@@ -30,12 +31,12 @@ After **normalize/OCR** (DQ-0701), a File has text/layout artifacts. The Core mu
 | **Classify cost** | Full-file LLM on every upload burns $ and latency |
 | **Classify reliability** | Unstable types → unroutable Failed / wrong Agent |
 | **Artifact storage** | Re-OCR / re-download on retry is slow and expensive |
-| **Caller hints** | Skip split+classify only when `documentTypeKey` **and** `pageCount==1`. Type-only multi-page still splits. |
+| **Caller hints** | `documentTypeKey` → skip classify; skip split only when type **and** measured `pageCount==1`. Multi-page always splits. Caller does not send page count. |
 
-**Design pressure (two schools — not merged yet):**
+**Design pressure (resolved 2026-09-15):**
 
-1. **Cascade-cheap (original §7 F4):** deterministic / cheap signals first; LLM only on ambiguity.  
-2. **LLM-evidence then app-group (conclusions):** LLM produces **page semantic profiles**; the **application** groups pages and splits storage. Rules/regex are not the semantic engine.
+1. ~~**Cascade-cheap (original §7 F4):**~~ rejected as the *semantic* foundation (P2 stays supporting).  
+2. **LLM-evidence then app-group (P8)** + **anchors / escalation (P9/F6)** — **locked** as the real-split engine.
 
 ---
 
@@ -66,7 +67,7 @@ After **normalize/OCR** (DQ-0701), a File has text/layout artifacts. The Core mu
 |-------|--------|
 | Normalize | Artifacts: `…/artifacts/normalize.text.txt` + `normalize.layout.json` in **object storage** (local or S3) |
 | Pipeline | normalize → split → classify → route → extract+validate → webhook; stages always exist |
-| Predetermined type | Skip split+classify only if `documentTypeKey` **and** `pageCount==1`; typed multi-page stamps type after split |
+| Predetermined type | `documentTypeKey` + measured 1 page → skip split+classify; typed multi-page → split always, classify skipped (stamp type) — locked target; code still Phase 1 slice until P9 |
 | Without type | Split/classify deferred no-ops; one untyped placeholder → extract fails `no_agent` until real classify |
 | Slice storage | No per-doc split blobs yet; `SliceRefJson` points at normalize artifacts |
 | Label set | Platform `CorDocumentType` + QueueRoute subset |
@@ -87,15 +88,16 @@ Split produces **per-Document slices** of the File (logical, not necessarily phy
 | **S3** | **Hybrid (recommended default)** | DB: `PageStart`/`PageEnd` + `SliceRefJson` **refs**; object storage: slice text/layout (and later binary slice) | Queryable ranges; blobs stay in object store; WorkEvents keep refs only | Two writes per Document |
 | **S4** | **No materialize** — only page ranges; re-slice from normalize artifacts on demand | DB page ranges only | Least storage | Recompute on every extract/retry; couples extract to full-file layout |
 
-### Recommendation (for discussion — not locked)
+### Recommendation — **locked 2026-09-15: S3 Hybrid (text + layout)**
 
-**S3 Hybrid:**  
+Original File bytes remain stored for webhook `original_file`. Per-doc PDF crops deferred.
 
 ```text
-tenants/…/files/{fileSeq}/artifacts/normalize.*          # DQ-0701 (done)
+tenants/…/files/{fileSeq}/artifacts/normalize.*          # OCR
+tenants/…/files/{fileSeq}/artifacts/intelligence.page.{n}.json  # P9 profiles
 tenants/…/files/{fileSeq}/artifacts/documents/{docSeq}/slice.text.txt
 tenants/…/files/{fileSeq}/artifacts/documents/{docSeq}/slice.layout.json
-# optional later: slice.pdf / page images
+# deferred: slice.pdf / page images
 ```
 
 `OpsDocument`: `PageStart`, `PageEnd`, `SliceRefJson` = `{ textKey, layoutKey, … }`.  
@@ -210,49 +212,65 @@ normalize artifacts
 
 ## 10. Open Questions (need developer input)
 
-1. **Phase 1 split bar:** Accept heuristic-only split (P2) with Known limitations, or require LLM split fallback (P6) from day one?  
-2. **Single-type queues:** Do we implement **C1 short-circuit** immediately (recommended)?  
-3. **LLM provider for classify:** Same Mode 1 meta/LLM as extract, or smaller/cheaper classify model?  
-4. **Confidence:** Numeric threshold + PartialReady vs binary Failed for ambiguous packs?  
-5. **Materialize slice binaries?** Text/layout only in Phase 1, or also cropped PDF pages?  
-6. **Partial hints:** Keep “run full pipeline” (current Plan 03) or reject incomplete hints with 400?  
-7. **Page-level vs pack-level classify** when split is uncertain (F1 vs F2)?  
-8. **P6 vs P8 for real split:** cheap heuristics-first, or LLM page intelligence + app grouping?  
-9. **Type-only hint:** **Locked 2026-08-18** — skip split **and** classify only when `documentTypeKey` is set **and** the File has **one page**. Type-only multi-page does not skip split.  
-10. **Single-page fast path:** first LLM call returns intelligence **and** Agent `documentData` when the page is complete (avoid a second extract)?  
-11. **Corpus before lock:** measure primary-number presence/OCR/header vs references, multi-page rate, page-number availability, type-hint frequency (see §13).
+1. **Phase 1 split bar:** → **Locked 2026-09-15:** **P9/F6** (P2 supporting only).  
+2. **Single-type queues (C1):** → **Locked 2026-09-15:** **Yes** — if QueueRoute has exactly one type, stamp it after grouping (no classify LLM).  
+3. **Models / fallback / admin config:** → **Locked 2026-09-15:**  
+   - **Always two separate model roles:** (A) page **identification / intelligence** (T1 cheap) vs (B) full Agent **extract**. Never one call that does both.  
+   - If T1 does not recognize / returns insufficient evidence → **fallback** to the configured expensive/escalation model for that page (or local window).  
+   - **Admin-configurable** (backoffice / system settings): which provider/model per pipeline step (intelligence T1, intelligence fallback, extract) — Mode 1 platform-owned, not partner-facing.  
+4. **Unresolved packs:** → **Locked 2026-09-15:** **Failed** — do not force a cut.  
+5. **Slice binaries:** → **Locked 2026-09-15:** **Text + layout slices only.** Original **File** bytes stay in object storage for webhook `original_file` signed URLs (Plan 03 V13 / email intake). Per-document PDF crops **not** required for webhook delivery.  
+6. **Hints / page count / classify skip:** → **Locked 2026-09-15:**  
+   - Caller does **not** send page count; Core measures `pageCount` from normalize/OCR.  
+   - Optional `documentTypeKey` accepted → **skip classify** (stamp that type on every group).  
+   - **Multi-page always runs split** even when `documentTypeKey` is set (one type ≠ one document).  
+   - Skip **both** split and classify only when `documentTypeKey` **and** measured `pageCount == 1` (Case A).  
+7. **Classify timing:** → **Locked 2026-09-15:** **After grouping** (F6). Never F2 type-merge as splitter.  
+8. **P6 vs P8 vs P9:** → **Locked 2026-09-15: P9/F6**.  
+9. **Type-only hint:** → **Amended 2026-09-15** — see §10.6.  
+10. **Combined identification+extract fast path:** → **Locked 2026-09-15: Rejected.** Identification and extract are **always separate steps**.  
+    **Observability (locked):** Persist every intelligence/split/classify step for ops/dev verification — page profiles, anchors, signals, model tier, escalation reason, grouping decisions, failure codes. Prefer object-store artifacts + queryable WorkEvent summaries (no bulk OCR text in WorkEvents).  
+11. **Corpus before production tuning:** still recommended; not a blocker for architecture lock.
 
 ---
 
-## 11. Recommended Direction (proposal — **not locked**)
+## 11. Recommended Direction — **locked 2026-09-15**
 
-| Topic | Proposal |
+| Topic | Decision |
 |-------|----------|
-| Split storage | **S3 Hybrid** — object store slices + DB page range + SliceRefJson |
-| Cheap-first (original) | **F4 cascade:** P0+P1+C0+C1+C3 then P2/C6 |
-| Semantic-first (conclusions) | **F5 + P8:** OCR → page intelligence → app groups → extract once per group; reuse LLM on complete single-page |
-| Semantic + escalation (§15) | **F6 + P9:** P8 plus identity anchors, app-side confidence, cheap→premium→vision escalation on ambiguous pages only |
-| Phase 1 already shipped | Skip split+classify only when `documentTypeKey` **and** `pageCount==1` |
-| Defer until 8–11 answered | Physical PDF split, P4 embeddings, P5-as-range-cutter, HITL |
-| Amend Plan 03 | Only after P6 vs P8 and remaining §14 rule conflicts are chosen |
+| Real split technique | **P9 + F6** |
+| Build staging | Per-page OCR + schema → P8 grouping → P9 anchors / tiers / `evidence[]` |
+| Models | Separate **intelligence** vs **extract** models; T1 cheap → admin-configured **fallback** on unrecognized/ambiguous pages |
+| Admin config | Backoffice/system settings: model + fallback per step (not partner UI) |
+| C1 | Yes — single QueueRoute type stamps after group |
+| Unresolved | **Failed** (no forced cut) |
+| Slices | S3 hybrid **text + layout**; original File retained for webhooks |
+| Hints | No caller page count; `documentTypeKey` → skip classify; multi-page always splits |
+| Identification vs extract | **Always separate**; no combined `documentData` shortcut |
+| Split audit | Full step/signal/anchor telemetry for failure diagnosis |
+| Defer | Physical per-doc PDF rewrite, P4 embeddings, P5-as-range-cutter, HITL UI |
+| Amend Plan 03 | ✅ Done 2026-09-15 — Decision E / Flow 1 / Wave 4b |
 
 ---
 
 ## 12. Exploration Exit Criteria
 
-This exploration is **ready for decisions** when the developer has chosen:
+This exploration is **ready for Phase 2** when:
 
-- [ ] Storage option (**S1–S4**)  
-- [ ] Split set including **P8** vs **P2/P6**  
-- [ ] Classify Phase 1 set (**C0–C7** subset)  
-- [ ] Pipeline shape (**F1–F5**)  
-- [ ] Answers to Open Questions §10  
+- [x] Split technique — **P9/F6**  
+- [x] Pipeline shape — **F6**  
+- [x] Storage — **S3 hybrid text+layout**; original File retained for webhooks  
+- [x] C1, dual models + fallback + admin config, Failed unresolved, hint/classify rules, classify-after-group, separate extract, split observability  
+- [x] **Anchor reset** rule — **Locked 2026-09-15:** close active document on (1) blank page, (2) new primary identity, (3) printed sequence restart, (4) **N=2** consecutive pages with no continuation evidence (then Failed/unresolved — do not keep attaching).  
+- [x] **No-hint classify** when `documentTypeKey` absent — **Locked 2026-09-15:** intelligence `documentType` constrained to QueueRoute; missing/ambiguous after fallback → **Failed `unroutable_type`**. C1 still applies when only one route.  
 
-Then:
+**Phase 1 exploration exit:** architecture locks complete. Corpus/region tuning (§14) may continue during implementation without blocking Phase 2.
 
-1. Record decisions in this doc (Finalized Decisions).  
-2. Amend [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md) (Decision E / Core pipeline).  
-3. Execute **real split** against that locked technique (follow-on after DQ-0702 Phase 1 slice).
+**Then:**
+
+1. Developer verifies this exploration.  
+2. Amend [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md) (Decision E / Core pipeline) — **Phase 2**.  
+3. File follow-on DQ(s) for real split (DQ-0702 was Phase 1 skeleton only) — **Phase 3**.
 
 ---
 
@@ -267,7 +285,7 @@ Source: [Documate_Multi_Document_Splitting_Final_Conclusions.md](./Documate_Mult
 | OCR / Textract | Page text + layout (already DQ-0701 artifacts) |
 | Early LLM | **Evidence:** type, **primary document number**, referenced numbers, start / continue / complete, page n of m |
 | Application | Group pages, persist slices, decide when to extract |
-| Extract LLM | Full Agent schema **after** grouping — unless the page was already a complete single-doc and `documentData` was returned in the first call |
+| Extract LLM | Full Agent schema **after** grouping — **always a separate call** from page intelligence (2026-09-15) |
 
 Do **not** let the LLM cut files or be the only split authority. Do **not** ask it only “split this PDF.”
 
@@ -420,7 +438,7 @@ elements (facts)
 
 ## 15. Option P9/F6 — adaptive anchor + escalation (imported 2026-08-19)
 
-Source: [`02_GPT_Documate_Multi_Document_Splitting_Proposed_Solution_for_Dev_Agent.md`](./02_GPT_Documate_Multi_Document_Splitting_Proposed_Solution_for_Dev_Agent.md) (“Option E”). Recorded here as a **candidate option**, not locked. It competes with **P6 cheap-first** and extends **P8/F5**.
+Source: [`02_GPT_Documate_Multi_Document_Splitting_Proposed_Solution_for_Dev_Agent.md`](./02_GPT_Documate_Multi_Document_Splitting_Proposed_Solution_for_Dev_Agent.md) (“Option E”). **Locked 2026-09-15** as the real-split target (staged build). Extends **P8/F5**; **P6 cheap-first as primary engine is rejected**.
 
 ### 15.1 What it proposes
 
@@ -519,44 +537,54 @@ Worst case is bounded by the per-File cap in suggestion 2. Actual figures come f
 
 ## Finalized Decisions
 
-| Topic | Locked (2026-08-18) |
-|-------|---------------------|
-| Pipeline shape | **F4 cascade structure** always: normalize → split → classify → route → extract |
-| Phase 1 split/classify | **P0 + C0** only when `documentTypeKey` **and** `pageCount==1` (Case A). Type-only multi-page does **not** skip split (Case B). Real multi-doc split later. |
-| Without type | Stages still run as **deferred no-ops** (one placeholder Document). Real P2/C3/C6 later. |
-| Route | Always runs. QueueRoute binds Agent; missing route → Failed `unroutable_type`. |
-| Storage of slices | Keep normalize artifacts; skip materializing per-doc split blobs until real split. **S3 hybrid** remains the target when split is implemented. |
-| `documentCount` | Optional audit/hint. Does **not** skip split. Single-page skip creates one Document. |
+| Topic | Locked |
+|-------|--------|
+| Pipeline stages | Always: normalize → split → classify → route → extract |
+| Semantic engine | **P9 + F6** (2026-09-15). **P6-as-primary rejected.** |
+| Build staging | Per-page OCR + schema → P8 grouping → P9 anchors / confidence / tiers / `evidence[]` |
+| Models | **Two roles always:** intelligence (T1 cheap) ≠ extract. T1 failure/insufficient evidence → **admin-configured fallback** model (page or local window). Extract uses its own configured model. |
+| Admin model config | Backoffice/system settings bind provider/model (and fallback) **per pipeline step**; Mode 1, not partner-facing |
+| C1 | **Yes** — single QueueRoute type stamps after grouping |
+| Unresolved / `sig_unresolved` | **Failed** — never force a cut |
+| Phase 1 / Case A skip | Skip **both** only when `documentTypeKey` **and** measured `pageCount==1` |
+| Type hint (multi-page) | `documentTypeKey` → **skip classify** (stamp type on groups); **always split** if multi-page |
+| Caller page count | **Not used** — Core measures pages from normalize/OCR |
+| Classify timing | **After grouping**; never F2 type-merge as splitter |
+| Identification vs extract | **Always separate steps** — combined single-page `documentData` fast path **rejected** |
+| No-hint classify | Intelligence `documentType` ∈ QueueRoute; after fallback still unclear → **Failed `unroutable_type`**. C1 when single route. (2026-09-15) |
+| Anchor reset | Close active doc on: blank page; new primary identity; printed sequence restart; **N=2** pages with no continuation evidence → Failed/unresolved (do not keep attaching). (2026-09-15) |
+| Split observability | Persist page profiles, anchors, signals, tier, escalation reason, grouping decisions, failure codes (artifacts + WorkEvent summaries) |
+| Route | Always runs; missing route → Failed `unroutable_type` |
+| Storage | **S3 hybrid text+layout** + **per-Document PDF** after split; File URL = original; Document URL only when Document PDF exists (**no** parent-File fallback) |
+| `documentCount` | Optional audit only if ever sent; does not skip split |
+| Mode 1 tiers | Internal/admin config only |
 
 ## Pending Decisions
 
-- Real split: **P9/F6 (§15 anchor + escalation)** vs **P8/F5** vs **P2/P6 cheap-first**  
-- If P9/F6: model tiers + escalation triggers, per-File LLM cap, confidence-to-status mapping, anchor reset rule (§15.6)  
-- Classify set (**C1/C3/C6**) for the no-hint path  
-- Slice artifact layout (**S3**) when real split ships  
-- First-stage LLM schema/prompt if P8  
-- Remaining §10 questions  
-- §14 signal dictionary: LLM region sizes, R7 grouping conflict policy, whether C1 (`sig_single_route`) ships with real split  
+- §14 region sizes / R7 conflict policy — tune with corpus during implementation (not Phase 2 blockers)
 
 ## Assumptions
 
-- Normalize artifacts remain source of truth for text/layout entering split.  
-- Skip split+classify only for type + one page; typed multi-page still runs split.  
-- QueueRoute remains the routable type set.  
+- Real per-page OCR is a prerequisite for P9 (§15.5).  
+- QueueRoute remains the routable type set; escalations must not widen labels.  
 - Hints are **caller assertions**, not OCR truth.  
-- Sync-wait remains single-Document; multi-doc Files use async.
+- Sync-wait remains single-Document; multi-doc uses async; sync should not run the full escalation ladder.  
+- Boundary engine is a pure function: profiles → groups (§15.6 #1).  
+- File detail / webhook: File URL = original upload. **Document URL only after Document PDF is generated** — never fall back to parent File (omit/null until then). Cache + refresh.  
+- Anchor reset **N=2** is the initial default; may be admin-tunable later without changing the rule set.
 
 ## Risks
 
-- Callers who omit `documentTypeKey` will not get true multi-doc split until the later phase.  
-- Wrong caller type still routes to the wrong Agent — treat hints as assertions.  
-- Typed multi-page Files still produce one placeholder Document until real split ships.  
-- Visual/template matching will not generalize across suppliers.
+- Until P9 ships, multi-page / no-type Files still get placeholder / deferred behavior.  
+- Wrong caller `documentTypeKey` still routes to the wrong Agent.  
+- Dual-model + fallback misconfiguration can raise cost or leave pages stuck — need admin defaults + caps (`MaxIntelligenceCallsPerFile`).  
+- Observability artifacts increase storage; retention must follow File purge.  
+- Without per-page OCR + wired LLM, architecture cannot execute.  
+- N=2 too aggressive may over-split noisy OCR packs; too loose risks swallow — measure on corpus.
 
 ## Readiness
 
-**Phase 1 skip path amended:** type + one page only.  
-**Not ready** for real split/classify algorithms until **P6 vs P8 vs P9/F6** is chosen. **Blocked** on that — not ready to amend Plan 03 for real split. P9/F6 additionally needs real per-page OCR and a wired LLM first (§15.5).
+**Phase 3 filed.** Execute Wave 4b DQs in order starting at **DQ-0705**. Prerequisites remain real per-page OCR, admin model settings, wired Mode 1 LLM.
 
 ---
 
@@ -570,3 +598,10 @@ Worst case is bounded by the per-File cap in suggestion 2. Actual figures come f
 | 2026-08-18 | **Locked type-only hint:** skip split+classify only when `documentTypeKey` **and** `pageCount==1`; type-only multi-page still splits. |
 | 2026-08-18 | **§14 Signal dictionary:** elements (retrieval + LLM input), named signal combinations, cheapest-first rules R1–R10. Working; Case A locked. |
 | 2026-08-19 | **§15 Option P9/F6** imported from the dev-agent proposal: anchors, model tiers + escalation, app-side confidence, `evidence[]`, local 3-page window. Candidate only; conflicts, gaps, and suggestions recorded. |
+| 2026-09-15 | **Locked real split: P9/F6** (staged build). P6-as-primary rejected. |
+| 2026-09-15 | **Companion locks:** C1 yes; dual models + T1→fallback + admin per-step config; Failed unresolved; text+layout slices + keep original File for webhooks; no caller page count; type skips classify only; multi-page always splits; classify after group; identification≠extract always; full split/classify observability. |
+| 2026-09-15 | **No-hint classify locked:** intelligence type ∈ QueueRoute; else Failed `unroutable_type` after fallback. Anchor reset still open. |
+| 2026-09-15 | **Anchor reset locked:** blank page; new identity; sequence restart; N=2 no-continuation → Failed/unresolved. Exploration **Ready for Phase 2**. |
+| 2026-09-15 | Plan 03 Decision E / Flow 1 / Wave 4b amended. Exploration **Ready for Phase 3** (follow-on DQ). |
+| 2026-09-15 | **Source PDF URLs:** webhook + Document/File detail return signed URL; cache on Document/File with expiry + refresh. |
+| 2026-09-15 | **Document URL amended:** omit until Document PDF generated; no parent-File fallback. Phase 3 Wave 4b DQs filed. |

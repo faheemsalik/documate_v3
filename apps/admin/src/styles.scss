@@ -1,0 +1,18 @@
+@import 'primeicons/primeicons.css';
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--p-font-family, ui-sans-serif, system-ui, sans-serif);
+  background: var(--p-surface-ground, #0f1115);
+  color: var(--p-text-color, #e8eaed);
+}
+
+html.app-dark body {
+  background: var(--p-surface-ground);
+  color: var(--p-text-color);
+}

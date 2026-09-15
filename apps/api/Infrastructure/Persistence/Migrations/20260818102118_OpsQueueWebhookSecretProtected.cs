@@ -1,10 +1,15 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Documate.Api.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Documate.Api.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(DocumateDbContext))]
+    [Migration("20260818102118_OpsQueueWebhookSecretProtected")]
     public partial class OpsQueueWebhookSecretProtected : Migration
     {
         /// <inheritdoc />
@@ -26,3 +31,4 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
         }
     }
 }
+

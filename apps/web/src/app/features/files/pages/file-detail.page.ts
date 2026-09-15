@@ -55,6 +55,29 @@ export class FileDetailPage {
     return ct.includes('pdf') || ct.startsWith('image/');
   });
 
+  readonly emailIntake = computed(() => {
+    const raw = this.file()?.emailIntakeJson;
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw) as {
+        from?: { email?: string | null; name?: string | null };
+        originator?: { email?: string | null; name?: string | null } | null;
+        chain?: Array<{ role?: string; email?: string | null; name?: string | null }>;
+        emailBodyExcerpt?: string | null;
+        skippedAttachments?: Array<{ fileName?: string; reason?: string }>;
+      };
+    } catch {
+      return null;
+    }
+  });
+
+  readonly hasEmailContext = computed(() => {
+    const f = this.file();
+    return !!(f?.emailFrom || f?.emailSubject || f?.emailMessageId || this.emailIntake());
+  });
+
   constructor() {
     this.load();
   }

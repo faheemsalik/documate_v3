@@ -348,6 +348,56 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("CorProviders");
                 });
 
+            modelBuilder.Entity("Documate.Api.Domain.CorSystemSetting", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SettingKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ValueJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SettingKey")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("CorSystemSettings", (string)null);
+                });
+
             modelBuilder.Entity("Documate.Api.Domain.CorTenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -527,6 +577,10 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("IntakeEmailSlug")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -569,6 +623,10 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IdenBusinessId")
                         .IsUnique();
+
+                    b.HasIndex("IntakeEmailSlug")
+                        .IsUnique()
+                        .HasFilter("[IntakeEmailSlug] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("SequenceId")
                         .IsUnique();
@@ -860,6 +918,13 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DocumentTypeId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("DownloadUrl")
+                        .HasMaxLength(4096)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("DownloadUrlExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("ErrorCode")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
@@ -889,6 +954,14 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("PageStart")
                         .HasColumnType("int");
+
+                    b.Property<string>("PdfStorageBucket")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("PdfStorageKey")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
 
                     b.Property<long?>("ProviderId")
                         .HasColumnType("bigint");
@@ -1020,9 +1093,19 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("DownloadUrl")
+                        .HasMaxLength(4096)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("DownloadUrlExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("EmailFrom")
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("EmailIntakeJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("EmailMessageId")
                         .HasMaxLength(512)
@@ -1116,6 +1199,166 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("SourceEnumId");
 
                     b.ToTable("OpsFiles");
+                });
+
+            modelBuilder.Entity("Documate.Api.Domain.OpsIntakeMailbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AgentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("AllowlistModeEnumId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("BusinessId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("EmailAddressVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EmailDomain")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("EmailLocalPart")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("KindEnumId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("QueueId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("SequenceId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("SequenceId"));
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_OpsIntakeMailboxes_AgentId_Typed")
+                        .HasFilter("[AgentId] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.HasIndex("AllowlistModeEnumId");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("KindEnumId");
+
+                    b.HasIndex("QueueId");
+
+                    b.HasIndex("SequenceId")
+                        .IsUnique();
+
+                    b.HasIndex("EmailDomain", "EmailLocalPart")
+                        .IsUnique()
+                        .HasDatabaseName("IX_OpsIntakeMailboxes_Domain_LocalPart")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("OpsIntakeMailboxes");
+                });
+
+            modelBuilder.Entity("Documate.Api.Domain.OpsIntakeMailboxAllowlistEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("BusinessId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("MailboxId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("MatchTypeEnumId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("MailboxId");
+
+                    b.HasIndex("MatchTypeEnumId");
+
+                    b.ToTable("OpsIntakeMailboxAllowlistEntries");
                 });
 
             modelBuilder.Entity("Documate.Api.Domain.OpsIntakeRejection", b =>
@@ -1741,6 +1984,59 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Source");
                 });
 
+            modelBuilder.Entity("Documate.Api.Domain.OpsIntakeMailbox", b =>
+                {
+                    b.HasOne("Documate.Api.Domain.OpsAgent", "Agent")
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Documate.Api.Domain.CorEnum", "AllowlistMode")
+                        .WithMany()
+                        .HasForeignKey("AllowlistModeEnumId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Documate.Api.Domain.CorEnum", "Kind")
+                        .WithMany()
+                        .HasForeignKey("KindEnumId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Documate.Api.Domain.OpsQueue", "Queue")
+                        .WithMany()
+                        .HasForeignKey("QueueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+
+                    b.Navigation("AllowlistMode");
+
+                    b.Navigation("Kind");
+
+                    b.Navigation("Queue");
+                });
+
+            modelBuilder.Entity("Documate.Api.Domain.OpsIntakeMailboxAllowlistEntry", b =>
+                {
+                    b.HasOne("Documate.Api.Domain.OpsIntakeMailbox", "Mailbox")
+                        .WithMany("AllowlistEntries")
+                        .HasForeignKey("MailboxId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Documate.Api.Domain.CorEnum", "MatchType")
+                        .WithMany()
+                        .HasForeignKey("MatchTypeEnumId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Mailbox");
+
+                    b.Navigation("MatchType");
+                });
+
             modelBuilder.Entity("Documate.Api.Domain.OpsIntakeRejection", b =>
                 {
                     b.HasOne("Documate.Api.Domain.OpsQueue", "Queue")
@@ -1871,6 +2167,11 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Documate.Api.Domain.OpsFile", b =>
                 {
                     b.Navigation("Documents");
+                });
+
+            modelBuilder.Entity("Documate.Api.Domain.OpsIntakeMailbox", b =>
+                {
+                    b.Navigation("AllowlistEntries");
                 });
 
             modelBuilder.Entity("Documate.Api.Domain.OpsQueue", b =>

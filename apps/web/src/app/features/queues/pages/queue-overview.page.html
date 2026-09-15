@@ -42,36 +42,78 @@
             <p-button label="Save webhook" (onClick)="saveWebhook()" [loading]="saving()" />
           </section>
           <section class="block">
-            <h3>Email intake</h3>
-            <p>{{ q.emailAddress ?? 'No address yet' }}</p>
-            <p-button label="Mint email address" (onClick)="mintEmail()" severity="secondary" />
-            <label class="checkbox-row"><p-checkbox [(ngModel)]="emailIntakeEnabled" [binary]="true" /> Email intake enabled</label>
-            <p-button label="Save email settings" (onClick)="saveEmailSettings()" />
-          </section>
-          <section class="block">
-            <h3>Allowlist</h3>
-            <div class="row">
-              <p-select
-                [options]="[{ label: 'Email', value: 'email' }, { label: 'Domain', value: 'domain' }]"
-                [(ngModel)]="allowlistMatchType"
-                optionLabel="label"
-                optionValue="value"
-              />
-              <input pInputText [(ngModel)]="allowlistValue" placeholder="value@example.com" />
-              <p-button label="Add" (onClick)="addAllowlist()" />
-            </div>
-            <p-table [value]="allowlist()">
+            <h3>Multi-type intake emails</h3>
+            <p class="hint">Use for mixed document packs. Typed agent emails are managed on each Agent page.</p>
+            <p-button label="Create multi-type email" (onClick)="createMultiMailbox()" severity="secondary" />
+            <p-table [value]="mailboxes()">
               <ng-template pTemplate="header">
-                <tr><th>Type</th><th>Value</th><th></th></tr>
+                <tr><th>Address</th><th>Enabled</th><th>Allowlist</th><th></th></tr>
               </ng-template>
-              <ng-template pTemplate="body" let-entry>
+              <ng-template pTemplate="body" let-mb>
                 <tr>
-                  <td>{{ entry.matchTypeKey }}</td>
-                  <td>{{ entry.value }}</td>
-                  <td><p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removeAllowlist(entry.id)" /></td>
+                  <td>{{ mb.emailAddress }}</td>
+                  <td>{{ mb.enabled ? 'On' : 'Off' }}</td>
+                  <td>{{ mb.allowlistModeKey }}</td>
+                  <td class="row">
+                    <p-button label="Select" [text]="true" (onClick)="selectMailbox(mb)" />
+                    <p-button label="Rotate" [text]="true" (onClick)="rotateMailbox(mb.id)" />
+                    <p-button
+                      [label]="mb.enabled ? 'Disable' : 'Enable'"
+                      [text]="true"
+                      (onClick)="toggleMailbox(mb)"
+                    />
+                  </td>
                 </tr>
               </ng-template>
             </p-table>
+          </section>
+          <section class="block">
+            <h3>Mailbox allowlist</h3>
+            @if (selectedMailbox(); as smb) {
+              <p>{{ smb.emailAddress }}</p>
+              <p class="hint">
+                Use <strong>allowlist enforced</strong> before selling email hard. Open is for dogfood only.
+              </p>
+              <div class="row">
+                <p-select
+                  [options]="allowlistModes()"
+                  [(ngModel)]="allowlistModeEnumId"
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Allowlist mode"
+                />
+                <p-button label="Save mode" (onClick)="saveAllowlistMode()" />
+              </div>
+              <div class="row">
+                <p-select
+                  [options]="[{ label: 'Email', value: 'email' }, { label: 'Domain', value: 'domain' }]"
+                  [(ngModel)]="allowlistMatchType"
+                  optionLabel="label"
+                  optionValue="value"
+                />
+                <input pInputText [(ngModel)]="allowlistValue" placeholder="value@example.com" />
+                <p-button label="Add" (onClick)="addAllowlist()" />
+              </div>
+              <p-table [value]="allowlist()">
+                <ng-template pTemplate="header">
+                  <tr><th>Type</th><th>Value</th><th></th></tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-entry>
+                  <tr>
+                    <td>{{ entry.matchTypeKey }}</td>
+                    <td>{{ entry.value }}</td>
+                    <td><p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="removeAllowlist(entry.id)" /></td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            } @else {
+              <p class="hint">Select a multi-type mailbox above to edit its allowlist.</p>
+            }
+          </section>
+          <section class="block">
+            <h3>Legacy queue mint (deprecated)</h3>
+            <p>{{ q.emailAddress ?? 'No legacy address' }}</p>
+            <p-button label="Mint legacy address" (onClick)="mintEmail()" severity="secondary" [text]="true" />
           </section>
         </p-tabpanel>
         <p-tabpanel value="2">

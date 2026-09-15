@@ -140,6 +140,43 @@
       }
     },
     {
+      "label": "build-admin",
+      "type": "npm",
+      "script": "build",
+      "path": "apps/admin",
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "run-admin",
+      "type": "npm",
+      "script": "start",
+      "path": "apps/admin",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript-admin",
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "."
+          },
+          "endsPattern": {
+            "regexp": "(Local:|Local:\\s+http|Application bundle generation complete|Compiled successfully|watching for file changes)"
+          }
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "admin"
+      }
+    },
+    {
       "label": "script: build",
       "type": "shell",
       "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}/scripts/build.ps1\"",
@@ -168,6 +205,28 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "script-run-web",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "(Local:|Application bundle generation complete|Compiled successfully)"
+        }
+      }
+    },
+    {
+      "label": "script: build-admin",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}/scripts/build-admin.ps1\"",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "script: run-admin",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}/scripts/run-admin.ps1\"",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "script-run-admin",
         "pattern": { "regexp": "^$" },
         "background": {
           "activeOnStart": true,

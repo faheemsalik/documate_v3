@@ -1,9 +1,17 @@
 import { Routes } from '@angular/router';
+import { authGuard, guestGuard } from './core/auth.guard';
 import { ComingSoonPage } from './shared/pages/coming-soon.page';
 
 export const routes: Routes = [
   {
+    path: 'login',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/login/pages/login.page').then((m) => m.LoginPage),
+  },
+  {
     path: '',
+    canActivate: [authGuard],
     loadComponent: () =>
       import('./shared/layout/app-shell.component').then((m) => m.AppShellComponent),
     children: [

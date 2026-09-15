@@ -1,0 +1,138 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Dashboard</h1>
+      <p class="meta">INT-01 · UTC buckets</p>
+    </div>
+    <p-button label="Refresh" icon="pi pi-refresh" [outlined]="true" (onClick)="reload()" />
+  </header>
+
+  <div class="controls">
+    <p-select [options]="granOptions" [(ngModel)]="granularity" optionLabel="label" optionValue="value" />
+    <input pInputText type="month" [(ngModel)]="month" title="Month (UTC)" />
+    <input pInputText type="date" [(ngModel)]="date" title="Specific date (UTC)" placeholder="Date" />
+    <input pInputText [(ngModel)]="businessId" placeholder="Business ID filter" />
+    <p-button label="Apply" (onClick)="reload()" />
+  </div>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (summary(); as s) {
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-label">Files</div><div class="kpi-value">{{ s.files }}</div></div>
+      <div class="kpi"><div class="kpi-label">Documents</div><div class="kpi-value">{{ s.documents }}</div></div>
+      <div class="kpi"><div class="kpi-label">Failed files</div><div class="kpi-value">{{ s.failedFilesPct }}%</div></div>
+      <div class="kpi"><div class="kpi-label">Failed docs</div><div class="kpi-value">{{ s.failedDocumentsPct }}%</div></div>
+      <div class="kpi"><div class="kpi-label">Webhook OK</div><div class="kpi-value">{{ s.webhookSuccessPct }}%</div></div>
+      <div class="kpi"><div class="kpi-label">Avg file e2e</div><div class="kpi-value">{{ fmtMs(s.avgFileE2eMs) }}</div></div>
+    </div>
+  }
+
+  <section class="panel">
+    <h2>Volume over time</h2>
+    @if (volume().length === 0) {
+      <p class="empty">No volume in range.</p>
+    } @else {
+      <div class="bars">
+        @for (v of volume(); track v.bucketStartUtc) {
+          <div class="bar-row" [title]="bucketLabel(v.bucketStartUtc)">
+            <span class="bar-label">{{ bucketLabel(v.bucketStartUtc) }}</span>
+            <div class="bar-track">
+              <div class="bar-fill files" [style.width.%]="(v.files / maxVolume()) * 100"></div>
+              <div class="bar-fill docs" [style.width.%]="(v.documents / maxVolume()) * 100"></div>
+            </div>
+            <span class="bar-nums">{{ v.files }}/{{ v.documents }}</span>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  @if (date) {
+    <section class="panel">
+      <h2>Hourly ({{ date }} UTC)</h2>
+      <div class="bars compact">
+        @for (h of hourly(); track h.hourUtc) {
+          <div class="bar-row">
+            <span class="bar-label">{{ padHour(h.hourUtc) }}:00</span>
+            <div class="bar-track">
+              <div class="bar-fill files" [style.width.%]="(h.files / maxHourly()) * 100"></div>
+              <div class="bar-fill docs" [style.width.%]="(h.documents / maxHourly()) * 100"></div>
+            </div>
+            <span class="bar-nums">{{ h.files }}/{{ h.documents }}</span>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    <h2>{{ date ? 'By business (date)' : 'By business (month)' }}</h2>
+    @if (byBusiness().length === 0) {
+      <p class="empty">No business activity.</p>
+    } @else {
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>Tenant</th>
+            <th>Files</th>
+            <th>Docs</th>
+            <th>Failed %</th>
+            @if (date) { <th>Peak hour</th> }
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of byBusiness(); track r.businessId) {
+            <tr class="click" (click)="drillBusiness(r)">
+              <td>
+                <div class="org-primary">{{ r.businessName }}</div>
+                <div class="org-secondary mono">{{ r.businessId }}</div>
+              </td>
+              <td>{{ r.tenantName }}</td>
+              <td>{{ r.files }}</td>
+              <td>{{ r.documents }}</td>
+              <td>{{ r.failedPct }}%</td>
+              @if (date) { <td>{{ r.peakHourUtc ?? '—' }}</td> }
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>
+
+  @if (stages(); as st) {
+    <div class="stage-grid">
+      <section class="panel">
+        <h2>File stage timings</h2>
+        <p class="note">{{ st.note }}</p>
+        @for (s of st.fileStages; track s.stageKey) {
+          <div class="bar-row">
+            <span class="bar-label">{{ s.stageKey }}</span>
+            <div class="bar-track">
+              <div class="bar-fill stage" [style.width.%]="(s.avgDurationMs / maxStage(st.fileStages)) * 100"></div>
+            </div>
+            <span class="bar-nums">{{ fmtMs(s.avgDurationMs) }} (n={{ s.sampleCount }})</span>
+          </div>
+        }
+        @if (st.fileStages.length === 0) { <p class="empty">No samples.</p> }
+      </section>
+      <section class="panel">
+        <h2>Document stage timings</h2>
+        <p class="note">Approximate</p>
+        @for (s of st.documentStages; track s.stageKey) {
+          <div class="bar-row">
+            <span class="bar-label">{{ s.stageKey }}</span>
+            <div class="bar-track">
+              <div class="bar-fill stage" [style.width.%]="(s.avgDurationMs / maxStage(st.documentStages)) * 100"></div>
+            </div>
+            <span class="bar-nums">{{ fmtMs(s.avgDurationMs) }} (n={{ s.sampleCount }})</span>
+          </div>
+        }
+        @if (st.documentStages.length === 0) { <p class="empty">No samples.</p> }
+      </section>
+    </div>
+  }
+</div>

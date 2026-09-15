@@ -55,8 +55,18 @@ public sealed record DocumentWebhookBody(
     string? Source,
     string? EmailMessageId,
     DocumentWebhookOriginalFile? OriginalFile,
-    DateTimeOffset OccurredAt);
+    DateTimeOffset OccurredAt,
+    string? EmailFrom = null,
+    string? EmailSubject = null,
+    JsonNode? EmailIntake = null,
+    string? Url = null,
+    DateTimeOffset? UrlExpiresAt = null);
 
 public sealed record DocumentWebhookError(string? Code, string? Message);
 
-public sealed record DocumentWebhookOriginalFile(string? FileName, string? ContentType, long SizeBytes);
+public sealed record DocumentWebhookOriginalFile(
+    string? FileName,
+    string? ContentType,
+    long SizeBytes,
+    string? Url = null,
+    DateTimeOffset? UrlExpiresAt = null);

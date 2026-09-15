@@ -11,7 +11,10 @@ using Microsoft.Extensions.Options;
 /// AWS Textract. Sync DetectDocumentText for images / single-page PDF bytes.
 /// Multi-page or &gt; SyncMaxPages: S3 StartDocumentTextDetection when storage is S3; else throws for fallback.
 /// </summary>
-public sealed class TextractOcrEngine(IOptions<OcrOptions> options, ILogger<TextractOcrEngine> logger) : IOcrEngine
+public sealed class TextractOcrEngine(
+    IOptions<OcrOptions> options,
+    IOptions<AwsOptions> awsOptions,
+    ILogger<TextractOcrEngine> logger) : IOcrEngine
 {
     public string ProviderKey => "aws_textract";
 
@@ -20,7 +23,12 @@ public sealed class TextractOcrEngine(IOptions<OcrOptions> options, ILogger<Text
         get
         {
             var t = options.Value.Textract;
-            return !string.IsNullOrWhiteSpace(t.AccessKey) && !string.IsNullOrWhiteSpace(t.SecretKey);
+            if (!string.IsNullOrWhiteSpace(t.AccessKey) && !string.IsNullOrWhiteSpace(t.SecretKey))
+            {
+                return true;
+            }
+
+            return awsOptions.Value.HasExplicitCredentials;
         }
     }
 
@@ -34,7 +42,7 @@ public sealed class TextractOcrEngine(IOptions<OcrOptions> options, ILogger<Text
     {
         if (!IsConfigured)
         {
-            throw new InvalidOperationException("Textract is not configured (Ocr:Textract AccessKey/SecretKey).");
+            throw new InvalidOperationException("Textract is not configured (Aws:AccessKey/SecretKey or Ocr:Textract override).");
         }
 
         var syncMax = Math.Max(1, options.Value.SyncMaxPages);
@@ -71,17 +79,17 @@ public sealed class TextractOcrEngine(IOptions<OcrOptions> options, ILogger<Text
             },
             cancellationToken);
 
-        var text = JoinLines(response.Blocks);
+        var pages = OcrPageSplitter.FromTextractBlocks(response.Blocks, request.EstimatedPageCount);
+        var text = OcrPageSplitter.JoinDocumentText(pages);
         EnsureQuality(text);
 
-        var pageCount = Math.Max(1, request.EstimatedPageCount);
-        logger.LogInformation("Textract sync OCR ok; pages={Pages}; chars={Chars}", pageCount, text.Length);
+        logger.LogInformation("Textract sync OCR ok; pages={Pages}; chars={Chars}", pages.Count, text.Length);
         return new OcrEngineResult(
             ProviderKey,
             text,
-            pageCount,
+            pages.Count,
             "textract_detect_document_text",
-            [new OcrPageText(1, text)]);
+            pages);
     }
 
     private async Task<OcrEngineResult> RecognizeAsyncS3Async(
@@ -150,19 +158,17 @@ public sealed class TextractOcrEngine(IOptions<OcrOptions> options, ILogger<Text
             throw new InvalidOperationException("Textract async job timed out or returned no blocks.");
         }
 
-        var text = JoinLines(blocks);
+        var pages = OcrPageSplitter.FromTextractBlocks(blocks, request.EstimatedPageCount);
+        var text = OcrPageSplitter.JoinDocumentText(pages);
         EnsureQuality(text);
-        var pageCount = Math.Max(
-            request.EstimatedPageCount,
-            blocks.Where(b => b.Page.HasValue).Select(b => b.Page!.Value).DefaultIfEmpty(1).Max());
 
-        logger.LogInformation("Textract async OCR ok; pages={Pages}; chars={Chars}", pageCount, text.Length);
+        logger.LogInformation("Textract async OCR ok; pages={Pages}; chars={Chars}", pages.Count, text.Length);
         return new OcrEngineResult(
             ProviderKey,
             text,
-            pageCount,
+            pages.Count,
             "textract_start_document_text_detection",
-            [new OcrPageText(1, text)]);
+            pages);
     }
 
     private AmazonTextractClient CreateClient()
@@ -170,16 +176,14 @@ public sealed class TextractOcrEngine(IOptions<OcrOptions> options, ILogger<Text
         var t = options.Value.Textract;
         var region = RegionEndpoint.GetBySystemName(
             string.IsNullOrWhiteSpace(t.Region) ? "us-west-2" : t.Region!);
-        var credentials = new BasicAWSCredentials(t.AccessKey, t.SecretKey);
+        var credentials =
+            (!string.IsNullOrWhiteSpace(t.AccessKey) && !string.IsNullOrWhiteSpace(t.SecretKey)
+                ? new BasicAWSCredentials(t.AccessKey, t.SecretKey)
+                : null)
+            ?? awsOptions.Value.TryCreateCredentials()
+            ?? throw new InvalidOperationException("Textract is not configured (Aws:AccessKey/SecretKey or Ocr:Textract override).");
         return new AmazonTextractClient(credentials, region);
     }
-
-    private static string JoinLines(IList<Block>? blocks) =>
-        string.Join(
-            '\n',
-            (blocks ?? Array.Empty<Block>())
-                .Where(b => b.BlockType == BlockType.LINE && !string.IsNullOrWhiteSpace(b.Text))
-                .Select(b => b.Text!.Trim())).Trim();
 
     private static void EnsureQuality(string text)
     {

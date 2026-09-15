@@ -13,6 +13,7 @@ using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Webhooks;
 using Documate.Api.Infrastructure.Work;
 using Documate.Api.Infrastructure.PostProcess;
+using Documate.Api.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +29,7 @@ public sealed class DocumentExtractStage(
     IDocumentWebhookScheduler webhooks,
     IOpsAlertSender alerts,
     IAgentPostProcessRunner postProcess,
+    IPipelineModelSettings modelSettings,
     IOptions<PipelineOptions> options,
     ILogger<DocumentExtractStage> logger) : IDocumentExtractStage
 {
@@ -127,13 +129,19 @@ public sealed class DocumentExtractStage(
                     preferredLlm = key;
                 }
 
+                var configuredExtractProvider = modelSettings.Current.ExtractProviderKey;
+                if (!string.IsNullOrWhiteSpace(configuredExtractProvider))
+                {
+                    preferredLlm = configuredExtractProvider;
+                }
+
                 try
                 {
                     await ExtractOneAsync(
                         context,
                         doc,
                         agent,
-                        sourceText,
+                        await TryReadDocumentSliceTextAsync(context, doc, cancellationToken) ?? sourceText,
                         preferredLlm,
                         metaProviderId,
                         docReady,
@@ -422,6 +430,42 @@ public sealed class DocumentExtractStage(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not read normalize text for File {FileId}; adapter will retry download", context.File.Id);
+            return null;
+        }
+    }
+
+    private async Task<string?> TryReadDocumentSliceTextAsync(
+        FilePipelineContext context,
+        OpsDocument doc,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(doc.SliceRefJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var slice = JsonDocument.Parse(doc.SliceRefJson);
+            if (!slice.RootElement.TryGetProperty("textArtifactKey", out var keyElement)
+                || string.IsNullOrWhiteSpace(keyElement.GetString()))
+            {
+                return null;
+            }
+
+            var bucket = context.File.StorageBucket ?? context.Normalize?.StorageBucket;
+            if (string.IsNullOrWhiteSpace(bucket))
+            {
+                return null;
+            }
+
+            await using var stream = await storage.DownloadAsync(bucket, keyElement.GetString()!, cancellationToken);
+            using var reader = new StreamReader(stream, Encoding.UTF8, true, leaveOpen: false);
+            return await reader.ReadToEndAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not read slice text for Document {DocumentId}", doc.Id);
             return null;
         }
     }

@@ -15,7 +15,7 @@ public sealed record OcrEngineResult(
     string Mode,
     IReadOnlyList<OcrPageText> Pages);
 
-public sealed record OcrPageText(int Page, string Text);
+public sealed record OcrPageText(int Page, string Text, bool IsBlank = false);
 
 public interface IOcrEngine
 {

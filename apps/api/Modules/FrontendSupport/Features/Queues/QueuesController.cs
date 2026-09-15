@@ -471,22 +471,30 @@ public sealed class LockQueueRoutingHandler(DocumateDbContext db, IBusinessConte
 {
     public async Task<QueueDto?> Handle(LockQueueRoutingCommand command, CancellationToken cancellationToken)
     {
-        var q = await db.OpsQueues.FirstOrDefaultAsync(
+        var exists = await db.OpsQueues.AsNoTracking().AnyAsync(
             x => x.Id == command.QueueId && x.BusinessId == business.BusinessId,
             cancellationToken);
-        if (q is null)
+        if (!exists)
         {
             return null;
         }
 
-        if (!q.RoutingLocked)
-        {
-            q.RoutingLocked = true;
-            q.RoutingLockedAt = DateTimeOffset.UtcNow;
-            q.UpdatedByUserId = business.UserId;
-            await db.SaveChangesAsync(cancellationToken);
-        }
+        // Idempotent: 0 rows = already locked by another request — still success.
+        await db.OpsQueues
+            .Where(x => x.Id == command.QueueId
+                        && x.BusinessId == business.BusinessId
+                        && !x.RoutingLocked)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(x => x.RoutingLocked, true)
+                    .SetProperty(x => x.RoutingLockedAt, DateTimeOffset.UtcNow)
+                    .SetProperty(x => x.UpdatedByUserId, business.UserId)
+                    .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow),
+                cancellationToken);
 
+        var q = await db.OpsQueues.AsNoTracking().FirstAsync(
+            x => x.Id == command.QueueId && x.BusinessId == business.BusinessId,
+            cancellationToken);
         return await QueueHelpers.ToDtoAsync(db, enums, q, cancellationToken);
     }
 }

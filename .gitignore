@@ -55,3 +55,7 @@ coverage/
 # Local object storage (Storage:Provider=local)
 **/_data/blobs/
 /old_code/
+
+**/_build*/
+**/_output*/
+**/*.dll

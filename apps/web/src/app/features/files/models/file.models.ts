@@ -10,6 +10,8 @@ export interface FileListItem {
   createdAt: string;
   completedAt?: string | null;
   documentCount: number;
+  emailFrom?: string | null;
+  emailSubject?: string | null;
 }
 
 export interface PagedFileList {
@@ -24,6 +26,8 @@ export interface FileDetail extends FileListItem {
   storageBucket?: string | null;
   publicStatusEnumId: number;
   internalStageEnumId?: number | null;
+  emailMessageId?: string | null;
+  emailIntakeJson?: string | null;
 }
 
 export interface FileDownloadUrl {

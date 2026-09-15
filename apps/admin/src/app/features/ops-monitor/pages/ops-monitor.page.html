@@ -1,0 +1,95 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Files &amp; documents</h1>
+      <p class="meta">INT-20 · cross-tenant ops monitor</p>
+    </div>
+    <p-button label="Refresh" icon="pi pi-refresh" [outlined]="true" (onClick)="applyFilters()" />
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" styleClass="mb" />
+  }
+
+  <div class="filters">
+    <input pInputText placeholder="Business ID" [(ngModel)]="businessId" class="f-input" />
+    <input pInputText placeholder="Name contains" [(ngModel)]="name" class="f-input" />
+    <p-select [options]="statusOptions" [(ngModel)]="status" optionLabel="label" optionValue="value" placeholder="Status" class="f-select" />
+    <input pInputText placeholder="Stage key" [(ngModel)]="stage" class="f-input narrow" />
+    <input pInputText type="datetime-local" [(ngModel)]="createdFrom" class="f-input" title="Created from (local)" />
+    <input pInputText type="datetime-local" [(ngModel)]="createdTo" class="f-input" title="Created to (local)" />
+    <p-button label="Apply" (onClick)="applyFilters()" />
+  </div>
+
+  <p-tabs [value]="activeTab" (valueChange)="onTabChange($event)">
+    <p-tablist>
+      <p-tab value="0">Files</p-tab>
+      <p-tab value="1">Documents</p-tab>
+    </p-tablist>
+    <p-tabpanels>
+      <p-tabpanel value="0">
+        <div class="toolbar">
+          <span class="count">{{ fileTotal() }} files</span>
+          <p-multiselect
+            [options]="fileColOptions"
+            [(ngModel)]="fileVisibleCols"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Columns ▾"
+            [filter]="false"
+            (onChange)="onFileColsChange()"
+            display="chip"
+            styleClass="cols-picker"
+          />
+        </div>
+        <ag-grid-angular
+          class="grid"
+          [theme]="theme"
+          [rowData]="fileRows()"
+          [columnDefs]="fileColumnDefs"
+          [defaultColDef]="defaultColDef"
+          [overlayNoRowsTemplate]="loading() ? 'Loading…' : 'No files match filters'"
+          (gridReady)="onFileGridReady($event)"
+          (rowClicked)="onFileRowClicked($event)"
+        />
+        <div class="pager">
+          <p-button label="Prev" [disabled]="page() <= 1" [text]="true" (onClick)="prevPage()" />
+          <span>Page {{ page() }}</span>
+          <p-button label="Next" [disabled]="page() * pageSize >= fileTotal()" [text]="true" (onClick)="nextPage()" />
+        </div>
+      </p-tabpanel>
+      <p-tabpanel value="1">
+        <div class="toolbar">
+          <span class="count">{{ docTotal() }} documents</span>
+          <p-select [options]="webhookOptions" [(ngModel)]="webhookStatus" optionLabel="label" optionValue="value" placeholder="Webhook" class="f-select" />
+          <p-multiselect
+            [options]="docColOptions"
+            [(ngModel)]="docVisibleCols"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Columns ▾"
+            [filter]="false"
+            (onChange)="onDocColsChange()"
+            display="chip"
+            styleClass="cols-picker"
+          />
+        </div>
+        <ag-grid-angular
+          class="grid"
+          [theme]="theme"
+          [rowData]="docRows()"
+          [columnDefs]="docColumnDefs"
+          [defaultColDef]="defaultColDef"
+          [overlayNoRowsTemplate]="loading() ? 'Loading…' : 'No documents match filters'"
+          (gridReady)="onDocGridReady($event)"
+          (rowClicked)="onDocRowClicked($event)"
+        />
+        <div class="pager">
+          <p-button label="Prev" [disabled]="page() <= 1" [text]="true" (onClick)="prevPage()" />
+          <span>Page {{ page() }}</span>
+          <p-button label="Next" [disabled]="page() * pageSize >= docTotal()" [text]="true" (onClick)="nextPage()" />
+        </div>
+      </p-tabpanel>
+    </p-tabpanels>
+  </p-tabs>
+</div>

@@ -61,62 +61,94 @@ public sealed record ExternalUploadFilesCommand(
     int? DocumentCount)
     : IRequest<ExternalUploadAcceptedDto>;
 
+/// <summary>
+/// Multi-file async upload accept path (DQ-1402): buffers multipart, batch DB insert,
+/// parallel blob writes, then Hangfire enqueue. Returns 202 immediately — OCR/LLM is separate.
+/// </summary>
 public sealed class ExternalUploadFilesHandler(
     IWorkRecordService work,
     IWorkDispatcher dispatcher,
     IBusinessContext business,
     ICorEnumIdResolver enums,
+    IUploadIntakeMetrics uploadMetrics,
     DocumateDbContext db) : IRequestHandler<ExternalUploadFilesCommand, ExternalUploadAcceptedDto>
 {
     public async Task<ExternalUploadAcceptedDto> Handle(
         ExternalUploadFilesCommand request,
         CancellationToken cancellationToken)
     {
-        _ = await db.OpsQueues.AsNoTracking().FirstOrDefaultAsync(
-                q => q.Id == request.QueueId && q.BusinessId == business.BusinessId && !q.IsDeleted,
-                cancellationToken)
-            ?? throw new InvalidOperationException("Queue not found for this Business.");
+        var timer = new UploadIntakeTimer();
 
-        if (!string.IsNullOrWhiteSpace(request.DocumentTypeKey))
-        {
-            var exists = await db.CorDocumentTypes.AsNoTracking().AnyAsync(
-                d => d.DocumentTypeKey == request.DocumentTypeKey.Trim() && d.IsActive && !d.IsDeleted,
-                cancellationToken);
-            if (!exists)
+        await timer.MeasureDbAsync(
+            async ct =>
             {
-                throw new InvalidOperationException($"Unknown documentTypeKey '{request.DocumentTypeKey}'.");
-            }
-        }
+                _ = await db.OpsQueues.AsNoTracking().FirstOrDefaultAsync(
+                        q => q.Id == request.QueueId && q.BusinessId == business.BusinessId && !q.IsDeleted,
+                        ct)
+                    ?? throw new InvalidOperationException("Queue not found for this Business.");
+
+                if (!string.IsNullOrWhiteSpace(request.DocumentTypeKey))
+                {
+                    var exists = await db.CorDocumentTypes.AsNoTracking().AnyAsync(
+                        d => d.DocumentTypeKey == request.DocumentTypeKey.Trim() && d.IsActive && !d.IsDeleted,
+                        ct);
+                    if (!exists)
+                    {
+                        throw new InvalidOperationException($"Unknown documentTypeKey '{request.DocumentTypeKey}'.");
+                    }
+                }
+            },
+            cancellationToken);
 
         var sourceId = enums.Require("intake_source", "api");
         var n = request.Files.Count;
         var hintsJson = IntakeHints.Serialize(request.DocumentTypeKey, request.DocumentCount);
 
-        var batch = await work.CreateBatchAsync(request.QueueId, sourceId, n, emailMessageId: null, cancellationToken);
-        var fileIds = new List<Guid>(n);
+        var batch = await timer.MeasureDbAsync(
+            ct => work.CreateBatchAsync(request.QueueId, sourceId, n, emailMessageId: null, ct),
+            cancellationToken);
 
-        foreach (var formFile in request.Files)
+        var buffers = new List<MemoryStream>(n);
+        try
         {
-            await using var stream = formFile.OpenReadStream();
-            var file = await work.CreateFileWithBlobAsync(
-                new CreateFileWithBlobRequest(
+            var createRequests = new List<CreateFileWithBlobRequest>(n);
+            foreach (var formFile in request.Files)
+            {
+                var ms = new MemoryStream(capacity: formFile.Length > 0 && formFile.Length < int.MaxValue
+                    ? (int)formFile.Length
+                    : 0);
+                await formFile.CopyToAsync(ms, cancellationToken);
+                ms.Position = 0;
+                buffers.Add(ms);
+                createRequests.Add(new CreateFileWithBlobRequest(
                     request.QueueId,
                     batch?.Id,
                     sourceId,
                     formFile.FileName,
                     formFile.ContentType,
-                    stream,
+                    ms,
                     formFile.Length,
-                    hintsJson),
-                cancellationToken);
+                    hintsJson));
+            }
 
-            await dispatcher.EnqueueFileAsync(
-                new FileWorkItem(file.Id, business.BusinessId, business.UserId),
-                cancellationToken);
+            var files = await work.CreateFilesWithBlobsBatchAsync(createRequests, cancellationToken, timer);
 
-            fileIds.Add(file.Id);
+            await Task.WhenAll(files.Select(file =>
+                dispatcher.EnqueueFileAsync(
+                    new FileWorkItem(file.Id, business.BusinessId, business.UserId),
+                    cancellationToken).AsTask()));
+
+            var (acceptMs, blobMs, dbMs) = timer.Elapsed();
+            uploadMetrics.RecordAccept(n, acceptMs, blobMs, dbMs);
+
+            return new ExternalUploadAcceptedDto(request.QueueId, batch?.Id, files.Select(f => f.Id).ToList());
         }
-
-        return new ExternalUploadAcceptedDto(request.QueueId, batch?.Id, fileIds);
+        finally
+        {
+            foreach (var ms in buffers)
+            {
+                await ms.DisposeAsync();
+            }
+        }
     }
 }

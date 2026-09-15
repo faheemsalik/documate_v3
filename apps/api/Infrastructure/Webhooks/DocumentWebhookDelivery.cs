@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Pipeline;
+using Documate.Api.Infrastructure.Storage;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +15,7 @@ public sealed class DocumentWebhookDelivery(
     IWebhookSecretProtector secrets,
     IBackgroundJobClient jobs,
     IHttpClientFactory httpFactory,
+    ISignedDownloadUrlService signedUrls,
     IHostEnvironment env,
     ILogger<DocumentWebhookDelivery> logger)
 {
@@ -55,6 +57,8 @@ public sealed class DocumentWebhookDelivery(
             return;
         }
 
+        await signedUrls.RefreshDocumentAsync(doc, cancellationToken);
+
         if (!Uri.TryCreate(queue.WebhookUrl, UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttps && !(env.IsDevelopment() && uri.Scheme == Uri.UriSchemeHttp)))
         {
@@ -92,6 +96,19 @@ public sealed class DocumentWebhookDelivery(
             original = new DocumentWebhookOriginalFile(file.OriginalFileName, file.ContentType, file.SizeBytes);
         }
 
+        JsonNode? emailIntake = null;
+        if (!string.IsNullOrWhiteSpace(file.EmailIntakeJson))
+        {
+            try
+            {
+                emailIntake = JsonNode.Parse(file.EmailIntakeJson);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                emailIntake = null;
+            }
+        }
+
         var body = new DocumentWebhookBody(
             DocumentWebhookPayload.EventName,
             doc.Id.ToString("D"),
@@ -107,7 +124,12 @@ public sealed class DocumentWebhookDelivery(
             sourceKey,
             file.EmailMessageId,
             original,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            file.EmailFrom,
+            file.EmailSubject,
+            emailIntake,
+            doc.PdfStorageKey is null ? null : doc.DownloadUrl,
+            doc.PdfStorageKey is null ? null : doc.DownloadUrlExpiresAt);
 
         var bytes = DocumentWebhookPayload.Serialize(body);
         using var request = new HttpRequestMessage(HttpMethod.Post, uri)

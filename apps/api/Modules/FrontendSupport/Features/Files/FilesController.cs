@@ -172,7 +172,11 @@ public sealed record FileDto(
     string? InternalStageKey,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt,
-    int DocumentCount);
+    int DocumentCount,
+    string? EmailFrom = null,
+    string? EmailSubject = null,
+    string? EmailMessageId = null,
+    string? EmailIntakeJson = null);
 
 public sealed record FileListItemDto(
     Guid Id,
@@ -185,7 +189,9 @@ public sealed record FileListItemDto(
     string? InternalStageKey,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt,
-    int DocumentCount);
+    int DocumentCount,
+    string? EmailFrom = null,
+    string? EmailSubject = null);
 
 public sealed record PagedFileListDto(
     IReadOnlyList<FileListItemDto> Items,
@@ -633,7 +639,11 @@ file static class FileDtoMapping
             item.InternalStageKey,
             item.CreatedAt,
             item.CompletedAt,
-            item.DocumentCount);
+            item.DocumentCount,
+            file.EmailFrom,
+            file.EmailSubject,
+            file.EmailMessageId,
+            file.EmailIntakeJson);
     }
 
     public static async Task<IReadOnlyList<FileListItemDto>> ToListItemsAsync(
@@ -683,7 +693,9 @@ file static class FileDtoMapping
                 stageKey,
                 f.CreatedAt,
                 f.CompletedAt,
-                count);
+                count,
+                f.EmailFrom,
+                f.EmailSubject);
         }).ToList();
     }
 }

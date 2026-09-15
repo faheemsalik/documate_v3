@@ -4,8 +4,17 @@ public sealed class PipelineOptions
 {
     public const string SectionName = "Pipeline";
 
-    /// <summary>Max concurrent stub File pipelines (A1 in-process).</summary>
-    public int MaxConcurrentFiles { get; set; } = 4;
+    /// <summary>
+    /// Max concurrent File pipeline jobs (Hangfire workers on priority/default queues).
+    /// Shared across all businesses on this API process — raise for multi-tenant throughput;
+    /// watch OCR/LLM provider rate limits and SQL load.
+    /// </summary>
+    public int MaxConcurrentFiles { get; set; } = 12;
+
+    /// <summary>
+    /// Dedicated Hangfire workers for the webhooks queue (isolated from file OCR workers).
+    /// </summary>
+    public int MaxConcurrentWebhooks { get; set; } = 4;
 
     /// <summary>
     /// Artificial delay per stub stage (ms). Prefer 0 for realtime; use a small value only for smoke observability.

@@ -18,6 +18,7 @@ public static class ObjectStorageServiceCollectionExtensions
             services.AddSingleton<IAmazonS3>(sp =>
             {
                 var opts = sp.GetRequiredService<IOptions<StorageOptions>>().Value;
+                var aws = sp.GetRequiredService<IOptions<AwsOptions>>().Value;
                 var region = RegionEndpoint.GetBySystemName(
                     string.IsNullOrWhiteSpace(opts.Region) ? "us-west-2" : opts.Region);
 
@@ -28,11 +29,10 @@ public static class ObjectStorageServiceCollectionExtensions
                     config.ForcePathStyle = true;
                 }
 
-                if (!string.IsNullOrWhiteSpace(opts.AccessKey) && !string.IsNullOrWhiteSpace(opts.SecretKey))
+                var credentials = ResolveCredentials(opts, aws);
+                if (credentials is not null)
                 {
-                    return new AmazonS3Client(
-                        new BasicAWSCredentials(opts.AccessKey, opts.SecretKey),
-                        config);
+                    return new AmazonS3Client(credentials, config);
                 }
 
                 // Default credential chain (IAM role / env / profile) — preferred in AWS.
@@ -46,5 +46,15 @@ public static class ObjectStorageServiceCollectionExtensions
         }
 
         return services;
+    }
+
+    private static AWSCredentials? ResolveCredentials(StorageOptions opts, AwsOptions aws)
+    {
+        if (!string.IsNullOrWhiteSpace(opts.AccessKey) && !string.IsNullOrWhiteSpace(opts.SecretKey))
+        {
+            return new BasicAWSCredentials(opts.AccessKey, opts.SecretKey);
+        }
+
+        return aws.TryCreateCredentials();
     }
 }

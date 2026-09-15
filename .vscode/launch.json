@@ -35,12 +35,25 @@
       "preLaunchTask": "run-web",
       "url": "http://localhost:4202/",
       "webRoot": "${workspaceFolder}/apps/web"
+    },
+    {
+      "name": "Admin: Chrome",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "run-admin",
+      "url": "http://localhost:4203/",
+      "webRoot": "${workspaceFolder}/apps/admin"
     }
   ],
   "compounds": [
     {
       "name": "Full stack: API + Web",
       "configurations": ["API: Launch", "Web: Chrome"],
+      "stopAll": true
+    },
+    {
+      "name": "Full stack: API + Admin",
+      "configurations": ["API: Launch", "Admin: Chrome"],
       "stopAll": true
     }
   ]

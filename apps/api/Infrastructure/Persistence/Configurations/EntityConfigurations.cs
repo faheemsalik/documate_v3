@@ -64,6 +64,10 @@ internal sealed class CorTenantBusinessConfiguration : IEntityTypeConfiguration<
         b.HasIndex(x => x.IdenBusinessId).IsUnique();
         b.Property(x => x.Name).HasMaxLength(256).IsRequired();
         b.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+        b.Property(x => x.IntakeEmailSlug).HasMaxLength(64);
+        b.HasIndex(x => x.IntakeEmailSlug)
+            .IsUnique()
+            .HasFilter("[IntakeEmailSlug] IS NOT NULL AND [IsDeleted] = 0");
         b.HasOne(x => x.Tenant).WithMany(x => x.Businesses).HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -229,6 +233,42 @@ internal sealed class OpsQueueEmailAllowlistEntryConfiguration : IEntityTypeConf
     }
 }
 
+internal sealed class OpsIntakeMailboxConfiguration : IEntityTypeConfiguration<OpsIntakeMailbox>
+{
+    public void Configure(EntityTypeBuilder<OpsIntakeMailbox> b)
+    {
+        EntityConfigHelpers.ConfigureWireFacing(b);
+        EntityConfigHelpers.ConfigureRowVersion(b);
+        EntityConfigHelpers.BusinessId(b);
+        b.Property(x => x.EmailLocalPart).HasMaxLength(64).IsRequired();
+        b.Property(x => x.EmailDomain).HasMaxLength(256).IsRequired();
+        b.HasOne(x => x.Queue).WithMany().HasForeignKey(x => x.QueueId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.Agent).WithMany().HasForeignKey(x => x.AgentId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.Kind).WithMany().HasForeignKey(x => x.KindEnumId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.AllowlistMode).WithMany().HasForeignKey(x => x.AllowlistModeEnumId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => new { x.EmailDomain, x.EmailLocalPart })
+            .IsUnique()
+            .HasDatabaseName("IX_OpsIntakeMailboxes_Domain_LocalPart")
+            .HasFilter("[IsDeleted] = 0");
+        b.HasIndex(x => x.AgentId)
+            .IsUnique()
+            .HasDatabaseName("IX_OpsIntakeMailboxes_AgentId_Typed")
+            .HasFilter("[AgentId] IS NOT NULL AND [IsDeleted] = 0");
+    }
+}
+
+internal sealed class OpsIntakeMailboxAllowlistEntryConfiguration : IEntityTypeConfiguration<OpsIntakeMailboxAllowlistEntry>
+{
+    public void Configure(EntityTypeBuilder<OpsIntakeMailboxAllowlistEntry> b)
+    {
+        EntityConfigHelpers.ConfigureCatalog(b);
+        EntityConfigHelpers.BusinessId(b);
+        b.Property(x => x.Value).HasMaxLength(512).IsRequired();
+        b.HasOne(x => x.Mailbox).WithMany(x => x.AllowlistEntries).HasForeignKey(x => x.MailboxId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.MatchType).WithMany().HasForeignKey(x => x.MatchTypeEnumId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class OpsBatchConfiguration : IEntityTypeConfiguration<OpsBatch>
 {
     public void Configure(EntityTypeBuilder<OpsBatch> b)
@@ -253,9 +293,11 @@ internal sealed class OpsFileConfiguration : IEntityTypeConfiguration<OpsFile>
         b.Property(x => x.StorageKey).HasMaxLength(1024).IsRequired();
         b.Property(x => x.StorageBucket).HasMaxLength(256);
         b.Property(x => x.ContentHash).HasMaxLength(128);
+        b.Property(x => x.DownloadUrl).HasMaxLength(4096);
         b.Property(x => x.EmailMessageId).HasMaxLength(512);
         b.Property(x => x.EmailFrom).HasMaxLength(512);
         b.Property(x => x.EmailSubject).HasMaxLength(1024);
+        b.Property(x => x.EmailIntakeJson).HasColumnType("nvarchar(max)");
         b.Property(x => x.IntakeHintsJson).HasColumnType("nvarchar(max)");
         b.Property(x => x.ErrorCode).HasMaxLength(128);
         b.Property(x => x.ErrorMessage).HasMaxLength(4000);
@@ -277,6 +319,9 @@ internal sealed class OpsDocumentConfiguration : IEntityTypeConfiguration<OpsDoc
         EntityConfigHelpers.ConfigureRowVersion(b);
         EntityConfigHelpers.BusinessId(b);
         b.Property(x => x.SliceRefJson).HasColumnType("nvarchar(max)");
+        b.Property(x => x.PdfStorageKey).HasMaxLength(1024);
+        b.Property(x => x.PdfStorageBucket).HasMaxLength(256);
+        b.Property(x => x.DownloadUrl).HasMaxLength(4096);
         b.Property(x => x.ResultJson).HasColumnType("nvarchar(max)");
         b.Property(x => x.ErrorCode).HasMaxLength(128);
         b.Property(x => x.ErrorMessage).HasMaxLength(4000);
@@ -322,5 +367,17 @@ internal sealed class OpsWorkEventConfiguration : IEntityTypeConfiguration<OpsWo
         b.HasOne(x => x.EventType).WithMany().HasForeignKey(x => x.EventTypeEnumId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Provider).WithMany().HasForeignKey(x => x.ProviderId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => new { x.BusinessId, x.SubjectTypeEnumId, x.SubjectId });
+    }
+}
+
+internal sealed class CorSystemSettingConfiguration : IEntityTypeConfiguration<CorSystemSetting>
+{
+    public void Configure(EntityTypeBuilder<CorSystemSetting> b)
+    {
+        EntityConfigHelpers.ConfigureCatalog(b);
+        b.ToTable("CorSystemSettings");
+        b.Property(x => x.SettingKey).HasMaxLength(128).IsRequired();
+        b.Property(x => x.ValueJson).IsRequired();
+        b.HasIndex(x => x.SettingKey).IsUnique().HasFilter("[IsDeleted] = 0");
     }
 }

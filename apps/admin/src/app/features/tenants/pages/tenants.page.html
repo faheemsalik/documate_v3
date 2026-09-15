@@ -1,0 +1,64 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Tenants</h1>
+      <p class="meta">INT-02 · {{ total() }} total</p>
+    </div>
+    <div class="actions">
+      <input pInputText [(ngModel)]="search" placeholder="Search name / iden" (keyup.enter)="reload()" />
+      <p-button label="Search" [outlined]="true" (onClick)="reload()" />
+      <p-button label="Create tenant" icon="pi pi-plus" (onClick)="openCreate()" />
+    </div>
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (!loading() && rows().length === 0) {
+    <p class="empty">No tenants found.</p>
+  } @else {
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>IdenTenantId</th>
+          <th>Mode</th>
+          <th>Businesses</th>
+          <th>Active</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (t of rows(); track t.id) {
+          <tr>
+            <td><a [routerLink]="['/tenants', t.id]">{{ t.name }}</a></td>
+            <td class="mono">{{ t.idenTenantId }}</td>
+            <td>{{ t.providerModeKey ?? '—' }}</td>
+            <td>{{ t.businessCount }}</td>
+            <td>{{ t.isActive ? 'yes' : 'no' }}</td>
+            <td class="mono">{{ fmt(t.createdAt) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
+
+<p-dialog header="Create tenant" [(visible)]="showCreate" [modal]="true" [style]="{ width: '28rem' }">
+  <div class="form">
+    <label>Name *</label>
+    <input pInputText [(ngModel)]="createName" />
+    <label>IdenTenantId (optional)</label>
+    <input pInputText [(ngModel)]="createIden" placeholder="auto-generated if blank" />
+    <label>Initial business name (optional)</label>
+    <input pInputText [(ngModel)]="createBusiness" />
+    @if (createError) {
+      <p-message severity="error" [text]="createError" />
+    }
+  </div>
+  <div class="dialog-actions">
+    <p-button label="Cancel" [text]="true" (onClick)="showCreate = false" />
+    <p-button label="Create" [loading]="creating" (onClick)="submitCreate()" />
+  </div>
+</p-dialog>

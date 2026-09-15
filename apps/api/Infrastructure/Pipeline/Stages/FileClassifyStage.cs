@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Classify stage: skipped only when documentTypeKey is set and the File has one page.
-/// Typed multi-page Files still run this stage so split can produce multiple same-type Documents;
-/// Phase 1 stamps the caller type onto split outputs (real classify later).
+/// Typed multi-page Files stamp the caller type after grouping. Untyped Files classify from
+/// QueueRoute C1 or each group's page-intelligence type.
 /// </summary>
 public sealed class FileClassifyStage(
     DocumateDbContext db,
@@ -37,12 +37,77 @@ public sealed class FileClassifyStage(
             return;
         }
 
+        var routes = await db.OpsQueueRoutes.AsNoTracking()
+            .Where(r => r.QueueId == context.File.QueueId
+                && r.BusinessId == context.Item.BusinessId
+                && !r.IsDeleted)
+            .ToListAsync(cancellationToken);
+        var routeTypeIds = routes.Select(x => x.DocumentTypeId).Distinct().ToArray();
+        var types = await db.CorDocumentTypes.AsNoTracking()
+            .Where(x => routeTypeIds.Contains(x.Id) && x.IsActive && !x.IsDeleted)
+            .ToDictionaryAsync(x => x.DocumentTypeKey, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var failed = enums.Require("document_public_status", "failed");
+        var classified = 0;
+        var unroutable = 0;
+
+        foreach (var doc in context.Documents)
+        {
+            if (doc.ErrorCode == "split_unresolved")
+            {
+                continue;
+            }
+
+            CorDocumentType? type = null;
+            if (routeTypeIds.Length == 1)
+            {
+                type = types.Values.FirstOrDefault(x => x.Id == routeTypeIds[0]);
+            }
+            else
+            {
+                var identifiedType = context.IntelligenceProfiles
+                    .Where(x => x.Page >= doc.PageStart && x.Page <= doc.PageEnd)
+                    .Select(x => x.DocumentType)
+                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+                if (!string.IsNullOrWhiteSpace(identifiedType))
+                {
+                    types.TryGetValue(identifiedType, out type);
+                }
+            }
+
+            if (type is null)
+            {
+                doc.PublicStatusEnumId = failed;
+                doc.ErrorCode = "unroutable_type";
+                doc.ErrorMessage = "Page intelligence did not identify a type configured in QueueRoute.";
+                doc.FailedStage = "classify";
+                unroutable++;
+            }
+            else
+            {
+                doc.DocumentTypeId = type.Id;
+                classified++;
+            }
+
+            doc.UpdatedByUserId = context.Item.UserId;
+        }
+
         await AppendEventAsync(
             context,
-            """{"status":"processing","stage":"classify","deferred":true,"reason":"real_classify_not_implemented"}""",
+            JsonSerializer.Serialize(new
+            {
+                status = "processing",
+                stage = "classify",
+                strategy = routeTypeIds.Length == 1 ? "single_queue_route" : "group_intelligence",
+                classified,
+                unroutable,
+            }),
             cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
-        logger.LogInformation("Classify deferred for File {FileId}", context.File.Id);
+        logger.LogInformation(
+            "Classified File {FileId}: classified={Classified} unroutable={Unroutable}",
+            context.File.Id,
+            classified,
+            unroutable);
     }
 
     private async Task ApplyTypeHintAsync(FilePipelineContext context, CancellationToken cancellationToken)

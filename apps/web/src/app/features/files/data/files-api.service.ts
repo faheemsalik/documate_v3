@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { API_BASE_URL } from '../../../core/api-base';
+import { apiBaseUrl } from '../../../core/api-base';
 import type {
   DocumentDetail,
   DocumentListItem,
@@ -16,7 +16,7 @@ import type {
 @Injectable({ providedIn: 'root' })
 export class FilesApiService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${API_BASE_URL}/api/app/queues`;
+  private readonly base = `${apiBaseUrl()}/api/app/queues`;
 
   listFiles(queueId: string, params: ListFilesParams = {}) {
     let httpParams = new HttpParams();

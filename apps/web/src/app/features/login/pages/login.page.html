@@ -1,0 +1,44 @@
+<div class="login-page">
+  <div class="login-panel">
+    <form class="login-card" [formGroup]="form" (ngSubmit)="submit()">
+      <header class="login-header">
+        <img
+          class="logo"
+          src="assets/documate-logo.png"
+          width="180"
+          height="53"
+          alt="Documate"
+        />
+        <h1>Sign in</h1>
+        <p class="subtitle">Enter your credentials to continue</p>
+      </header>
+
+      @if (error()) {
+        <p-message severity="error" [text]="error()!" styleClass="login-error" />
+      }
+
+      <label class="field">
+        <span>Username</span>
+        <input pInputText formControlName="username" autocomplete="username" autofocus />
+      </label>
+
+      <label class="field">
+        <span>Password</span>
+        <p-password
+          formControlName="password"
+          [feedback]="false"
+          [toggleMask]="true"
+          autocomplete="current-password"
+          styleClass="password-full"
+          inputStyleClass="password-input"
+        />
+      </label>
+
+      <p-button type="submit" label="Sign in" styleClass="submit" [loading]="submitting()" />
+    </form>
+
+    <footer class="login-footer">
+      <span>© {{ year }} Documate Ai. All rights reserved.</span>
+    </footer>
+  </div>
+</div>

@@ -1,8 +1,64 @@
+.subtitle {
+  color: var(--p-text-muted-color);
+  margin-bottom: 1.5rem;
+}
+
+.create-section,
+.list-section {
+  margin-bottom: 2rem;
+}
+
+.create-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.create-row input {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.business-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.business-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.business-row h3 {
+  margin: 0 0 0.25rem;
+}
+
 .meta {
   color: var(--p-text-muted-color);
+  margin: 0;
+  font-size: 0.875rem;
 }
 
 .hint {
   color: var(--p-text-muted-color);
   font-size: 0.875rem;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.links a {
+  color: var(--p-primary-color);
+  text-decoration: none;
+}
+
+.links a:hover {
+  text-decoration: underline;
 }

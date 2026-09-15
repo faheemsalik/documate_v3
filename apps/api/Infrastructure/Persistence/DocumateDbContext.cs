@@ -14,10 +14,13 @@ public sealed class DocumateDbContext(DbContextOptions<DocumateDbContext> option
     public DbSet<CorAgentTemplate> CorAgentTemplates => Set<CorAgentTemplate>();
     public DbSet<CorWorkflowDefinition> CorWorkflowDefinitions => Set<CorWorkflowDefinition>();
     public DbSet<CorTenantApiKey> CorTenantApiKeys => Set<CorTenantApiKey>();
+    public DbSet<CorSystemSetting> CorSystemSettings => Set<CorSystemSetting>();
     public DbSet<OpsAgent> OpsAgents => Set<OpsAgent>();
     public DbSet<OpsQueue> OpsQueues => Set<OpsQueue>();
     public DbSet<OpsQueueRoute> OpsQueueRoutes => Set<OpsQueueRoute>();
     public DbSet<OpsQueueEmailAllowlistEntry> OpsQueueEmailAllowlistEntries => Set<OpsQueueEmailAllowlistEntry>();
+    public DbSet<OpsIntakeMailbox> OpsIntakeMailboxes => Set<OpsIntakeMailbox>();
+    public DbSet<OpsIntakeMailboxAllowlistEntry> OpsIntakeMailboxAllowlistEntries => Set<OpsIntakeMailboxAllowlistEntry>();
     public DbSet<OpsBatch> OpsBatches => Set<OpsBatch>();
     public DbSet<OpsFile> OpsFiles => Set<OpsFile>();
     public DbSet<OpsDocument> OpsDocuments => Set<OpsDocument>();

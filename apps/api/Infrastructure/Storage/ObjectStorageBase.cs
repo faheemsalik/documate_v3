@@ -32,7 +32,11 @@ public abstract class ObjectStorageBase(IOptions<StorageOptions> options) : IObj
             throw new ArgumentException("fileStorageKey is required.", nameof(fileStorageKey));
         }
 
-        var safeArtifact = SanitizeFileName(artifactFileName);
+        var safeArtifact = string.Join(
+            '/',
+            artifactFileName.Replace('\\', '/')
+                .Split('/', StringSplitOptions.RemoveEmptyEntries)
+                .Select(SanitizeFileName));
         var normalized = fileStorageKey.Replace('\\', '/').TrimEnd('/');
         var slash = normalized.LastIndexOf('/');
         var folder = slash >= 0 ? normalized[..slash] : normalized;

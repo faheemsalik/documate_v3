@@ -11,7 +11,12 @@ import { Tag } from 'primeng/tag';
 import { AppContextService } from '../../../core/app-context.service';
 import { AgentsApiService, type Agent } from '../../../core/api/agents-api.service';
 import { CatalogsApiService, type DocumentType } from '../../../core/api/catalogs-api.service';
-import { QueuesApiService, type AllowlistEntry, type Queue, type QueueRoute } from '../../../core/api/queues-api.service';
+import { QueuesApiService, type Queue, type QueueRoute } from '../../../core/api/queues-api.service';
+import {
+  IntakeMailboxesApiService,
+  type IntakeMailbox,
+  type MailboxAllowlistEntry,
+} from '../../../core/api/intake-mailboxes-api.service';
 
 @Component({
   selector: 'app-queue-overview-page',
@@ -37,6 +42,7 @@ export class QueueOverviewPage {
   private readonly queuesApi = inject(QueuesApiService);
   private readonly agentsApi = inject(AgentsApiService);
   private readonly catalogsApi = inject(CatalogsApiService);
+  private readonly mailboxesApi = inject(IntakeMailboxesApiService);
   readonly ctx = inject(AppContextService);
 
   readonly loading = signal(true);
@@ -44,9 +50,11 @@ export class QueueOverviewPage {
   readonly error = signal<string | null>(null);
   readonly queue = signal<Queue | null>(null);
   readonly routes = signal<QueueRoute[]>([]);
-  readonly allowlist = signal<AllowlistEntry[]>([]);
+  readonly allowlist = signal<MailboxAllowlistEntry[]>([]);
   readonly agents = signal<Agent[]>([]);
   readonly documentTypes = signal<DocumentType[]>([]);
+  readonly mailboxes = signal<IntakeMailbox[]>([]);
+  readonly selectedMailbox = signal<IntakeMailbox | null>(null);
 
   webhookEnabled = false;
   webhookUrl = '';
@@ -56,6 +64,8 @@ export class QueueOverviewPage {
   newRouteAgentId: string | null = null;
   allowlistMatchType = 'email';
   allowlistValue = '';
+  allowlistModeEnumId: number | null = null;
+  readonly allowlistModes = signal<{ label: string; value: number }[]>([]);
 
   constructor() {
     effect(() => {
@@ -64,6 +74,10 @@ export class QueueOverviewPage {
     });
     this.agentsApi.list().subscribe((a) => this.agents.set(a));
     this.catalogsApi.listDocumentTypes().subscribe((d) => this.documentTypes.set(d));
+    this.catalogsApi.listEnums('allowlist_mode').subscribe({
+      next: (modes) =>
+        this.allowlistModes.set(modes.map((m) => ({ label: m.displayName || m.enumKey, value: m.id }))),
+    });
   }
 
   saveWebhook(): void {
@@ -97,17 +111,49 @@ export class QueueOverviewPage {
     });
   }
 
-  saveEmailSettings(): void {
-    const q = this.queue();
-    if (!q) return;
-    this.queuesApi
-      .updateEmailSettings(q.id, {
-        emailIntakeEnabled: this.emailIntakeEnabled,
-        allowlistModeEnumId: q.allowlistModeEnumId,
-      })
+  createMultiMailbox(): void {
+    this.mailboxesApi.createMulti().subscribe({
+      next: () => this.reloadMailboxes(),
+      error: (err) => this.error.set(err?.error?.error ?? 'Could not create multi mailbox.'),
+    });
+  }
+
+  selectMailbox(mb: IntakeMailbox): void {
+    this.selectedMailbox.set(mb);
+    this.allowlistModeEnumId = mb.allowlistModeEnumId;
+    this.mailboxesApi.listAllowlist(mb.id).subscribe({
+      next: (entries) => this.allowlist.set(entries),
+      error: () => this.error.set('Could not load allowlist.'),
+    });
+  }
+
+  saveAllowlistMode(): void {
+    const mb = this.selectedMailbox();
+    if (!mb || this.allowlistModeEnumId == null) return;
+    this.mailboxesApi
+      .update(mb.id, { enabled: mb.enabled, allowlistModeEnumId: this.allowlistModeEnumId })
       .subscribe({
-        next: (updated) => this.queue.set(updated),
-        error: () => this.error.set('Email settings update failed.'),
+        next: (updated) => {
+          this.selectedMailbox.set(updated);
+          this.reloadMailboxes();
+        },
+        error: () => this.error.set('Could not update allowlist mode.'),
+      });
+  }
+
+  rotateMailbox(id: string): void {
+    this.mailboxesApi.rotate(id).subscribe({
+      next: () => this.reloadMailboxes(),
+      error: () => this.error.set('Rotate failed.'),
+    });
+  }
+
+  toggleMailbox(mb: IntakeMailbox): void {
+    this.mailboxesApi
+      .update(mb.id, { enabled: !mb.enabled, allowlistModeEnumId: mb.allowlistModeEnumId })
+      .subscribe({
+        next: () => this.reloadMailboxes(),
+        error: () => this.error.set('Could not update mailbox.'),
       });
   }
 
@@ -138,23 +184,40 @@ export class QueueOverviewPage {
   }
 
   addAllowlist(): void {
-    const q = this.queue();
-    if (!q || !this.allowlistValue.trim()) return;
-    this.queuesApi.addAllowlist(q.id, { matchTypeKey: this.allowlistMatchType, value: this.allowlistValue.trim() }).subscribe({
-      next: (entry) => {
-        this.allowlist.update((a) => [...a, entry]);
-        this.allowlistValue = '';
-      },
-      error: () => this.error.set('Could not add allowlist entry.'),
-    });
+    const mb = this.selectedMailbox();
+    if (!mb || !this.allowlistValue.trim()) return;
+    this.mailboxesApi
+      .addAllowlist(mb.id, { matchTypeKey: this.allowlistMatchType, value: this.allowlistValue.trim() })
+      .subscribe({
+        next: (entry) => {
+          this.allowlist.update((a) => [...a, entry]);
+          this.allowlistValue = '';
+        },
+        error: () => this.error.set('Could not add allowlist entry.'),
+      });
   }
 
   removeAllowlist(entryId: number): void {
-    const q = this.queue();
-    if (!q) return;
-    this.queuesApi.deleteAllowlist(q.id, entryId).subscribe({
+    const mb = this.selectedMailbox();
+    if (!mb) return;
+    this.mailboxesApi.deleteAllowlist(mb.id, entryId).subscribe({
       next: () => this.allowlist.update((a) => a.filter((e) => e.id !== entryId)),
       error: () => this.error.set('Could not remove entry.'),
+    });
+  }
+
+  private reloadMailboxes(): void {
+    this.mailboxesApi.list().subscribe({
+      next: (list) => {
+        const multi = list.filter((m) => m.kindKey === 'multi_type');
+        this.mailboxes.set(multi);
+        const sel = this.selectedMailbox();
+        if (sel) {
+          const refreshed = multi.find((m) => m.id === sel.id) ?? null;
+          this.selectedMailbox.set(refreshed);
+          if (refreshed) this.selectMailbox(refreshed);
+        }
+      },
     });
   }
 
@@ -165,11 +228,11 @@ export class QueueOverviewPage {
       next: (detail) => {
         this.queue.set(detail.queue);
         this.routes.set(detail.routes);
-        this.allowlist.set(detail.allowlist);
         this.webhookEnabled = detail.queue.webhookEnabled;
         this.webhookUrl = detail.queue.webhookUrl ?? '';
         this.emailIntakeEnabled = detail.queue.emailIntakeEnabled;
         this.loading.set(false);
+        this.reloadMailboxes();
       },
       error: () => {
         this.loading.set(false);

@@ -55,28 +55,15 @@ public sealed class GoogleDocumentAiOcrEngine(
             cancellationToken: cancellationToken);
 
         var doc = raw.Document;
-        var text = doc?.Text?.Trim() ?? "";
+        var pages = OcrPageSplitter.FromGoogleDocument(doc, request.EstimatedPageCount);
+        var text = OcrPageSplitter.JoinDocumentText(pages);
         if (string.IsNullOrWhiteSpace(text) || text.Length < 8)
         {
             throw new OcrEmptyOrLowQualityException("Google Document AI returned empty or very short text.");
         }
 
-        var pages = new List<OcrPageText>();
-        if (doc?.Pages is { Count: > 0 })
-        {
-            for (var i = 0; i < doc.Pages.Count; i++)
-            {
-                pages.Add(new OcrPageText(i + 1, text));
-            }
-        }
-        else
-        {
-            pages.Add(new OcrPageText(1, text));
-        }
-
-        var pageCount = Math.Max(request.EstimatedPageCount, pages.Count);
-        logger.LogInformation("Document AI OCR ok; pages={Pages}; chars={Chars}", pageCount, text.Length);
-        return new OcrEngineResult(ProviderKey, text, pageCount, "google_document_ai_process", pages);
+        logger.LogInformation("Document AI OCR ok; pages={Pages}; chars={Chars}", pages.Count, text.Length);
+        return new OcrEngineResult(ProviderKey, text, pages.Count, "google_document_ai_process", pages);
     }
 
     private static string ResolveMime(string? contentType, string? fileName)

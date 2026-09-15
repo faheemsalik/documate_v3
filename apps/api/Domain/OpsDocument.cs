@@ -17,6 +17,10 @@ public sealed class OpsDocument : WireFacingEntity, IHasRowVersion
     public int? PageStart { get; set; }
     public int? PageEnd { get; set; }
     public string? SliceRefJson { get; set; }
+    public string? PdfStorageKey { get; set; }
+    public string? PdfStorageBucket { get; set; }
+    public string? DownloadUrl { get; set; }
+    public DateTimeOffset? DownloadUrlExpiresAt { get; set; }
     public string? ResultJson { get; set; }
 
     public string? ErrorCode { get; set; }

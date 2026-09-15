@@ -15,6 +15,7 @@ public sealed class OcrOptions
 public sealed class TextractOptions
 {
     public string? Region { get; set; } = "us-west-2";
+    /// <summary>Optional override. Prefer shared <c>Aws:AccessKey</c>/<c>SecretKey</c>.</summary>
     public string? AccessKey { get; set; }
     public string? SecretKey { get; set; }
 }

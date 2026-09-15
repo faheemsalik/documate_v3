@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { API_BASE_URL } from '../api-base';
+import { apiBaseUrl } from '../api-base';
 
 export interface Queue {
   id: string;
@@ -56,7 +56,7 @@ export interface QueueEmailAddress {
 @Injectable({ providedIn: 'root' })
 export class QueuesApiService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${API_BASE_URL}/api/app/queues`;
+  private readonly base = `${apiBaseUrl()}/api/app/queues`;
 
   list() {
     return this.http.get<Queue[]>(this.base);

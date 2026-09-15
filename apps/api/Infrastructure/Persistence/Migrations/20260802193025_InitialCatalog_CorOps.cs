@@ -1,4 +1,7 @@
-﻿using System;
+using Documate.Api.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,6 +9,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Documate.Api.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(DocumateDbContext))]
+    [Migration("20260802193025_InitialCatalog_CorOps")]
     public partial class InitialCatalog_CorOps : Migration
     {
         /// <inheritdoc />
@@ -1188,3 +1193,4 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
         }
     }
 }
+

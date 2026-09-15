@@ -1,16 +1,16 @@
 # Plan 03 — Documate v3 Product Delivery — Implementation Plan
 
 > **Document type:** Implementation plan (Phase 2)  
-> **Status:** Approved for Phase 3 — entity catalog verified; A–I closed; see dispatch queue  
+> **Status:** Approved for Phase 3 — entity catalog verified; A–I + **K1** closed; **Decision E = P9/F6**; Wave 4b DQs **DQ-0705…0710 + DQ-0802** filed; Document URL only after Document PDF  
 > **Downstream:** [03-documate-v3-dispatch-queue.md](./03-documate-v3-dispatch-queue.md)  
 > **Entity naming (locked 2026-08-03):** Infrastructure/catalogs = **`Cor*`**; operational work = **`Ops*`**. FK **columns** drop the prefix (`CorTenant` → `TenantId`, `OpsFile` → `FileId`).  
 > **Track:** Product delivery (maps onto engineering modules from Plan 00)  
-> **Upstream:** [00-product-glossary.md](./00-product-glossary.md), [01-project-exploration-mental-design.md](./01-project-exploration-mental-design.md), [02-document-queue-design.md](./02-document-queue-design.md)  
+> **Upstream:** [00-product-glossary.md](./00-product-glossary.md), [01-project-exploration-mental-design.md](./01-project-exploration-mental-design.md), [02-document-queue-design.md](./02-document-queue-design.md), [04-split-classify-strategy-exploration.md](./04-split-classify-strategy-exploration.md) (real split technique)  
 > **Downstream:** Phase 3 dispatch queue (not created until this plan is approved)  
 
 **Scope:** Build Documate v3 Phase 1 product capability — queues, agents, multi-file intake, multi-doc extraction, async + sync delivery, email intake, **real Iden auth (human + machine)**, Mode 1 providers, internal MCP post-processing hooks. Includes an **Iden Integration & Validation** phase: discover Iden APIs, exercise them through Documate, fix Iden defects when found, and **retire fixed tokens / F2 temporary keys**.
 
-**Out of scope:** Mode 2 BYOK UI, HITL, mapping catalogs, tenant MCP UX, general chatbots / non-document AI suite, replacing `old_code` deletion, **white-label SDK packaging (§3.1)**, **statements reconciliation (§3.2)**, **MCM DN rebranding (§3.3)**, **split/classify technique lock** (see [`04-split-classify-strategy-exploration.md`](./04-split-classify-strategy-exploration.md) — decide before DQ-0702).
+**Out of scope:** Mode 2 BYOK UI, HITL, mapping catalogs, tenant MCP UX, general chatbots / non-document AI suite, replacing `old_code` deletion, **white-label SDK packaging (§3.1)**, **statements reconciliation (§3.2)**, **MCM DN rebranding (§3.3)**. Real split/classify technique is **locked** in [`04-split-classify-strategy-exploration.md`](./04-split-classify-strategy-exploration.md) (P9/F6) — see Decision E amendment; implementation is a **follow-on** after DQ-0702 Phase 1 skeleton.
 
 ---
 
@@ -580,10 +580,11 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 | `QueueId`                                           | UUID    |                                      |
 | `BatchId`                                           | UUID?   |                                      |
 | `SourceEnumId`                                      | bigint  | FK → CorEnum (`intake_source`: `api` |
-| `IntakeHintsJson`                                   | json?   | Optional caller hints: documentCount + documentTypeKey; skip split/classify only when type + pageCount=1 |
+| `IntakeHintsJson`                                   | json?   | Optional caller hints: `documentTypeKey` (optional `documentCount` audit). Skip **both** split+classify only when type + measured `pageCount==1`. Type alone → skip classify; multi-page always splits. Caller does not send page count. |
 | `PublicStatusEnumId`                                | bigint  | FK → CorEnum (`file_public_status`)  |
 | `InternalStageEnumId`                               | bigint? | FK → CorEnum (`file_internal_stage`) |
 | Storage / email / reprocess / error / cancel fields |         | As previously specified              |
+| `DownloadUrl` / `DownloadUrlExpiresAt`              | string? / datetime? | Cached signed URL to this File’s **original upload** PDF; refresh when expired. File detail embeds child Documents (each Document URL only if that Document’s PDF exists). |
 | *(soft-delete + RowVersion)*                        |         |                                      |
 
 
@@ -608,6 +609,7 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 | `PublicStatusEnumId`                              | bigint  | FK → CorEnum (`document_public_status`)  |
 | `InternalStageEnumId`                             | bigint? | FK → CorEnum (`document_internal_stage`) |
 | SchemaVersion / slice / ResultJson / webhook meta |         | As previously specified                  |
+| `DownloadUrl` / `DownloadUrlExpiresAt`            | string? / datetime? | Cached signed URL to this **Document’s own PDF** (materialized slice), **only after** that PDF exists. **Never** fall back to parent File URL — omit/null until generated. Refresh when expired. |
 | *(soft-delete + RowVersion)*                      |         |                                          |
 
 
@@ -761,7 +763,7 @@ Product/runtime invariants to enforce in handlers + workers (tests preferred).
 | V10 | Reprocess → new File                                                                              |
 | V11 | IntakeRejection when no File                                                                      |
 | V12 | Mode 1: no customer provider picker                                                               |
-| V13 | Non-API Document webhook may include original file                                                |
+| V13 | File detail: original PDF URL; Document detail/webhook: Document PDF URL **only when materialized** (no parent-File fallback); cache + refresh |
 | V14 | DTOs only on HTTP                                                                                 |
 | V15 | **Business** isolation only on work rows; tenant via CorTenantBusiness                            |
 | V16 | Default queries exclude `IsDeleted`                                                               |
@@ -809,42 +811,51 @@ Product/runtime invariants to enforce in handlers + workers (tests preferred).
 
 ```text
 Client POST /api/v1/.../files (N files) + queue_id
-  [optional per-file intake hints: documentCount, documentTypeKey(s)]
+  [optional per-file intake hints: documentTypeKey; documentCount audit-only if present]
   → Auth (F2 API key / later Iden M2M)
   → If N≥2: create Batch (log)
   → Store each blob; create Files; lock routing if first
   → Enqueue each File (return 202 + batch_id? + file_ids)
-  → Worker: normalize/OCR (records pageCount)
-       → if documentTypeKey AND pageCount==1: skip split+classify → one Document of that type → route
-       → else: split → classify (stamp type hint if present) → route → Documents
-  → Per Document: extract → validate → post-process → Ready
-  → Per Document: webhook attempt
-  → Client poll GetDocument / list filters
+  → Worker: normalize/OCR (records measured pageCount; real per-page artifacts for P9)
+       → if documentTypeKey AND pageCount==1: skip split+classify → one Document of that type → route → extract
+       → else:
+            page intelligence (T1 cheap model; fallback model on unrecognized/ambiguous)
+            → app grouping with identity anchors (P9) + observability artifacts
+            → if unresolved: Document/File Failed (no forced cut)
+            → classify after group:
+                 C1 if single QueueRoute type
+                 else if documentTypeKey: stamp hint (skip classify LLM)
+                 else: intelligence type ∈ QueueRoute else Failed unroutable_type
+            → route → persist S3-hybrid text+layout slices
+            → extract (separate model; never combined with intelligence)
+  → Per Document: validate → post-process → Ready
+  → Per Document: webhook attempt; include Document PDF signed URL **only if** Document PDF materialized (else omit); never parent-File URL as Document URL
+  → Client poll GetDocument / GetFile (File embeds full Documents; Document URLs null until PDF exists)
 ```
 
-### Intake hints (optional — skip split/classify only for type + one page)
+### Intake hints (optional)
 
-Partners often already know what they uploaded. External upload may supply **optional per-File hints**:
+Partners may already know the DocumentType. External upload may supply **optional per-File hints**:
 
 | Hint | Meaning |
 |------|---------|
-| `documentCount` | How many logical Documents are in this File (`≥ 1`) |
-| `documentTypeKey` / `documentTypeKeys` | Platform DocumentType key(s) for those Documents |
+| `documentTypeKey` | Platform DocumentType key — **assertion**, not OCR truth |
+| `documentCount` | Optional audit only if ever sent; **does not** skip split; callers are not expected to send page count |
 
-**Rules (locked for plan):**
+**Rules (locked — aligned with Plan 04, 2026-09-15):**
 
-1. **No `documentTypeKey`** → full pipeline after normalize: **split → classify → route** (E3 default for PDFs; images/text usually 1 doc via classifier/heuristics).
+1. **No `documentTypeKey`** → full pipeline after normalize: **split (P9) → classify → route**. Classify uses intelligence `documentType` constrained to QueueRoute; still unclear after fallback → Failed `unroutable_type`. **C1:** if Queue has exactly one route type, stamp it after grouping.
 2. **Skip split and classify** only when **both** are true:
    - caller sent `documentTypeKey`, **and**
-   - normalize `pageCount == 1` (images/text; single-page PDF).
-   Then create **one** Document of that type; **still route** via QueueRoute → extract.
-3. **`documentTypeKey` + `pageCount > 1`** → **do not skip split**. The File may hold several documents of the same type. Classify still uses the type hint on whatever Documents split produces (real page split later; Phase 1 placeholder remains one Document spanning the File).
-4. `documentCount` is an audit/hint field. It does **not** skip split by itself, and type-only is not a single-document guarantee.
+   - normalize measured `pageCount == 1`.
+   Then create **one** Document of that type; **still route** via QueueRoute → extract (separate model).
+3. **`documentTypeKey` + `pageCount > 1`** → **always run split**; **skip classify** (stamp the hint on every group). One type ≠ one document.
+4. Caller does **not** send page count — Core measures it from normalize/OCR.
 5. Unknown `documentTypeKey` → 400 at upload, or Document **Failed** `unroutable_type` in the worker, not silent ignore.
-6. Hints are **caller assertions**, not OCR truth — persist on File for audit (`IntakeHintsJson`).
-7. Sync-wait (Decision B) still **single Document only**; `documentCount > 1` on sync-wait → fail.
+6. Hints are **caller assertions** — persist on File for audit (`IntakeHintsJson`).
+7. Sync-wait (Decision B) still **single Document only**; multi-doc packs use async. Sync must not run the full intelligence escalation ladder.
 
-This does **not** remove E3 as the default when callers omit hints.
+This does **not** remove E3/P9 as the default when callers omit hints.
 
 
 
@@ -867,7 +878,7 @@ SMTP/inbound → gates → intake decision agent
   → reject: IntakeRejection
   → accept targets: Files (+ Batch if ≥2)
   → same worker pipeline
-  → document webhooks include original_file
+  → document webhooks include Document PDF URL only when materialized (omit otherwise)
 ```
 
 
@@ -895,7 +906,7 @@ Reprocess → new File from same bytes → new Documents → new webhooks
 **Recommendation:** **D3** stub in early waves, then **D1** before “sell email hard”.  
 **Status:** Pending.
 
-### Decision Required — E: Split/classify Phase 1 quality bar
+### Decision Required — E: Split/classify quality bar
 
 
 | Option | Idea                                                                       |
@@ -906,8 +917,30 @@ Reprocess → new File from same bytes → new Documents → new webhooks
 
 
 **Recommendation:** **E3** for PDFs/Office; **1 doc** for single images/plain text unless classifier says otherwise.  
-**Status:** **DECIDED E3**, amended **2026-08-04** with **optional caller intake hints**.  
-**Amendment:** E3 remains the **default** when the File is multi-page or the caller omits `documentTypeKey`. Skip split+classify **only** when `documentTypeKey` is set **and** normalize `pageCount == 1`. Type-only on a multi-page File does **not** skip split (same type may appear more than once). See Flow 1 § Intake hints. Deeper classify/split strategy: **[`04-split-classify-strategy-exploration.md`](./04-split-classify-strategy-exploration.md)**.
+**Status:** **DECIDED E3**, amended **2026-08-04** (intake hints), **2026-08-18** (type + 1 page skip), **2026-09-15** (Plan 04 technique lock).
+
+**Amendment 2026-09-15 — real split technique (from Plan 04):**
+
+| Topic | Locked |
+|-------|--------|
+| Engine | **P9 + F6** — page intelligence → app grouping with identity **anchors** → escalate on ambiguity. P6-as-primary **rejected**. P2 blank/page-of = supporting only. |
+| Build staging | (1) real per-page OCR + intelligence schema → (2) P8-equivalent grouping → (3) P9 anchors / app confidence / tiers / `evidence[]` |
+| Models | **Two roles always:** intelligence (T1 cheap) ≠ extract. Unrecognized/ambiguous page → **admin-configured fallback** model (page or local 3-page window). Extract uses its own model. Never combine identification + `documentData` in one call. |
+| Admin config | Backoffice/system settings: provider/model **and fallback** per pipeline step (Mode 1; not partner-facing). |
+| C1 | If QueueRoute has exactly one type → stamp after grouping (no classify LLM). |
+| Unresolved | **Failed** — never force a cut. |
+| Anchor reset | Close active doc on: blank page; new primary identity; printed sequence restart; **N=2** pages with no continuation evidence → Failed/unresolved. |
+| Classify timing | **After grouping**; never merge consecutive same-type pages as the splitter (F2 rejected). |
+| No-hint classify | Intelligence `documentType` ∈ QueueRoute; else Failed `unroutable_type` after fallback. |
+| Storage | **S3 hybrid** text+layout + **per-Document PDF** when split produces groups. File URL = original upload. **Document URL = Document PDF only** — omit until that PDF is generated (**no** parent-File fallback). Cache URL+expiry; refresh after expiry. |
+| Observability | Persist page profiles, anchors, signals, model tier, escalation reason, grouping decisions, failure codes (artifacts + WorkEvent summaries; no bulk OCR in WorkEvents). |
+| Caps | Per-File intelligence call / escalation caps (fail fast on poison files). |
+| Sync | Single-Document only; do not run full escalation ladder on sync-wait. |
+
+**Hint rules:** unchanged Case A (type + measured 1 page skips both); type + multi-page → split always, skip classify. See Flow 1.  
+**Source of truth for technique detail:** [`04-split-classify-strategy-exploration.md`](./04-split-classify-strategy-exploration.md).  
+**Plain-language + flowcharts:** [`04-split-classify-explained.md`](./04-split-classify-explained.md).  
+**DQ-0702** remains the Phase 1 **skeleton** (deferred no-ops). **Real P9** ships via follow-on DQ(s) after this amendment is Phase-3 queued — do not invent technique inside an ad-hoc DQ.
 
 ---
 
@@ -924,6 +957,9 @@ Reprocess → new File from same bytes → new Documents → new webhooks
 3. Prefer feature slices: External upload → Core worker stub → poll → real OCR/LLM → webhook → sync wait → email → web UI.
 4. Platform post-processing tools via **internal MCP** only after extract path works end-to-end.
 5. Guided-clone Agent templates: ship ≥1 invoice template before general schema builder polish.
+6. **Real split (P9):** do not invent technique in a DQ — follow Decision E / Plan 04. Prerequisites: real per-page OCR, admin model settings (intelligence T1 + fallback + extract), then grouping → anchors/escalation → observability.
+7. **Identification ≠ extract** — never merge page intelligence and Agent `documentData` into one LLM call.
+8. Boundary grouping is a **pure function** (profiles → groups); persist full signal/anchor audit for ops.
 
 
 
@@ -970,9 +1006,17 @@ Numeric choice after B (e.g. 60 vs 120). Record with B.
 3. Queue/agent/File/Document access: users with access to that **Business** (Phase 1: any authenticated user for that Business can configure — finer RBAC later).
 4. Email address = capability secret; unguessable; rotate supported; allowlist model present, enforce before hard sell.
 5. Webhook HTTPS + shared secret (HMAC) required for production queues.
-6. Original files in object storage with **business-prefixed** keys; signed download URLs for non-API webhook file refs.
+6. **PDF download URLs (locked 2026-09-15, amended same day):**  
+   - Persist cached signed URL + expiry on **File** (original upload) and on **Document** (**Document’s own PDF** only).  
+   - **Refresh** when missing or expired (~30 min pre-sign unless config changes).  
+   - **Document URL rule:** return a Document download URL **only after** that Document’s PDF has been properly generated and stored. **Do not** substitute the parent File URL. Until then: `null` / omit on API and webhook.  
+   - **File URL:** always the original upload object (when present).  
+   - **Webhook** `document.terminal`: include Document PDF URL only when materialized; File meta may still list original name/size without pretending it is the Document PDF.  
+   - **External `GET` Document:** include `download_url` only when Document PDF exists (refresh if needed).  
+   - **External `GET` File:** File `download_url` (original) + list of **full Document objects**; each Document follows the Document URL rule above.  
+   - Do not log full signed URLs in WorkEvents by default.
 7. Provider credentials (Mode 1) only in server secret store — never to browser.
-8. Sync wait: same authz as async upload on that queue.
+8. Sync wait: same authz as async upload on that queue; sync response Documents include download URLs when present.
 9. Do not log full document PII in events by default; store refs + error codes.
 
 ### Object storage (Phase 1 continuity with `old_code`)
@@ -1087,15 +1131,29 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 ### Wave 4 — Core pipeline (Mode 1)
 
 - Normalize/OCR adapter(s).
-- Split/classify/route (Decision E).
+- Split/classify/route skeleton (Decision E / DQ-0702 Phase 1 — Case A skip; deferred no-ops otherwise).
 - Extract via Documate meta-provider (wrap ≥1 real LLM + optional Textract/Google as available).
 - Schema validation → Ready/Failed.
+
+### Wave 4b — Real multi-doc split (Plan 04 follow-on — after Phase 1 skeleton)
+
+File as new DQ band after this amendment is approved for Phase 3 numbering:
+
+1. Real **per-page** OCR artifacts (`normalize.page.{n}.*`) — prerequisite.  
+2. Admin/system settings: model + fallback per step (intelligence T1, intelligence fallback, extract).  
+3. Page intelligence schema + T1/fallback calls; persist `intelligence.page.{n}.json`.  
+4. App boundary engine (anchors, reset rules, C1, type-hint stamp, no-hint classify); S3-hybrid **text+layout** slices.  
+5. **Per-Document PDF** materialization for each group; Document `DownloadUrl` only after PDF exists (**no** parent-File fallback).  
+6. Observability WorkEvents + ops visibility for signals/failures.  
+7. Extract remains a **separate** step/model on grouped slices.  
+8. Wire File/Document detail + webhook URL surfaces (File embeds Documents).
 
 
 
 ### Wave 5 — Delivery
 
 - Per-document webhook dispatcher + metadata.
+- **Download URLs:** File = original upload; Document = Document PDF only (omit until generated); cache+refresh; File detail embeds full Documents.
 - Sync wait API (Decisions B/C/G).
 - Cancel file/document; reprocess → new File.
 
@@ -1112,7 +1170,8 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 
 - Intake decision agent + gates.
 - Real or stub inbound per Decision D.
-- Document webhooks include `original_file`.
+- Document webhooks / detail: Document PDF URL only when materialized (never parent-File fallback).
+- External File detail: original File URL + embedded Documents.
 
 
 
@@ -1198,7 +1257,7 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 | B   | Sync timeout policy     | B1 60s / B2 120s / B3 client cap                                               | B1     |
 | C   | Sync webhooks           | C1 fire / C2 suppress / C3 flag                                                | C1     |
 | D   | Email inbound           | D1 provider webhook / D2 IMAP / D3 stub first                                  | D3→D1  |
-| E   | Split/classify bar      | E3 default PDF multi-doc; skip split+classify only if type **and** 1 page      | **E3 + hints** |
+| E   | Split/classify bar      | E3 + hints + **P9/F6** (Plan 04, 2026-09-15); DQ-0702 skeleton done; Wave 4b follow-on | **E3 + P9/F6** |
 | F   | External auth interim   | F1 user token / F2 tenant API keys / F3 wait M2M                               | **F2 bridge** → retire Band 15 (after Phase 1) |
 | G   | Exact timeout seconds   | with B                                                                         | 60     |
 | H   | Tenant persistence      | **DECIDED H1** — CorTenant + CorTenantBusiness (product extension; Iden = SoT) | H1     |
@@ -1232,7 +1291,7 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 
 | Risk                                   | Mitigation                                                       |
 | -------------------------------------- | ---------------------------------------------------------------- |
-| Split/classify quality poor            | Clear Failed codes; PartialReady; reprocess; E decision honesty  |
+| Split/classify quality poor            | P9 Failed not forced cuts; observability; reprocess; E honesty |
 | Sync timeouts frustrate UI             | Short docs; always return poll ids; keep async primary for packs |
 | Provider cost from email abuse         | Gates + unguessable address; allowlist before hard sell          |
 | Scope creep into Mode 2 / chatbots     | Explicit out of scope; refuse in DQs                             |
@@ -1294,5 +1353,8 @@ Select a DQ item to implement (do not code until selected).
 | 2026-08-18 | **DQ-0901:** External sync-wait extract (60s, single Document, no webhook). |
 | 2026-08-28 | **Decision K1:** keep Queue + QueueRoute; default Queue on Business create (`IsDefault`); Agent create/clone auto-route when single Queue; Phase 1 UI = default channel id on Business; reject typed Queue. |
 | 2026-08-28 | **DQ-0304 / DQ-0204 executed:** `IsDefault` + bootstrap + `me.defaultQueueId`; Agent auto QueueRoute. |
+| 2026-09-15 | **Decision E amended (Plan 04):** lock **P9/F6** real split — dual models + admin fallback, C1, Failed unresolved, anchor reset N=2, classify after group, type skips classify only, always-separate extract, S3 text+layout + original File for webhooks, full observability. Flow 1 / intake hints / Wave **4b** updated. Phase 3 follow-on DQ pending approval. |
+| 2026-09-15 | **Source PDF URLs locked:** webhook + External Document/File detail return signed download URL; File detail embeds full Documents with URLs; cache `DownloadUrl` + `DownloadUrlExpiresAt` on Document/File; refresh after expiry to limit object-store sign calls. |
+| 2026-09-15 | **Document URL amended:** Document download URL **only** after Document PDF generated; **no** parent-File fallback (omit/null until then). File URL remains original upload. Wave 4b requires per-Document PDF materialization. |
 
 

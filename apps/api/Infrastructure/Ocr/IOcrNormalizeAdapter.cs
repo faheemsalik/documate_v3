@@ -20,4 +20,12 @@ public sealed record NormalizeResult(
     int PageCount,
     string TextArtifactKey,
     string LayoutArtifactKey,
-    string? StorageBucket);
+    string? StorageBucket,
+    IReadOnlyList<NormalizePageArtifactRef> PageArtifacts);
+
+/// <summary>Per-page normalize artifacts for P9 (DQ-0705).</summary>
+public sealed record NormalizePageArtifactRef(
+    int Page,
+    string TextArtifactKey,
+    string LayoutArtifactKey,
+    bool IsBlank);

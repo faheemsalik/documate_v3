@@ -16,6 +16,9 @@ public sealed class CorEnumSeedHostedService(
         var map = await CorEnumIdResolver.LoadMapAsync(db, cancellationToken);
         resolver.ReplaceAll(map);
         await PlatformCatalogSeeder.SeedAsync(db, resolver, cancellationToken);
+        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        await Documate.Api.Infrastructure.Settings.SystemSettingsSeeder.SeedMissingAsync(db, config, cancellationToken);
+        scope.ServiceProvider.GetRequiredService<Documate.Api.Infrastructure.Settings.ISystemSettings>().Invalidate();
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

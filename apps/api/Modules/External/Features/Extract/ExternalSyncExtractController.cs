@@ -1,17 +1,16 @@
 namespace Documate.Api.Modules.External.Features.Extract;
 
 using Documate.Api.Infrastructure.Auth;
-using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Ocr;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Pipeline;
+using Documate.Api.Infrastructure.Settings;
 using Documate.Api.Infrastructure.Work;
 using Documate.Api.Modules.External.Features.Documents;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 /// <summary>
 /// External sync-wait extract (DQ-0901). Single file / single Document; wait terminal or 60s; no webhook (C2).
@@ -81,10 +80,12 @@ public sealed class SyncExtractHandler(
     IBusinessContext business,
     ICorEnumIdResolver enums,
     DocumateDbContext db,
-    IOptions<PipelineOptions> pipeline) : IRequestHandler<SyncExtractCommand, SyncExtractOutcome>
+    Documate.Api.Infrastructure.Storage.ISignedDownloadUrlService signedUrls,
+    IPipelineSyncSettings pipelineSync) : IRequestHandler<SyncExtractCommand, SyncExtractOutcome>
 {
     public async Task<SyncExtractOutcome> Handle(SyncExtractCommand request, CancellationToken cancellationToken)
     {
+        var pipeline = pipelineSync.Current;
         _ = await db.OpsQueues.AsNoTracking().FirstOrDefaultAsync(
                 q => q.Id == request.QueueId && q.BusinessId == business.BusinessId && !q.IsDeleted,
                 cancellationToken)
@@ -108,8 +109,8 @@ public sealed class SyncExtractHandler(
 
         SyncExtractGates.EnsureWithinLimits(
             request.File,
-            pipeline.Value.SyncMaxPages,
-            pipeline.Value.SyncMaxBytes);
+            pipeline.SyncMaxPages,
+            pipeline.SyncMaxBytes);
 
         var sourceId = enums.Require("intake_source", "api_sync");
         var hintsJson = IntakeHints.Serialize(request.DocumentTypeKey, request.DocumentCount);
@@ -131,7 +132,7 @@ public sealed class SyncExtractHandler(
             new FileWorkItem(file.Id, business.BusinessId, business.UserId),
             cancellationToken);
 
-        var timeout = TimeSpan.FromSeconds(Math.Clamp(pipeline.Value.SyncWaitTimeoutSeconds, 1, 120));
+        var timeout = TimeSpan.FromSeconds(Math.Clamp(pipeline.SyncWaitTimeoutSeconds, 1, 120));
         var timedOut = !await WaitForTerminalAsync(file.Id, timeout, cancellationToken);
         var snapshot = await LoadSnapshotAsync(file.Id, cancellationToken);
 
@@ -202,10 +203,14 @@ public sealed class SyncExtractHandler(
             .Select(e => e.EnumKey)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var docs = await db.OpsDocuments.AsNoTracking()
+        var docs = await db.OpsDocuments
             .Where(d => d.FileId == fileId && d.BusinessId == business.BusinessId && !d.IsDeleted)
             .OrderBy(d => d.SequenceId)
             .ToListAsync(cancellationToken);
+        foreach (var doc in docs)
+        {
+            await signedUrls.RefreshDocumentAsync(doc, cancellationToken);
+        }
 
         var mapped = await ListExternalDocumentsHandler.MapAsync(db, docs, cancellationToken);
         return (fileStatus, mapped);

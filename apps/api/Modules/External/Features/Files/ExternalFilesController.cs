@@ -2,7 +2,9 @@ namespace Documate.Api.Modules.External.Features.Files;
 
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Persistence;
+using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Work;
+using Documate.Api.Modules.External.Features.Documents;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -81,7 +83,14 @@ public sealed record ExternalFileDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt,
     int DocumentCount,
-    Guid? ReprocessOfFileId = null);
+    Guid? ReprocessOfFileId = null,
+    string? EmailFrom = null,
+    string? EmailSubject = null,
+    string? EmailMessageId = null,
+    string? EmailIntakeJson = null,
+    string? DownloadUrl = null,
+    DateTimeOffset? DownloadUrlExpiresAt = null,
+    IReadOnlyList<ExternalDocumentDto>? Documents = null);
 
 public sealed record ListExternalFilesQuery(
     Guid QueueId,
@@ -143,12 +152,15 @@ public sealed class ListExternalFilesHandler(DocumateDbContext db, IBusinessCont
     }
 }
 
-public sealed class GetExternalFileHandler(DocumateDbContext db, IBusinessContext business)
+public sealed class GetExternalFileHandler(
+    DocumateDbContext db,
+    IBusinessContext business,
+    ISignedDownloadUrlService signedUrls)
     : IRequestHandler<GetExternalFileQuery, ExternalFileDto?>
 {
     public async Task<ExternalFileDto?> Handle(GetExternalFileQuery request, CancellationToken cancellationToken)
     {
-        var file = await db.OpsFiles.AsNoTracking().FirstOrDefaultAsync(
+        var file = await db.OpsFiles.FirstOrDefaultAsync(
             f => f.Id == request.FileId && f.BusinessId == business.BusinessId && !f.IsDeleted,
             cancellationToken);
         if (file is null)
@@ -156,7 +168,19 @@ public sealed class GetExternalFileHandler(DocumateDbContext db, IBusinessContex
             return null;
         }
 
-        var list = await ExternalFileDtoMapping.MapManyAsync(db, [file], cancellationToken);
+        await signedUrls.RefreshFileAsync(file, cancellationToken);
+        var docs = await db.OpsDocuments
+            .Where(d => d.FileId == file.Id && d.BusinessId == business.BusinessId && !d.IsDeleted)
+            .OrderBy(d => d.SequenceId)
+            .ToListAsync(cancellationToken);
+        foreach (var doc in docs)
+        {
+            await signedUrls.RefreshDocumentAsync(doc, cancellationToken);
+        }
+
+        var mappedDocs = await ListExternalDocumentsHandler.MapAsync(db, docs, cancellationToken);
+        var documents = new Dictionary<Guid, IReadOnlyList<ExternalDocumentDto>> { [file.Id] = mappedDocs };
+        var list = await ExternalFileDtoMapping.MapManyAsync(db, [file], cancellationToken, documents);
         return list.FirstOrDefault();
     }
 }
@@ -210,7 +234,8 @@ file static class ExternalFileDtoMapping
     public static async Task<IReadOnlyList<ExternalFileDto>> MapManyAsync(
         DocumateDbContext db,
         IReadOnlyList<Domain.OpsFile> files,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<Guid, IReadOnlyList<ExternalDocumentDto>>? documents = null)
     {
         if (files.Count == 0)
         {
@@ -243,6 +268,8 @@ file static class ExternalFileDtoMapping
             }
 
             docCounts.TryGetValue(f.Id, out var count);
+            IReadOnlyList<ExternalDocumentDto>? fileDocuments = null;
+            documents?.TryGetValue(f.Id, out fileDocuments);
             return new ExternalFileDto(
                 f.Id,
                 f.QueueId,
@@ -255,7 +282,14 @@ file static class ExternalFileDtoMapping
                 f.CreatedAt,
                 f.CompletedAt,
                 count,
-                f.ReprocessOfFileId);
+                f.ReprocessOfFileId,
+                f.EmailFrom,
+                f.EmailSubject,
+                f.EmailMessageId,
+                f.EmailIntakeJson,
+                f.DownloadUrl,
+                f.DownloadUrlExpiresAt,
+                fileDocuments);
         }).ToList();
     }
 }

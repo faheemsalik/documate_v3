@@ -7,8 +7,8 @@ using Documate.Api.Infrastructure.Storage;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// Real OCR/normalize (DQ-0704): text passthrough, then primary→secondary OCR with artifact writes.
-/// Default order: Textract → Google Document AI. Fallback on API failure or empty/low-quality text.
+/// Real OCR/normalize (DQ-0704/0705): text passthrough, primary→secondary OCR,
+/// file-level + per-page artifacts (`normalize.page.{n}.*`).
 /// </summary>
 public sealed class Mode1OcrNormalizeAdapter(
     IObjectStorage storage,
@@ -51,7 +51,7 @@ public sealed class Mode1OcrNormalizeAdapter(
                 text,
                 1,
                 "passthrough_text",
-                [new OcrPageText(1, text)]);
+                [new OcrPageText(1, text, string.IsNullOrWhiteSpace(text))]);
         }
         else
         {
@@ -66,15 +66,20 @@ public sealed class Mode1OcrNormalizeAdapter(
                 cancellationToken);
         }
 
+        var pages = ocr.Pages.Count > 0
+            ? ocr.Pages
+            : [new OcrPageText(1, ocr.Text, string.IsNullOrWhiteSpace(ocr.Text))];
+        var pageCount = Math.Max(1, pages.Count);
+
         var layout = new
         {
             providerKey = ocr.ProviderKey,
             mode = ocr.Mode,
-            pageCount = ocr.PageCount,
+            pageCount,
             sourceContentType = request.ContentType,
             originalFileName = request.OriginalFileName,
             fileId = request.FileId,
-            pages = ocr.Pages.Select(p => new { page = p.Page, text = p.Text }).ToArray(),
+            pages = pages.Select(p => new { page = p.Page, text = p.Text, isBlank = p.IsBlank }).ToArray(),
         };
 
         var textKey = storage.BuildArtifactKey(request.StorageKey, "normalize.text.txt");
@@ -116,15 +121,76 @@ public sealed class Mode1OcrNormalizeAdapter(
                 cancellationToken);
         }
 
+        var pageArtifacts = new List<NormalizePageArtifactRef>(pages.Count);
+        foreach (var page in pages)
+        {
+            var pageTextName = $"normalize.page.{page.Page}.text.txt";
+            var pageLayoutName = $"normalize.page.{page.Page}.layout.json";
+            var pageTextKey = storage.BuildArtifactKey(request.StorageKey, pageTextName);
+            var pageLayoutKey = storage.BuildArtifactKey(request.StorageKey, pageLayoutName);
+
+            var pageLayout = new
+            {
+                providerKey = ocr.ProviderKey,
+                mode = ocr.Mode,
+                page = page.Page,
+                pageCount,
+                isBlank = page.IsBlank,
+                fileId = request.FileId,
+                text = page.Text,
+            };
+
+            var pageTextBytes = Encoding.UTF8.GetBytes(page.Text ?? "");
+            await using (var pageTextStream = new MemoryStream(pageTextBytes))
+            {
+                await storage.UploadAsync(
+                    new ObjectStoragePutRequest(
+                        bucket,
+                        pageTextKey,
+                        pageTextStream,
+                        "text/plain; charset=utf-8",
+                        new Dictionary<string, string>
+                        {
+                            ["FileId"] = request.FileId.ToString(),
+                            ["Artifact"] = "normalize.page.text",
+                            ["Page"] = page.Page.ToString(),
+                            ["ProviderKey"] = ocr.ProviderKey,
+                        }),
+                    cancellationToken);
+            }
+
+            var pageLayoutBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(pageLayout, JsonOptions));
+            await using (var pageLayoutStream = new MemoryStream(pageLayoutBytes))
+            {
+                await storage.UploadAsync(
+                    new ObjectStoragePutRequest(
+                        bucket,
+                        pageLayoutKey,
+                        pageLayoutStream,
+                        "application/json",
+                        new Dictionary<string, string>
+                        {
+                            ["FileId"] = request.FileId.ToString(),
+                            ["Artifact"] = "normalize.page.layout",
+                            ["Page"] = page.Page.ToString(),
+                            ["ProviderKey"] = ocr.ProviderKey,
+                        }),
+                    cancellationToken);
+            }
+
+            pageArtifacts.Add(new NormalizePageArtifactRef(page.Page, pageTextKey, pageLayoutKey, page.IsBlank));
+        }
+
         logger.LogInformation(
-            "Normalized File {FileId} via {ProviderKey} ({Mode}); pages={PageCount}; text={TextKey}",
+            "Normalized File {FileId} via {ProviderKey} ({Mode}); pages={PageCount}; text={TextKey}; pageArtifacts={PageArtifactCount}",
             request.FileId,
             ocr.ProviderKey,
             ocr.Mode,
-            ocr.PageCount,
-            textKey);
+            pageCount,
+            textKey,
+            pageArtifacts.Count);
 
-        return new NormalizeResult(ocr.ProviderKey, ocr.PageCount, textKey, layoutKey, bucket);
+        return new NormalizeResult(ocr.ProviderKey, pageCount, textKey, layoutKey, bucket, pageArtifacts);
     }
 
     private async Task<OcrEngineResult> RecognizeWithFallbackAsync(

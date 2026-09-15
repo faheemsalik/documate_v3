@@ -17,7 +17,8 @@
         <p-tab value="0">General</p-tab>
         <p-tab value="1">Schema</p-tab>
         <p-tab value="2">Post-process</p-tab>
-        <p-tab value="3">Test</p-tab>
+        <p-tab value="3">Intake email</p-tab>
+        <p-tab value="4">Test</p-tab>
       </p-tablist>
       <p-tabpanels>
         <p-tabpanel value="0">
@@ -73,6 +74,61 @@
           </div>
         </p-tabpanel>
         <p-tabpanel value="3">
+          <div class="form-grid">
+            @if (typedMailbox(); as mb) {
+              <p class="hint full">Partners forward invoices (and similar) to this address for this agent.</p>
+              <label class="full">Address<input pInputText [ngModel]="mb.emailAddress" [readonly]="true" /></label>
+              <label class="checkbox-row">
+                <p-checkbox [(ngModel)]="mailboxEnabled" [binary]="true" (ngModelChange)="saveMailboxEnabled()" />
+                Enabled
+              </label>
+              <div class="row full">
+                <p-button label="Copy address" (onClick)="copyMailboxAddress()" severity="secondary" />
+                <p-button label="Rotate address" (onClick)="rotateMailbox()" severity="secondary" />
+              </div>
+              <p class="hint full">
+                Set allowlist to <strong>enforced</strong> before treating email as production-hard.
+              </p>
+              <div class="row full">
+                <p-select
+                  [options]="allowlistModes()"
+                  [(ngModel)]="mailboxAllowlistModeEnumId"
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Allowlist mode"
+                />
+                <p-button label="Save mode" (onClick)="saveMailboxAllowlistMode()" severity="secondary" />
+              </div>
+              <div class="row full">
+                <p-select
+                  [options]="[{ label: 'Email', value: 'email' }, { label: 'Domain', value: 'domain' }]"
+                  [(ngModel)]="mailboxAllowlistMatchType"
+                  optionLabel="label"
+                  optionValue="value"
+                />
+                <input pInputText [(ngModel)]="mailboxAllowlistValue" placeholder="value@example.com" />
+                <p-button label="Add" (onClick)="addMailboxAllowlist()" />
+              </div>
+              <ul class="full">
+                @for (entry of mailboxAllowlist(); track entry.id) {
+                  <li class="row">
+                    <span>{{ entry.matchTypeKey }}: {{ entry.value }}</span>
+                    <p-button
+                      icon="pi pi-trash"
+                      [text]="true"
+                      severity="danger"
+                      (onClick)="removeMailboxAllowlist(entry.id)"
+                    />
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="hint full">Create a specialized intake email for this agent (typed inbox on docsintake.com).</p>
+              <p-button label="Create intake email" (onClick)="createTypedMailbox()" [loading]="mailboxBusy()" />
+            }
+          </div>
+        </p-tabpanel>
+        <p-tabpanel value="4">
           <app-agent-test-runner [agent]="a" />
         </p-tabpanel>
       </p-tabpanels>

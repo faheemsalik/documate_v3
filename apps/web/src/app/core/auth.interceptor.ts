@@ -10,11 +10,13 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  return next(
-    req.clone({
-      setHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
-    }),
-  );
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+  };
+  const businessId = auth.getBusinessId();
+  if (businessId) {
+    headers['X-Business-Id'] = businessId;
+  }
+
+  return next(req.clone({ setHeaders: headers }));
 };

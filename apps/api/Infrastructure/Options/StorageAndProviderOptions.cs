@@ -18,7 +18,7 @@ public sealed class StorageOptions
 
     public int SignedUrlMinutes { get; set; } = 30;
 
-    /// <summary>Secret via env/user-secrets — never commit real values. Prefer IAM role in AWS.</summary>
+    /// <summary>Optional override. Prefer shared <c>Aws:AccessKey</c>/<c>SecretKey</c> (or IAM role).</summary>
     public string? AccessKey { get; set; }
     public string? SecretKey { get; set; }
 }

@@ -12,6 +12,12 @@ public interface IBusinessContext
     bool IsAuthenticated { get; }
 }
 
+/// <summary>Allows Hangfire/SES workers to run under a Business without HTTP claims.</summary>
+public interface IBusinessContextSetter
+{
+    IDisposable Use(BusinessContext context);
+}
+
 public sealed class BusinessContext : IBusinessContext
 {
     public string UserId { get; init; } = "";
@@ -42,14 +48,36 @@ public sealed class BusinessContext : IBusinessContext
     }
 }
 
-public sealed class BusinessContextAccessor(IHttpContextAccessor httpContextAccessor) : IBusinessContext
+public sealed class BusinessContextAccessor(IHttpContextAccessor httpContextAccessor)
+    : IBusinessContext, IBusinessContextSetter
 {
-    private BusinessContext Current => BusinessContext.FromPrincipal(httpContextAccessor.HttpContext?.User);
+    private static readonly AsyncLocal<BusinessContext?> Override = new();
+
+    private BusinessContext Current =>
+        Override.Value ?? BusinessContext.FromPrincipal(httpContextAccessor.HttpContext?.User);
 
     public string UserId => Current.UserId;
     public string TenantId => Current.TenantId;
     public string BusinessId => Current.BusinessId;
     public string? TenantName => Current.TenantName;
     public string? BusinessName => Current.BusinessName;
-    public bool IsAuthenticated => Current.IsAuthenticated;
+    public bool IsAuthenticated => Current.IsAuthenticated || Override.Value is not null;
+
+    public IDisposable Use(BusinessContext context)
+    {
+        var previous = Override.Value;
+        Override.Value = context;
+        return new Restore(() => Override.Value = previous);
+    }
+
+    private sealed class Restore(Action restore) : IDisposable
+    {
+        private Action? _restore = restore;
+
+        public void Dispose()
+        {
+            var action = Interlocked.Exchange(ref _restore, null);
+            action?.Invoke();
+        }
+    }
 }

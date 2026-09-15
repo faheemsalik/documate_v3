@@ -2,6 +2,7 @@ namespace Documate.Api.Modules.External.Features.Documents;
 
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Persistence;
+using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Work;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -71,7 +72,9 @@ public sealed record ExternalDocumentDto(
     int WebhookAttempts,
     int? WebhookLastHttpStatus,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    string? DownloadUrl = null,
+    DateTimeOffset? DownloadUrlExpiresAt = null);
 
 public sealed record ListExternalDocumentsQuery(
     Guid QueueId,
@@ -210,17 +213,22 @@ public sealed class ListExternalDocumentsHandler(DocumateDbContext db, IBusiness
                 d.WebhookAttempts,
                 d.WebhookLastHttpStatus,
                 d.CreatedAt,
-                d.CompletedAt);
+                d.CompletedAt,
+                d.DownloadUrl,
+                d.DownloadUrlExpiresAt);
         }).ToList();
     }
 }
 
-public sealed class GetExternalDocumentHandler(DocumateDbContext db, IBusinessContext business)
+public sealed class GetExternalDocumentHandler(
+    DocumateDbContext db,
+    IBusinessContext business,
+    ISignedDownloadUrlService signedUrls)
     : IRequestHandler<GetExternalDocumentQuery, ExternalDocumentDto?>
 {
     public async Task<ExternalDocumentDto?> Handle(GetExternalDocumentQuery request, CancellationToken cancellationToken)
     {
-        var doc = await db.OpsDocuments.AsNoTracking().FirstOrDefaultAsync(
+        var doc = await db.OpsDocuments.FirstOrDefaultAsync(
             d => d.Id == request.DocumentId && d.BusinessId == business.BusinessId && !d.IsDeleted,
             cancellationToken);
         if (doc is null)
@@ -228,6 +236,7 @@ public sealed class GetExternalDocumentHandler(DocumateDbContext db, IBusinessCo
             return null;
         }
 
+        await signedUrls.RefreshDocumentAsync(doc, cancellationToken);
         var list = await ListExternalDocumentsHandler.MapAsync(db, [doc], cancellationToken);
         return list.FirstOrDefault();
     }

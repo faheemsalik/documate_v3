@@ -10,6 +10,11 @@ public interface IWorkRecordService
 {
     Task<OpsBatch?> CreateBatchAsync(Guid queueId, long sourceEnumId, int fileCount, string? emailMessageId, CancellationToken cancellationToken = default);
     Task<OpsFile> CreateFileWithBlobAsync(CreateFileWithBlobRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Batch intake: one queue/scope lookup, one insert SaveChanges, parallel blob uploads, one finalize SaveChanges (DQ-1402).</summary>
+    Task<IReadOnlyList<OpsFile>> CreateFilesWithBlobsBatchAsync(
+        IReadOnlyList<CreateFileWithBlobRequest> requests,
+        CancellationToken cancellationToken = default,
+        UploadIntakeTimer? timer = null);
     Task<OpsDocument> CreateDocumentAsync(CreateDocumentRequest request, CancellationToken cancellationToken = default);
     Task<OpsIntakeRejection> CreateIntakeRejectionAsync(CreateIntakeRejectionRequest request, CancellationToken cancellationToken = default);
     Task AppendWorkEventAsync(AppendWorkEventRequest request, CancellationToken cancellationToken = default);
@@ -27,7 +32,11 @@ public sealed record CreateFileWithBlobRequest(
     long? SizeBytes = null,
     string? IntakeHintsJson = null,
     Guid? ReprocessOfFileId = null,
-    string? ContentHash = null);
+    string? ContentHash = null,
+    string? EmailMessageId = null,
+    string? EmailFrom = null,
+    string? EmailSubject = null,
+    string? EmailIntakeJson = null);
 
 public sealed record CreateDocumentRequest(
     Guid QueueId,
@@ -62,6 +71,8 @@ public sealed class WorkRecordService(
     IObjectStorage storage,
     ICorEnumIdResolver enums) : IWorkRecordService
 {
+    private const int MaxBlobParallelism = 8;
+
     public async Task<OpsBatch?> CreateBatchAsync(
         Guid queueId,
         long sourceEnumId,
@@ -90,82 +101,190 @@ public sealed class WorkRecordService(
         return batch;
     }
 
-    public async Task<OpsFile> CreateFileWithBlobAsync(CreateFileWithBlobRequest request, CancellationToken cancellationToken = default)
+    public async Task<OpsFile> CreateFileWithBlobAsync(
+        CreateFileWithBlobRequest request,
+        CancellationToken cancellationToken = default)
     {
-        var queue = await EnsureQueueAsync(request.QueueId, cancellationToken);
-        var receivedId = enums.Require("file_public_status", "received");
-        var stageId = enums.Require("file_internal_stage", "received");
+        var created = await CreateFilesWithBlobsBatchAsync([request], cancellationToken);
+        return created[0];
+    }
 
-        var file = new OpsFile
+    public async Task<IReadOnlyList<OpsFile>> CreateFilesWithBlobsBatchAsync(
+        IReadOnlyList<CreateFileWithBlobRequest> requests,
+        CancellationToken cancellationToken = default,
+        UploadIntakeTimer? timer = null)
+    {
+        if (requests.Count == 0)
         {
-            BusinessId = business.BusinessId,
-            QueueId = request.QueueId,
-            BatchId = request.BatchId,
-            SourceEnumId = request.SourceEnumId,
-            PublicStatusEnumId = receivedId,
-            InternalStageEnumId = stageId,
-            OriginalFileName = request.OriginalFileName,
-            ContentType = request.ContentType,
-            SizeBytes = request.SizeBytes ?? (request.Content.CanSeek ? request.Content.Length : 0),
-            StorageBucket = storage.ResolveBucket(),
-            StorageKey = "", // set after Id assigned
-            IntakeHintsJson = request.IntakeHintsJson,
-            ReprocessOfFileId = request.ReprocessOfFileId,
-            ContentHash = request.ContentHash,
-            CreatedByUserId = business.UserId,
-            UpdatedByUserId = business.UserId,
-        };
-
-        db.OpsFiles.Add(file);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var scope = await (
-            from b in db.CorTenantBusinesses.AsNoTracking()
-            join t in db.CorTenants.AsNoTracking() on b.TenantId equals t.Id
-            where b.IdenBusinessId == business.BusinessId
-            select new { TenantSequenceId = t.SequenceId, BusinessSequenceId = b.SequenceId }
-        ).FirstAsync(cancellationToken);
-
-        file.StorageKey = storage.BuildFileKey(
-            scope.TenantSequenceId,
-            scope.BusinessSequenceId,
-            queue.SequenceId,
-            file.SequenceId,
-            request.OriginalFileName);
-        await storage.UploadAsync(
-            new ObjectStoragePutRequest(
-                file.StorageBucket,
-                file.StorageKey,
-                request.Content,
-                request.ContentType,
-                new Dictionary<string, string>
-                {
-                    ["TenantSequenceId"] = scope.TenantSequenceId.ToString(),
-                    ["BusinessSequenceId"] = scope.BusinessSequenceId.ToString(),
-                    ["QueueSequenceId"] = queue.SequenceId.ToString(),
-                    ["FileSequenceId"] = file.SequenceId.ToString(),
-                    ["FileId"] = file.Id.ToString(),
-                }),
-            cancellationToken);
-
-        if (!queue.RoutingLocked)
-        {
-            queue.RoutingLocked = true;
-            queue.RoutingLockedAt = DateTimeOffset.UtcNow;
-            queue.UpdatedByUserId = business.UserId;
+            return [];
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        var queueId = requests[0].QueueId;
+        if (requests.Any(r => r.QueueId != queueId))
+        {
+            throw new InvalidOperationException("All batch upload files must target the same queue.");
+        }
 
-        await AppendWorkEventAsync(
-            new AppendWorkEventRequest(
-                enums.Require("work_subject_type", "file"),
-                file.Id,
-                enums.Require("work_event_type", "status_changed"),
-                """{"status":"received"}"""),
-            cancellationToken);
+        async Task<(int QueueSequenceId, long TenantSequenceId, long BusinessSequenceId, long ReceivedId, long StageId, long SubjectTypeId, long EventTypeId, string Bucket, List<OpsFile> Files)> InsertAsync(CancellationToken ct)
+        {
+            var queueSequenceId = await db.OpsQueues.AsNoTracking()
+                .Where(q => q.Id == queueId && q.BusinessId == business.BusinessId)
+                .Select(q => (int?)q.SequenceId)
+                .FirstOrDefaultAsync(ct)
+                ?? throw new InvalidOperationException("Queue not found for this Business.");
 
-        return file;
+            var scope = await (
+                from b in db.CorTenantBusinesses.AsNoTracking()
+                join t in db.CorTenants.AsNoTracking() on b.TenantId equals t.Id
+                where b.IdenBusinessId == business.BusinessId
+                select new { TenantSequenceId = t.SequenceId, BusinessSequenceId = b.SequenceId }
+            ).FirstAsync(ct);
+
+            var receivedId = enums.Require("file_public_status", "received");
+            var stageId = enums.Require("file_internal_stage", "received");
+            var subjectTypeId = enums.Require("work_subject_type", "file");
+            var eventTypeId = enums.Require("work_event_type", "status_changed");
+            var bucket = storage.ResolveBucket();
+
+            var files = new List<OpsFile>(requests.Count);
+            foreach (var request in requests)
+            {
+                var file = new OpsFile
+                {
+                    BusinessId = business.BusinessId,
+                    QueueId = request.QueueId,
+                    BatchId = request.BatchId,
+                    SourceEnumId = request.SourceEnumId,
+                    PublicStatusEnumId = receivedId,
+                    InternalStageEnumId = stageId,
+                    OriginalFileName = request.OriginalFileName,
+                    ContentType = request.ContentType,
+                    SizeBytes = request.SizeBytes ?? (request.Content.CanSeek ? request.Content.Length : 0),
+                    StorageBucket = bucket,
+                    StorageKey = "",
+                    IntakeHintsJson = request.IntakeHintsJson,
+                    ReprocessOfFileId = request.ReprocessOfFileId,
+                    ContentHash = request.ContentHash,
+                    EmailMessageId = request.EmailMessageId,
+                    EmailFrom = request.EmailFrom,
+                    EmailSubject = request.EmailSubject,
+                    EmailIntakeJson = request.EmailIntakeJson,
+                    CreatedByUserId = business.UserId,
+                    UpdatedByUserId = business.UserId,
+                };
+                db.OpsFiles.Add(file);
+                files.Add(file);
+            }
+
+            await db.SaveChangesAsync(ct);
+            return (queueSequenceId, scope.TenantSequenceId, scope.BusinessSequenceId, receivedId, stageId, subjectTypeId, eventTypeId, bucket, files);
+        }
+
+        var insert = timer is null
+            ? await InsertAsync(cancellationToken)
+            : await timer.MeasureDbAsync(InsertAsync, cancellationToken);
+
+        var uploadJobs = new List<(OpsFile File, CreateFileWithBlobRequest Request, string Key)>(insert.Files.Count);
+        for (var i = 0; i < insert.Files.Count; i++)
+        {
+            var file = insert.Files[i];
+            var request = requests[i];
+            var key = storage.BuildFileKey(
+                insert.TenantSequenceId,
+                insert.BusinessSequenceId,
+                insert.QueueSequenceId,
+                file.SequenceId,
+                request.OriginalFileName);
+            file.StorageKey = key;
+            uploadJobs.Add((file, request, key));
+        }
+
+        async Task UploadAllAsync(CancellationToken ct)
+        {
+            using var gate = new SemaphoreSlim(MaxBlobParallelism);
+            await Task.WhenAll(uploadJobs.Select(async job =>
+            {
+                await gate.WaitAsync(ct);
+                try
+                {
+                    if (job.Request.Content.CanSeek)
+                    {
+                        job.Request.Content.Position = 0;
+                    }
+
+                    await storage.UploadAsync(
+                        new ObjectStoragePutRequest(
+                            insert.Bucket,
+                            job.Key,
+                            job.Request.Content,
+                            job.Request.ContentType,
+                            new Dictionary<string, string>
+                            {
+                                ["TenantSequenceId"] = insert.TenantSequenceId.ToString(),
+                                ["BusinessSequenceId"] = insert.BusinessSequenceId.ToString(),
+                                ["QueueSequenceId"] = insert.QueueSequenceId.ToString(),
+                                ["FileSequenceId"] = job.File.SequenceId.ToString(),
+                                ["FileId"] = job.File.Id.ToString(),
+                            }),
+                        ct);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }));
+        }
+
+        if (timer is null)
+        {
+            await UploadAllAsync(cancellationToken);
+        }
+        else
+        {
+            await timer.MeasureBlobAsync(UploadAllAsync, cancellationToken);
+        }
+
+        async Task FinalizeAsync(CancellationToken ct)
+        {
+            await db.OpsQueues
+                .Where(q => q.Id == queueId
+                            && q.BusinessId == business.BusinessId
+                            && !q.RoutingLocked)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(q => q.RoutingLocked, true)
+                        .SetProperty(q => q.RoutingLockedAt, DateTimeOffset.UtcNow)
+                        .SetProperty(q => q.UpdatedByUserId, business.UserId)
+                        .SetProperty(q => q.UpdatedAt, DateTimeOffset.UtcNow),
+                    ct);
+
+            foreach (var file in insert.Files)
+            {
+                db.OpsWorkEvents.Add(new OpsWorkEvent
+                {
+                    BusinessId = business.BusinessId,
+                    SubjectTypeEnumId = insert.SubjectTypeId,
+                    SubjectId = file.Id,
+                    EventTypeEnumId = insert.EventTypeId,
+                    PayloadJson = """{"status":"received"}""",
+                    CreatedByUserId = business.UserId,
+                    UpdatedByUserId = business.UserId,
+                });
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        if (timer is null)
+        {
+            await FinalizeAsync(cancellationToken);
+        }
+        else
+        {
+            await timer.MeasureDbAsync(FinalizeAsync, cancellationToken);
+        }
+
+        return insert.Files;
     }
 
     public async Task<OpsDocument> CreateDocumentAsync(CreateDocumentRequest request, CancellationToken cancellationToken = default)

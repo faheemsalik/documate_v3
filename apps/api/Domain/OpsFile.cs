@@ -15,10 +15,15 @@ public sealed class OpsFile : WireFacingEntity, IHasRowVersion
     public string StorageKey { get; set; } = "";
     public string? StorageBucket { get; set; }
     public string? ContentHash { get; set; }
+    public string? DownloadUrl { get; set; }
+    public DateTimeOffset? DownloadUrlExpiresAt { get; set; }
 
     public string? EmailMessageId { get; set; }
     public string? EmailFrom { get; set; }
     public string? EmailSubject { get; set; }
+
+    /// <summary>Email intake provenance (from/originator/chain/excerpt/skips). Plan 14 EmailIntakeJson.</summary>
+    public string? EmailIntakeJson { get; set; }
 
     /// <summary>Optional caller hints (documentTypeKey, documentCount). Type + one page skips split/classify.</summary>
     public string? IntakeHintsJson { get; set; }

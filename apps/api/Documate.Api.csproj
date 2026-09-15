@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -27,4 +27,17 @@
     <PackageReference Include="PdfPig" Version="0.1.15" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <!-- Deploy sets IncludeAllEfMigrations=true so old Up/Down .cs compile into the release. -->
+    <IncludeAllEfMigrations Condition="'$(IncludeAllEfMigrations)' == ''">false</IncludeAllEfMigrations>
+  </PropertyGroup>
+  <Import Project="Infrastructure\Persistence\Migrations\EfMigrationCompileExcludes.props"
+          Condition="Exists('Infrastructure\Persistence\Migrations\EfMigrationCompileExcludes.props') and '$(IncludeAllEfMigrations)' != 'true'" />
+  <ItemGroup>
+    <Compile Remove="_wave4b_build\**" />
+    <Compile Remove="Infrastructure\Persistence\Migrations\Archive\**" />
+    <Content Remove="Infrastructure\Persistence\Migrations\Archive\**" />
+    <EmbeddedResource Remove="Infrastructure\Persistence\Migrations\Archive\**" />
+    <None Remove="Infrastructure\Persistence\Migrations\Archive\**" />
+  </ItemGroup>
 </Project>

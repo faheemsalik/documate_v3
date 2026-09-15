@@ -1,11 +1,13 @@
 namespace Documate.Api.Infrastructure.Pipeline;
 
 using Documate.Api.Infrastructure.Extract;
+using Documate.Api.Infrastructure.Intelligence;
 using Documate.Api.Infrastructure.Notifications;
 using Documate.Api.Infrastructure.Ocr;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Pipeline.Stages;
 using Documate.Api.Infrastructure.PostProcess;
+using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Webhooks;
 using Hangfire;
 using Hangfire.Dashboard;
@@ -25,7 +27,8 @@ public static class PipelineServiceCollectionExtensions
 
         var pipeline = configuration.GetSection(PipelineOptions.SectionName).Get<PipelineOptions>()
             ?? new PipelineOptions();
-        var maxWorkers = Math.Max(1, pipeline.MaxConcurrentFiles);
+        var maxFileWorkers = Math.Max(1, pipeline.MaxConcurrentFiles);
+        var maxWebhookWorkers = Math.Max(1, pipeline.MaxConcurrentWebhooks);
 
         services.AddHangfire(config => config
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -41,21 +44,33 @@ public static class PipelineServiceCollectionExtensions
                 PrepareSchemaIfNecessary = true,
             }));
 
+        // File OCR/pipeline — do not share workers with webhooks (webhooks used to steal OCR slots).
         services.AddHangfireServer(options =>
         {
-            options.WorkerCount = maxWorkers;
-            options.Queues = ["priority", "default", "webhooks"];
+            options.ServerName = $"documate-files:{Environment.MachineName}";
+            options.WorkerCount = maxFileWorkers;
+            options.Queues = ["priority", "default"];
+        });
+
+        services.AddHangfireServer(options =>
+        {
+            options.ServerName = $"documate-webhooks:{Environment.MachineName}";
+            options.WorkerCount = maxWebhookWorkers;
+            options.Queues = ["webhooks"];
         });
 
         services.AddScoped<IFilePipelineStub, FilePipelineStub>();
         services.AddSingleton<IOcrEngine, TextractOcrEngine>();
         services.AddSingleton<IOcrEngine, GoogleDocumentAiOcrEngine>();
         services.AddScoped<IOcrNormalizeAdapter, Mode1OcrNormalizeAdapter>();
+        services.AddScoped<IPageIntelligenceService, PageIntelligenceService>();
         services.AddScoped<IFileSplitStage, FileSplitStage>();
         services.AddScoped<IFileClassifyStage, FileClassifyStage>();
         services.AddScoped<IDocumentRouteStage, DocumentRouteStage>();
         services.AddScoped<IDocumentExtractStage, DocumentExtractStage>();
         services.AddScoped<IDocumentExtractAdapter, LiveLlmDocumentExtractAdapter>();
+        services.AddScoped<IDocumentPdfMaterializer, DocumentPdfMaterializer>();
+        services.AddScoped<ISignedDownloadUrlService, SignedDownloadUrlService>();
         services.AddSingleton<IPlatformMcpTool, NormalizeDateTool>();
         services.AddSingleton<IPlatformMcpTool, NormalizeCurrencyTool>();
         services.AddSingleton<IInternalMcpHost, InternalMcpHost>();

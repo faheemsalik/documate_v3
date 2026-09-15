@@ -1,7 +1,7 @@
 # Documate v3 Phase 1 — Dispatch Queue
 
 > **Document type:** Dispatch queue (Phase 3)  
-> **Status:** ⬜ Ready for execution (no item started)  
+> **Status:** ✅ Active bands complete; Band 15 follow-on parked  
 > **Source plan:** [03-documate-v3-implementation-plan.md](./03-documate-v3-implementation-plan.md)  
 > **Upstream:** Exploration [01](./01-project-exploration-mental-design.md) · Queue design [02](./02-document-queue-design.md) · Glossary [00-product-glossary.md](./00-product-glossary.md)  
 > **Scope:** Phase 1 product build — domain, APIs, Core pipeline, delivery, web UI  
@@ -38,11 +38,11 @@
 
 | Metric | Value |
 |--------|--------|
-| Total DQ items | 42 |
-| ✅ Complete | 29 |
+| Total DQ items | 55 |
+| ✅ Complete | 46 |
 | 🔄 In Progress | 0 |
-| ⬜ Ready | 3 |
-| ⏸ Parked | 8 (DQ-1202 email; DQ-1501–1507 Iden follow-on J3) |
+| ⬜ Ready | 0 |
+| ⏸ Parked | 7 (DQ-1501–1507 Iden follow-on J3) |
 | ❌ Cancelled | 2 (DQ-1301, DQ-1302 → Band 16 customer frontend MVP) |
 
 **Count note:** Phase 1 executable = bands 00–14 except DQ-1202. Band 15 parked until Phase 1 product accepted (Decision **J3**).
@@ -55,7 +55,7 @@
 | B | Sync-wait: **single Document only**; multi-doc → fail; wait terminal or timeout |
 | C | **C2** — no webhooks on sync-wait calls |
 | D | Support **D1 and D2** later (one active at a time); Phase 1 stub only |
-| E | **E3** + optional intake hints — full split/classify by default; skip when caller supplies complete documentCount + type(s) |
+| E | **E3 + P9/F6** (Plan 04, 2026-09-15) — real multi-doc split; DQ-0702 skeleton done; Wave 4b = DQ-0705…0710 + DQ-0802 |
 | F | **F2** — Business API keys (Phase 1 bridge → retire Band 15 after Phase 1) |
 | G | Sync-wait max **60 seconds** |
 | H | **H1** — CorTenant + CorTenantBusiness (product extension; Iden = SoT) |
@@ -115,17 +115,30 @@ None blocking Phase 1 execution. (J3 locked.)
 | DQ-0702 | 07 | Split → classify → route (E3 multi-doc PDFs) | ✅ | DQ-0701, DQ-0302 |
 | DQ-0703 | 07 | Extract via Documate meta-provider + schema validate → Ready/Failed | ✅ | DQ-0702, DQ-0202 |
 | DQ-0704 | 07 | Real OCR (Textract→Google) + live LLM extract + sync gates + app priority + ops alert | ✅ | DQ-0703, DQ-0901, DQ-0304 |
+| DQ-0705 | 07 | Wave 4b: real per-page OCR artifacts (`normalize.page.{n}.*`) | ✅ | DQ-0704 |
+| DQ-0706 | 07 | Wave 4b: admin pipeline model settings (intelligence T1, fallback, extract) | ✅ | DQ-1411, DQ-0705 |
+| DQ-0707 | 07 | Wave 4b: page intelligence (T1 + fallback) + persist page profiles | ✅ | DQ-0706 |
+| DQ-0708 | 07 | Wave 4b: P9 boundary engine + classify-after-group + text/layout slices + observability | ✅ | DQ-0707, DQ-0702 |
+| DQ-0709 | 07 | Wave 4b: per-Document PDF materialization + DownloadUrl cache (Document URL only when PDF exists) | ✅ | DQ-0708, DQ-0401 |
+| DQ-0710 | 07 | Wave 4b: extract on grouped slices with separate extract model; Case A / hint rules alignment | ✅ | DQ-0709, DQ-0703 |
 | DQ-0801 | 08 | Per-Document webhook dispatch + attempt metadata | ✅ | DQ-0703, DQ-0303 |
+| DQ-0802 | 08 | Wave 4b: webhook + External File/Document detail URLs; File embeds full Documents | ✅ | DQ-0709, DQ-0801, DQ-0602 |
 | DQ-0901 | 09 | Sync-wait API (single-doc, 60s, no webhook C2) | ✅ | DQ-0703, DQ-0603 |
 | DQ-1001 | 10 | Cancel File and Cancel Document | ✅ | DQ-0703, DQ-0801 |
 | DQ-1002 | 10 | Explicit reprocess → new File | ✅ | DQ-0601, DQ-0703 |
 | DQ-1101 | 11 | Agent post-processing runner + internal MCP (1–2 platform tools) | ✅ | DQ-0703 |
-| DQ-1201 | 12 | Email intake stub + intake-decision agent skeleton | ⬜ | DQ-0501, DQ-0402 |
-| DQ-1202 | 12 | Real email inbound D1 and/or D2 (one active at a time) | ⏸ | Activation: later email phase after stub proven |
+| DQ-1201 | 12 | Email intake: IntakeMailbox + simulate + decision skeleton (Plan 14 EI-0…EI-4) | ✅ | DQ-0501, DQ-0402; Plan 14 |
+| DQ-1202 | 12 | Real SES inbound (D1 catch-all) — Plan 14 EI-5 | ✅ | DQ-1201 (live MX smoke after ops verify) |
+| DQ-1203 | 12 | Email intake harden + allowlist sell posture (Plan 14 EI-6) | ✅ | DQ-1201 |
+| DQ-1204 | 12 | Email FO: EmailIntakeJson + sender chain + body excerpt (Plan 14 FO-0…FO-2) | ✅ | DQ-1203; [follow-on impl](./14-email-intake-followon-implementation-plan.md) |
+| DQ-1205 | 12 | Email FO: F3 partial attach + Files/External/webhook surfaces (FO-3a…FO-3b) | ✅ | DQ-1204 |
+| DQ-1206 | 12 | Email FO: daily S3 MIME retention job + tests (FO-4…FO-5) | ✅ | DQ-1205, DQ-1410 |
 | DQ-1301 | 13 | Angular: Agents + Business default channel (Queue ID) + intake settings | ❌ | Superseded by Band 16 (`07-customer-frontend-dispatch-queue.md`) |
 | DQ-1302 | 13 | Angular: Files/Documents monitor + cancel/reprocess actions | ❌ | Superseded by Band 16 (`07-customer-frontend-dispatch-queue.md`) |
-| DQ-1401 | 14 | Hardening: rate/size limits, allowlist enforce path, metrics/logs | ⬜ | DQ-0801, DQ-0303 |
-| DQ-1402 | 14 | Upload intake performance (multi-file parallel, fewer DB round trips, intake timing metrics) | ⬜ | DQ-0601, DQ-0401, DQ-1401 |
+| DQ-1401 | 14 | Hardening: rate/size limits, allowlist enforce path, metrics/logs | ✅ | DQ-0801, DQ-0303 |
+| DQ-1402 | 14 | Upload intake performance (multi-file parallel, fewer DB round trips, intake timing metrics) | ✅ | DQ-0601, DQ-0401, DQ-1401 |
+| DQ-1410 | 14 | System settings: CorSystemSetting + cache/seed + wire EmailIntake/Pipeline (Plan 15 SS-0…SS-2) | ✅ | DQ-1401; [settings impl](./15-system-settings-db-implementation-plan.md) |
+| DQ-1411 | 14 | System settings: `/api/admin/system-settings` + separate admin creds + tests (SS-3…SS-4) | ✅ | DQ-1410 |
 | DQ-1501 | 15 | Inventory Iden APIs + Documate-facing contract note | ⏸ | Activation: after Phase 1 product done-when (J3) |
 | DQ-1502 | 15 | Live Iden human auth (Angular + API) — no fixed shipping tokens | ⏸ | DQ-1501, DQ-0101 |
 | DQ-1503 | 15 | Integration harness: Tenant→Business through Documate | ⏸ | DQ-1502, DQ-0102 |
@@ -162,14 +175,16 @@ DQ-0501.
 DQ-0603 → DQ-0601, DQ-0602.
 
 ### Wave 7 — Core pipeline
-DQ-0701 → DQ-0702 → DQ-0703 → **DQ-0704** (real OCR + live LLM).
+DQ-0701 → DQ-0702 → DQ-0703 → **DQ-0704** (real OCR + live LLM).  
+**Wave 4b / real split (Plan 04):** DQ-0705 → DQ-0706 → DQ-0707 → DQ-0708 → DQ-0709 → DQ-0710; then **DQ-0802**.
 
 ### Wave 8 — Delivery
-DQ-0801, DQ-0901, DQ-1001, DQ-1002.
+DQ-0801, DQ-0901, DQ-1001, DQ-1002; **DQ-0802** (URL surfaces after DQ-0709).
 
-### Wave 9 — Post-process + email stub + web + harden
-DQ-1101, DQ-1201, DQ-1401 → **DQ-1402** (last Phase 1 executable item). Band 13 Angular (**DQ-1301/1302**) ❌ superseded by Band 16 customer frontend MVP.  
-DQ-1202 remains ⏸.
+### Wave 9 — Post-process + email + harden + settings/follow-on
+DQ-1101, DQ-1201…1203 ✅; DQ-1401 ✅.  
+**Recommended next:** Band 17 back office (**DQ-1701**), or Band 15 Iden when unparked.  
+Band 13 Angular (**DQ-1301/1302**) ❌ superseded by Band 16.
 
 ### Wave 10 — Iden Integration & Validation (J3 — follow-on)
 All DQ-1501–1507 ⏸ until Phase 1 product done-when (waves 0–9) accepted.  
@@ -474,6 +489,59 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - Packages: AWSSDK.Textract, Google.Cloud.DocumentAI.V1, MailKit; `dotnet build` OK; unit tests 18 passed
   - Smoke: set user-secrets for `Llm:Providers:gpt_5_6:ApiKey` (+ OCR keys); restart API; upload on **defaultQueueId** with QueueRoute → expect real OCR artifacts + LLM `resultJson` (not heuristic stub)
 
+### DQ-0705 — Real per-page OCR artifacts (Wave 4b)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-0704  
+- **Source:** Plan 03 Wave 4b; Plan 04 §15.5  
+- **Outcome:** Normalize writes genuine per-page text/layout artifacts (`normalize.page.{n}.*`) usable by P9 intelligence; measured `pageCount` remains authoritative.  
+- **Required Documents:** Plan 04; Plan 03 Wave 4b; Exploration 05  
+- **Evidence:**
+  - `OcrPageSplitter` — Textract LINE blocks grouped by `Block.Page`; Google page text via `TextAnchor` segments (paragraphs fallback); blank pages flagged (`IsBlank`)
+  - Textract sync/async + Google engines return real `OcrPageText[]` (no whole-doc duplication)
+  - `Mode1OcrNormalizeAdapter` writes file-level `normalize.text.txt` / `normalize.layout.json` **plus** `normalize.page.{n}.text.txt` + `normalize.page.{n}.layout.json`
+  - `NormalizeResult.PageArtifacts` + `SliceRefJson.pageArtifacts[]`; WorkEvent normalize payload includes `pageArtifactCount` / `blankPageCount`
+  - Unit tests: `tests/api/OcrPageSplitterTests.cs` (5); full suite **74** passed (2026-09-15)
+
+### DQ-0706 — Admin pipeline model settings (Wave 4b)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-1411, DQ-0705  
+- **Source:** Plan 03 Decision E (dual models + fallback); Plan 04 §10.3  
+- **Outcome:** Backoffice/system settings bind provider/model for intelligence T1, intelligence fallback, and extract (Mode 1; not partner-facing). Caps for intelligence calls per File configurable.  
+- **Required Documents:** Plan 03 Decision E; Plan 15 settings; Plan 04  
+- **Evidence:** `SystemSettingKeys`, `SystemSettingsSeeder`, and `PipelineModelSettings` expose DB-backed intelligence T1/fallback/extract providers plus the 40-call default; provider defaults bootstrap from `Llm:DefaultProviderKey`; registered in `Program.cs`.
+
+### DQ-0707 — Page intelligence T1 + fallback (Wave 4b)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-0706  
+- **Source:** Plan 04 P9/F6; Plan 03 Decision E  
+- **Outcome:** Per-page intelligence call with T1 cheap model; unrecognized/ambiguous → fallback model (page or local 3-page window); persist `intelligence.page.{n}.json`; never combine with extract `documentData`.  
+- **Required Documents:** Plan 04 §§14–15; explained guide  
+- **Evidence:** `PageIntelligenceService` reads per-page text, calls configured T1 then fallback through `documate-llm`, caps calls, persists `intelligence.page.{n}.json`, and falls back to blank/INV/DN/CN heuristics.
+
+### DQ-0708 — P9 boundary engine + classify + slices + observability (Wave 4b)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-0707, DQ-0702  
+- **Source:** Plan 04 P9/F6 locks; Plan 03 Flow 1  
+- **Outcome:** Pure-function grouping with anchors + reset rules (blank, new identity, sequence restart, N=2); classify after group (C1 / type hint / no-hint QueueRoute); Failed on unresolved (no forced cut); persist text+layout slices; full signal/anchor audit artifacts + WorkEvent summaries. Replaces deferred no-ops from DQ-0702.  
+- **Required Documents:** Plan 04 Finalized Decisions; Plan 03 Decision E / Flow 1  
+- **Evidence:** `DocumentBoundaryEngine` implements blank/new-identity/restart/N=2 boundaries; split creates page-range Documents and `documents/{seq}/slice.*`; classify applies hint, C1, or route-constrained intelligence type; grouping WorkEvent and boundary tests added.
+
+### DQ-0709 — Per-Document PDF + DownloadUrl cache (Wave 4b)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-0708, DQ-0401  
+- **Source:** Plan 03 security §6 (amended); Plan 04 Document URL rule  
+- **Outcome:** After grouping, materialize each Document’s PDF into object storage. Persist `DownloadUrl` + `DownloadUrlExpiresAt` on Document **only after** that PDF exists; refresh when expired. **Never** use parent File URL as Document URL (omit/null until PDF ready). File keeps original-upload URL cache separately.  
+- **Required Documents:** Plan 03 entity catalog Document/File; explained guide URL section  
+- **Evidence:** `DocumentPdfMaterializer` copies PDF ranges or a single image to `document.{seq}.pdf`; File/Document URL cache columns and migration `Wave4bDownloadUrlAndDocumentPdf` added; `SignedDownloadUrlService` refreshes by `Storage:SignedUrlMinutes`.
+
+### DQ-0710 — Extract on grouped slices (Wave 4b)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-0709, DQ-0703  
+- **Source:** Plan 03 Decision E; Plan 04 (identification ≠ extract)  
+- **Outcome:** Extract uses configured extract model on grouped Document slices (separate from intelligence); Case A and hint rules unchanged; multi-doc packs produce N Ready/Failed Documents.  
+- **Required Documents:** Plan 03 Flow 1; Plan 04  
+- **Evidence:** `DocumentExtractStage` reads each Document slice and uses `PipelineModelSettings.ExtractProviderKey`; identification stays separate and never returns extracted document data.
+
 ### DQ-0801 — Per-Document webhooks
 - **Status:** ✅ Complete  
 - **Dependency:** DQ-0703, DQ-0303  
@@ -487,6 +555,14 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - Self-scheduled retries (30s…10m, max 5); Hangfire `webhooks` queue; poll still returns `resultJson` if delivery fails
   - External poll: `webhookStatusKey`, `webhookAttempts`, `webhookLastHttpStatus`
   - Unit tests: HMAC + payload shape; smoke 2026-08-18: http://127.0.0.1 listener → succeeded HTTP 200 + signature; no URL → `not_configured` and Document still `ready`
+
+### DQ-0802 — File/Document download URLs on webhook + External detail (Wave 4b)
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-0709, DQ-0801, DQ-0602  
+- **Source:** Plan 03 security §6 (amended); explained guide  
+- **Outcome:** Webhook includes Document PDF URL **only when** Document PDF exists (omit otherwise — never parent-File URL). External `GET` Document returns URL under same rule. External `GET` File returns File original URL + **embedded full Document objects** (each with URL only if Document PDF ready). Shared refresh-after-expiry helper.  
+- **Required Documents:** Plan 03 Permissions §6; Plan 04 Document URL rule  
+- **Evidence:** Document detail refreshes its PDF URL; File detail refreshes the original File URL and embeds full Documents; sync DTOs carry URLs; webhook emits only the Document PDF URL/expiry and never substitutes the parent File URL.
 
 ### DQ-0901 — Sync-wait API
 - **Status:** ✅ Complete  
@@ -543,22 +619,37 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - DefinitionJson: `{"steps":[{"tool":"normalize_date","fields":["*"]},{"tool":"normalize_currency","fields":["*"]}]}`
   - Unit tests for date/currency tools; 23 tests passed
 
-### DQ-1201 — Email stub + intake agent skeleton
-- **Status:** ⬜ Ready  
+### DQ-1201 — Email IntakeMailbox + simulate + decision skeleton
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-0501, DQ-0402  
-- **Source:** Decision D (later real); Plan 01 §14  
-- **Outcome:** Admin/simulate email intake path; intake-decision agent skeleton; IntakeRejection when no File; ambiguity → reject.  
-- **Required Documents:** Plan 01 §14; Plan 03 Flow 3  
-- **Evidence:** (fill on completion)
+- **Source:** [14-email-intake-ses-implementation-plan.md](./14-email-intake-ses-implementation-plan.md) EI-0…EI-4; Plan 01 §14; Decision D3+D1  
+- **Outcome:** `OpsIntakeMailbox` (typed_agent + multi_type) on `docsintake.com`; portal CRUD/rotate; simulate API; Layer-1 gates; heuristic intake decision; Files or IntakeRejection on default Queue.  
+- **Required Documents:** Plan 14 exploration + implementation; Plan 01 §14; Plan 03 Flow 3  
+- **Evidence:**
+  - Migration `20260911140000_OpsIntakeMailbox`; enum `intake_mailbox_kind`; `CorTenantBusiness.IntakeEmailSlug`
+  - APIs under `/api/app/intake-mailboxes` (+ simulate); Core `IEmailIntakeProcessor` + `HeuristicEmailIntakeDecisionAgent`
+  - UI: Agent “Intake email” tab; Channels multi-type mailboxes + allowlist
+  - Unit tests: `EmailIntakeTests` (7) passed 2026-09-11
 
-### DQ-1202 — Real email D1 and D2
-- **Status:** ⏸ Parked  
+### DQ-1202 — Real SES inbound (D1)
+- **Status:** ✅ Complete (code + runbook; live MX smoke after ops domain verify)  
 - **Dependency:** DQ-1201  
-- **Activation trigger:** Start separate email inbound phase when ready to implement provider webhook **and** IMAP, with config selecting **one active** mechanism.  
-- **Source:** Decision D  
-- **Outcome:** (later) Production inbound email via D1 and/or D2.  
-- **Required Documents:** Plan 03 Decision D  
-- **Evidence:** —  
+- **Activation trigger:** Domain verified + receipt rule → S3/SNS; IMAP **not** in scope.  
+- **Source:** Plan 14 EI-5; Decision D1  
+- **Outcome:** SES catch-all consumer → same Core processor as simulate.  
+- **Required Documents:** Plan 14; [docs/ops/ses-email-intake-runbook.md](../ops/ses-email-intake-runbook.md)  
+- **Evidence:**
+  - `POST /api/internal/email-intake/sns` → Hangfire `EmailIntakeJobs` → S3 MIME parse → processor
+  - Unknown To: drop + log (DR-EI1)
+
+### DQ-1203 — Email intake harden (EI-6)
+- **Status:** ✅ Complete (baseline)  
+- **Dependency:** DQ-1201  
+- **Source:** Plan 14 EI-6  
+- **Outcome:** Metrics/logging for unknown recipient + gate rejects; rate guidance; allowlist_enforced sell checklist.  
+- **Required Documents:** Plan 14  
+- **Evidence:** Structured logs on accept/reject/unknown; size/count gates in `EmailIntake` options; sell posture in exploration E7 + runbook  
+
 
 ### DQ-1301 — Angular Agents + Business default channel
 - **Status:** ❌ Cancelled  
@@ -579,15 +670,23 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 - **Evidence:** Cancelled in favor of DQ-1602/1604+  
 
 ### DQ-1401 — Hardening
-- **Status:** ⬜ Ready
+- **Status:** ✅ Complete
 - **Dependency:** DQ-0801, DQ-0303
-- **Source:** Plan 03 Wave 9
+- **Source:** Plan 03 Wave 9; Plan 14 EI-6
 - **Outcome:** Rate/size limits; allowlist enforcement path; basic metrics/logs; do not market email hard until allowlist UX ready.
 - **Required Documents:** Plan 03; Plan 01 email gates
-- **Evidence:** (fill on completion)
+- **Evidence:**
+  - Size: `MaxAttachmentBytes`, `MaxTotalAttachmentBytes`, `MaxAttachments` enforced in `EmailIntakeProcessor` (reject codes `attachment_too_large`, `attachments_total_too_large`, `too_many_attachments`)
+  - Rate: `MemoryEmailIntakeRateLimiter` + `RateLimitPerMailboxPerMinute`/`Hour` → reject `rate_limited`
+  - Allowlist: `EmailAllowlistMatcher.Evaluate` (display-name From normalize; preferred miss metric; enforced empty list rejects); Agent + Channels UI mode + entries; runbook §8 checklist before sell hard
+  - Metrics: `Documate.EmailIntake` — `unknown_recipient`, `rate_limited`, `rejected{code}`, `accepted`, `files_accepted`, `allowlist_preferred_miss`, `process_duration_ms`
+  - Catalog: `GET /api/app/catalogs/enums/{typeKey}` for allowlist mode picker
+  - Tests: allowlist display-name / preferred / empty enforced; rate limiter unit test (`tests/api/EmailIntakeTests.cs`)
+  - Sync gates already config-tunable (`Pipeline:SyncWaitTimeoutSeconds` / `SyncMaxPages` / `SyncMaxBytes`) — no code change
+  - Note: still do **not** market email as hard until partners use `allowlist_enforced`
 
 ### DQ-1402 — Upload intake performance
-- **Status:** ⬜ Ready
+- **Status:** ✅ Complete
 - **Dependency:** DQ-0601, DQ-0401, DQ-1401 (metrics baseline)
 - **Source:** Dev smoke — ~16s to accept 3×87 KB PDFs; intake path not sized for partner batch upload
 - **Outcome:** Faster **upload accept** path (202 / Created) — not full OCR/LLM pipeline. Target: multi-file batch intake dominated by blob I/O, not sequential SQL.
@@ -599,7 +698,58 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
   - Document: async upload returns immediately; sync-wait / poll is separate from intake latency
 - **Acceptance:** 3×100 KB files → HTTP accept **&lt; 2s** p95 local dev (excluding pipeline); evidence in DQ entry
 - **Required Documents:** Plan 03 Wave 4 intake; DQ-0601
-- **Evidence:** (fill on completion — before/after timings, Postman or script)
+- **Evidence:**
+  - `CreateFilesWithBlobsBatchAsync`: one queue/scope lookup, one insert `SaveChanges`, parallel blob uploads (max 8), one finalize `SaveChanges` + batched WorkEvents
+  - `ExternalUploadFilesHandler` buffers multipart → batch create → parallel Hangfire enqueue
+  - Metrics meter `Documate.UploadIntake`: `upload.accept_ms` / `upload.blob_ms` / `upload.db_ms` / `upload.files_accepted`
+  - Single-file `CreateFileWithBlobAsync` delegates to batch path (same reduced round trips)
+  - Tests: `UploadIntakeTimerTests`; full suite green
+  - Note: re-smoke 3×~100KB via `POST /api/v1/queues/{id}/files` after deploy; accept latency should be blob-dominated (&lt;2s local)
+
+### DQ-1410 — System settings table + wire consumers
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-1401  
+- **Source:** [15-system-settings-db-implementation-plan.md](./15-system-settings-db-implementation-plan.md) SS-0…SS-2; exploration S1–S6  
+- **Outcome:** `CorSystemSetting` (`SettingKey` + `ValueJson`); seed missing keys from appsettings (EmailIntake ops + Pipeline sync gates + `MimeRetentionDays`=30 + `BodyExcerptMaxChars`); `ISystemSettings` memory cache + invalidate-on-write; thin adapters so EmailIntake/Pipeline read DB (secrets stay env).  
+- **Required Documents:** Plan 15 exploration + implementation  
+- **Evidence:**
+  - Entity `CorSystemSetting` + migration `20260914182443_CorSystemSetting`
+  - `ISystemSettings` / `MemoryCachedSystemSettings`; `SystemSettingKeys` allowlist; `SystemSettingsSeeder` on boot (after Migrate)
+  - `IEmailIntakeSettings` / `IPipelineSyncSettings` adapters; wired processor, rate limiter, SES handler, sync extract, SNS secret read
+  - `MimeRetentionDays` / `BodyExcerptMaxChars` added to `EmailIntakeOptions` bootstrap
+  - `dotnet build` OK (alt output path)
+
+### DQ-1411 — Admin system-settings API
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-1410  
+- **Source:** Plan 15 SS-3…SS-4; DR-SS1 amended  
+- **Outcome:** `GET/PUT /api/admin/system-settings` (+ list/get by key) with **separate admin credentials** (not customer `/api/app` auth); allowlisted keys only; tests for seed idempotency, cache invalidate, unknown key reject.  
+- **Required Documents:** Plan 15 implementation; Auth options pattern  
+- **Evidence:** `Auth:AdminGate` + `AdminGateAuthenticationHandler`; `POST /api/admin/auth/login`; `GET/PUT /api/admin/system-settings`; policy scheme routes `/api/admin` → AdminGate; `SystemSettingsTests` (allowlist/seed/cache).
+
+### DQ-1204 — Email follow-on: provenance JSON + excerpt
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-1203  
+- **Source:** [14-email-intake-followon-implementation-plan.md](./14-email-intake-followon-implementation-plan.md) FO-0…FO-2; F4/F2 locks  
+- **Outcome:** `OpsFile.EmailIntakeJson`; keep `EmailSubject` / `EmailMessageId` / `EmailFrom` (denormalized); sender-chain resolver; body excerpt in JSON only; wire File create.  
+- **Required Documents:** Email follow-on impl (DR-FO4…FO5, FO9)  
+- **Evidence:** Migration `20260914183215_OpsFileEmailIntakeJson`; `EmailSenderChainResolver` + `EmailBodyExcerpt` + `EmailIntakeJsonBuilder`; MIME FromName/Reply-To/Resent-From; wired in `EmailIntakeProcessor` / `WorkRecordService`; `EmailSenderChainResolverTests`.
+
+### DQ-1205 — Email follow-on: F3 partial + surfaces
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-1204  
+- **Source:** Follow-on FO-3a…FO-3b; DR-FO6…FO8  
+- **Outcome:** Skip bad/oversize attachments with `skippedAttachments` in JSON; rejection `no_processable_attachments` when none left; expose intake JSON on app Files, External DTOs, webhooks.  
+- **Required Documents:** Email follow-on impl  
+- **Evidence:** Decision agent skip list + ProcessPartial; processor oversize skip (DR-FO8); FileDto/ExternalFileDto/webhook email fields; Files detail UI email card; `HeuristicEmailIntakeDecisionAgentTests`.
+
+### DQ-1206 — Email follow-on: S3 MIME retention
+- **Status:** ✅ Complete  
+- **Dependency:** DQ-1205, DQ-1410  
+- **Source:** Follow-on FO-4…FO-5; DR-FO1=B, FO10=A  
+- **Outcome:** Daily Hangfire job deletes intake-prefix S3 objects older than `MimeRetentionDays` (default 30 from settings); metrics/tests/runbook.  
+- **Required Documents:** Email follow-on impl; Plan 15 settings key  
+- **Evidence:** `EmailIntakeMimeRetentionService`; recurring `email-intake-mime-retention`; metric `email_intake.mime_deleted`; runbook §9; `EmailIntakeMimeRetentionTests`.
 
 ### DQ-1501 — Inventory Iden APIs + contract note
 - **Status:** ⏸ Parked  
@@ -664,7 +814,9 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 
 **Decision J3 locked.** Decision **K1** locked (default channel). Band 15 parked.  
 **Waves 0–6 complete; DQ-0701–0704 ✅; DQ-0801 ✅; DQ-0901 ✅; DQ-1001–1002 ✅; DQ-1101 ✅; DQ-0304 ✅; DQ-0204 ✅.**  
-**Next ready:** `DQ-1201` (email stub). **Last Phase 1 item:** `DQ-1402` (upload intake performance). Customer web UI: [07-customer-frontend-dispatch-queue.md](./07-customer-frontend-dispatch-queue.md) (Band 16; starts at DQ-1601/1602).
+**Wave 4b (Plan 04 real split) complete:** DQ-0705…0710 + DQ-0802 ✅ (API suite: 78 passed, 2026-09-15).  
+**Also:** Band 17 back office — [16-backoffice-frontend-dispatch-queue.md](./16-backoffice-frontend-dispatch-queue.md). Upload perf `DQ-1402` ✅.  
+Email intake Plan 14 / DQ-1201–1203 ✅; hardening DQ-1401 ✅. Customer web UI: [07-customer-frontend-dispatch-queue.md](./07-customer-frontend-dispatch-queue.md) (Band 16).  
 **Postman:** [`docs/postman/Documate-v3-API.postman_collection.json`](../postman/Documate-v3-API.postman_collection.json).  
 **OCR/LLM secrets:** `Llm:Providers:…:ApiKey` required at startup; `Ocr:Textract` / `Ocr:GoogleDocumentAi` for real OCR.  
 **Jobs:** Hangfire dashboard (Dev) at `/hangfire` (queues: `priority`, `default`, `webhooks`).  

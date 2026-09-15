@@ -1,15 +1,55 @@
 <div class="page">
-  <h1>Switch business</h1>
+  <h1>Businesses</h1>
+  <p class="subtitle">Create and switch between businesses in your tenant.</p>
+
   @if (error()) {
     <p-message severity="error" [text]="error()!" />
-  } @else if (loading()) {
-    <p-message severity="info" text="Loading…" />
-  } @else if (profile(); as p) {
-    <p-card>
-      <h2>{{ p.name }}</h2>
-      <p class="meta">{{ p.tenantName }} · Active business</p>
-    </p-card>
-    <p class="hint">Multi-business switching will connect to Iden in a later band. Edit profile in Settings.</p>
-    <a routerLink="/business/profile">Business profile →</a>
   }
+
+  <section class="create-section">
+    <h2>Create business</h2>
+    <div class="create-row">
+      <input pInputText [(ngModel)]="newBusinessName" placeholder="Business name" />
+      <p-button label="Create" (onClick)="create()" [loading]="creating()" />
+    </div>
+  </section>
+
+  <section class="list-section">
+    <h2>Your businesses</h2>
+    @if (loading()) {
+      <p-message severity="info" text="Loading…" />
+    } @else if (businesses().length === 0) {
+      <p class="hint">No businesses yet. Create one above.</p>
+    } @else {
+      <div class="business-list">
+        @for (b of businesses(); track b.businessId) {
+          <p-card>
+            <div class="business-row">
+              <div>
+                <h3>{{ b.name }}</h3>
+                <p class="meta">{{ b.tenantName }}</p>
+              </div>
+              <div class="actions">
+                @if (b.isCurrent) {
+                  <p-tag value="Active" severity="success" />
+                } @else {
+                  <p-button
+                    label="Switch"
+                    [outlined]="true"
+                    (onClick)="switch(b.businessId)"
+                    [loading]="switchingId() === b.businessId"
+                  />
+                }
+              </div>
+            </div>
+          </p-card>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="links">
+    <a routerLink="/business/profile">Edit active business profile →</a>
+    <a routerLink="/api-keys">Manage API keys →</a>
+  </section>
 </div>
