@@ -88,8 +88,14 @@ public static class PipelineServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(15);
         });
         services.AddScoped<DocumentWebhookDelivery>();
+        services.AddScoped<Documate.Api.Infrastructure.PublicEvents.IActionBindingResolver, Documate.Api.Infrastructure.PublicEvents.ActionBindingResolver>();
+        services.AddScoped<Documate.Api.Infrastructure.PublicEvents.IPublicEventPayloadBuilder, Documate.Api.Infrastructure.PublicEvents.PublicEventPayloadBuilder>();
+        services.AddScoped<Documate.Api.Infrastructure.PublicEvents.IPublicEventEmitter, Documate.Api.Infrastructure.PublicEvents.PublicEventEmitter>();
+        services.AddScoped<Documate.Api.Infrastructure.PublicEvents.PublicActionExecutor>();
+        services.AddScoped<Documate.Api.Infrastructure.PublicEvents.IActionBindingBootstrap, Documate.Api.Infrastructure.PublicEvents.ActionBindingBootstrap>();
         services.AddScoped<FilePipelineJobs>();
         services.AddScoped<WebhookJobs>();
+        services.AddScoped<PublicActionJobs>();
         services.AddSingleton<IWorkDispatcher, HangfireWorkDispatcher>();
         services.AddSingleton<IWebhookDispatcher, HangfireWebhookDispatcher>();
         return services;

@@ -2,13 +2,15 @@ namespace Documate.Api.Infrastructure.Webhooks;
 
 using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Persistence;
-using Documate.Api.Infrastructure.Pipeline;
+using Documate.Api.Infrastructure.PublicEvents;
 using Microsoft.EntityFrameworkCore;
 
+/// <summary>Schedules typed public document events (Band 18) instead of hard-coded document.terminal.</summary>
 public sealed class DocumentWebhookScheduler(
     DocumateDbContext db,
     ICorEnumIdResolver enums,
-    IWebhookDispatcher dispatcher,
+    IPublicEventEmitter emitter,
+    IPublicEventPayloadBuilder payloads,
     ILogger<DocumentWebhookScheduler> logger) : IDocumentWebhookScheduler
 {
     public async Task ScheduleIfTerminalAsync(
@@ -30,7 +32,6 @@ public sealed class DocumentWebhookScheduler(
         var pending = enums.Require("webhook_delivery_status", "pending");
         var exhausted = enums.Require("webhook_delivery_status", "exhausted");
         var skipped = enums.Require("webhook_delivery_status", "skipped");
-        var notConfigured = enums.Require("webhook_delivery_status", "not_configured");
 
         if (document.WebhookStatusEnumId is long current
             && (current == succeeded || current == pending || current == exhausted || current == skipped))
@@ -38,16 +39,11 @@ public sealed class DocumentWebhookScheduler(
             return;
         }
 
-        var queue = await db.OpsQueues.AsNoTracking().FirstOrDefaultAsync(
-            q => q.Id == document.QueueId && q.BusinessId == document.BusinessId && !q.IsDeleted,
-            cancellationToken);
-        if (queue is null)
-        {
-            logger.LogWarning("Queue {QueueId} missing for Document {DocumentId} webhook", document.QueueId, document.Id);
-            return;
-        }
+        var sourceKey = await db.CorEnums.AsNoTracking()
+            .Where(e => e.Id == file.SourceEnumId)
+            .Select(e => e.EnumKey)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var sourceKey = await SourceKeyAsync(file.SourceEnumId, cancellationToken);
         if (string.Equals(sourceKey, "api_sync", StringComparison.Ordinal))
         {
             document.WebhookStatusEnumId = skipped;
@@ -55,24 +51,64 @@ public sealed class DocumentWebhookScheduler(
             return;
         }
 
-        if (!queue.WebhookEnabled || string.IsNullOrWhiteSpace(queue.WebhookUrl))
+        var statusKey = await db.CorEnums.AsNoTracking()
+            .Where(e => e.Id == document.PublicStatusEnumId)
+            .Select(e => e.EnumKey)
+            .FirstOrDefaultAsync(cancellationToken) ?? "failed";
+
+        var eventName = PublicEventCatalog.DocumentEventForPublicStatus(statusKey);
+        var eventId = PublicEventCatalog.EventIdForDocument(document.Id, eventName);
+        var payloadJson = await payloads.BuildDocumentPayloadAsync(document, file, eventName, eventId, cancellationToken);
+
+        await emitter.EmitAsync(
+            new PublicEventEmitRequest(
+                eventName,
+                eventId,
+                document.BusinessId,
+                document.QueueId,
+                PublicEventCatalog.ResourceDocument,
+                document.Id,
+                sourceKey,
+                payloadJson),
+            cancellationToken);
+
+        logger.LogInformation("Emitted {Event} for Document {DocumentId}", eventName, document.Id);
+
+        if (status == ready)
         {
-            document.WebhookStatusEnumId = notConfigured;
-            await db.SaveChangesAsync(cancellationToken);
+            await TryEmitFileCompletedAsync(document, file, sourceKey, cancellationToken);
+        }
+    }
+
+    private async Task TryEmitFileCompletedAsync(
+        OpsDocument document,
+        OpsFile file,
+        string? sourceKey,
+        CancellationToken cancellationToken)
+    {
+        var ready = enums.Require("document_public_status", "ready");
+        var siblings = await db.OpsDocuments.AsNoTracking()
+            .Where(d => d.FileId == document.FileId && d.BusinessId == document.BusinessId && !d.IsDeleted)
+            .Select(d => d.PublicStatusEnumId)
+            .ToListAsync(cancellationToken);
+        if (siblings.Count == 0 || siblings.Any(s => s != ready))
+        {
             return;
         }
 
-        document.WebhookStatusEnumId = pending;
-        await db.SaveChangesAsync(cancellationToken);
-        await dispatcher.EnqueueDocumentWebhookAsync(document.Id, document.BusinessId, cancellationToken);
-        logger.LogInformation("Enqueued webhook for Document {DocumentId}", document.Id);
-    }
-
-    private async Task<string?> SourceKeyAsync(long sourceEnumId, CancellationToken cancellationToken)
-    {
-        return await db.CorEnums.AsNoTracking()
-            .Where(e => e.Id == sourceEnumId)
-            .Select(e => e.EnumKey)
-            .FirstOrDefaultAsync(cancellationToken);
+        var eventName = PublicEventCatalog.FileCompleted;
+        var eventId = PublicEventCatalog.EventIdForFile(file.Id, eventName);
+        var payloadJson = await payloads.BuildFilePayloadAsync(file, eventName, eventId, cancellationToken);
+        await emitter.EmitAsync(
+            new PublicEventEmitRequest(
+                eventName,
+                eventId,
+                file.BusinessId,
+                file.QueueId,
+                PublicEventCatalog.ResourceFile,
+                file.Id,
+                sourceKey,
+                payloadJson),
+            cancellationToken);
     }
 }

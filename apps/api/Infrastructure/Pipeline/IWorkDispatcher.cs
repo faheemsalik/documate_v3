@@ -15,11 +15,16 @@ public interface IWorkDispatcher
     ValueTask EnqueueFileAsync(FileWorkItem item, CancellationToken cancellationToken = default);
 }
 
-/// <summary>Durable webhook job enqueue (DQ-0801). Same Hangfire backbone as File work.</summary>
+/// <summary>Durable public-action / webhook job enqueue.</summary>
 public interface IWebhookDispatcher
 {
     ValueTask EnqueueDocumentWebhookAsync(
         Guid documentId,
+        string businessId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask EnqueuePublicActionAsync(
+        Guid deliveryId,
         string businessId,
         CancellationToken cancellationToken = default);
 }

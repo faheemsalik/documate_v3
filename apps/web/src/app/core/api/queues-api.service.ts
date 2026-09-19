@@ -13,6 +13,7 @@ export interface Queue {
   webhookEnabled: boolean;
   webhookUrl?: string | null;
   hasWebhookSecret: boolean;
+  publicActionsInherit: boolean;
   emailIntakeEnabled: boolean;
   emailAddress?: string | null;
   emailLocalPart?: string | null;

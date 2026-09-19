@@ -164,6 +164,7 @@ public sealed record QueueDto(
     bool WebhookEnabled,
     string? WebhookUrl,
     bool HasWebhookSecret,
+    bool PublicActionsInherit,
     bool EmailIntakeEnabled,
     string? EmailAddress,
     string? EmailLocalPart,
@@ -242,6 +243,7 @@ internal static class QueueHelpers
             q.WebhookEnabled,
             q.WebhookUrl,
             !string.IsNullOrEmpty(q.WebhookSecretProtected) || !string.IsNullOrEmpty(q.WebhookSecretHash),
+            q.PublicActionsInherit,
             q.EmailIntakeEnabled,
             FormatEmail(q),
             q.EmailLocalPart,
@@ -565,8 +567,27 @@ public sealed class UpdateQueueWebhookHandler(
             q.WebhookSecretProtected = secrets.Protect(request.Secret);
         }
 
+        // Façade: writing queue webhook turns on override bindings for webhook action.
+        q.PublicActionsInherit = false;
         q.UpdatedByUserId = business.UserId;
         await db.SaveChangesAsync(cancellationToken);
+
+        await Documate.Api.Modules.FrontendSupport.Features.PublicActions.PublicActionsMapping.UpsertScopeAsync(
+            db,
+            secrets,
+            business.BusinessId,
+            q.Id,
+            business.UserId,
+            new Documate.Api.Modules.FrontendSupport.Features.PublicActions.UpsertPublicActionsRequest(
+                new Documate.Api.Modules.FrontendSupport.Features.PublicActions.WebhookActionUpsert(
+                    request.Enabled,
+                    request.Url,
+                    request.Secret,
+                    Documate.Api.Infrastructure.PublicEvents.PublicEventCatalog.DefaultBusinessWebhookEvents),
+                null,
+                null),
+            cancellationToken);
+
         return await QueueHelpers.ToDtoAsync(db, enums, q, cancellationToken);
     }
 }

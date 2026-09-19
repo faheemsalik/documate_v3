@@ -43,6 +43,11 @@ Agents executing **engineering** DQs must not invent product behavior. Agents on
 | [15-system-settings-db-exploration.md](./15-system-settings-db-exploration.md) | Exploration | ✅ Phase 1 complete — S1–S6 + N=30 locked |
 | [15-system-settings-db-implementation-plan.md](./15-system-settings-db-implementation-plan.md) | Implementation plan | ✅ Phase 2 approved → DQ-1410/1411 |
 | [17-platform-secrets-store.md](./17-platform-secrets-store.md) | Adopted decision | ✅ AWS Secrets Manager primary; Infisical backup; API startup loader |
+| [18-remaining-work-backlog.md](./18-remaining-work-backlog.md) | Delivery backlog | 🔄 Decisions 2026-09-16 — HAPA→Woodvale→MCM; local E2E; Statements #9 later; A3 open |
+| [19-documate-marketing-website-business-plan.md](./19-documate-marketing-website-business-plan.md) | Business plan | 🔄 Draft — Next.js marketing site (VoomHub-inspired); W1–W6 open |
+| [20-public-events-actions-exploration.md](./20-public-events-actions-exploration.md) | Exploration | ✅ Phase 1 complete — PE1–PE11 locked; Phase 2 approved |
+| [21-public-events-actions-implementation-plan.md](./21-public-events-actions-implementation-plan.md) | Implementation plan | ✅ Phase 2 complete → Band 18 DQ |
+| [21-public-events-actions-dispatch-queue.md](./21-public-events-actions-dispatch-queue.md) | Dispatch queue | ✅ Band 18 complete (DQ-1801…1808) |
 
 ## Plan-writing rules
 

@@ -103,6 +103,7 @@ builder.Services.AddDbContext<DocumateDbContext>(options =>
 builder.Services.AddSingleton<CorEnumIdResolver>();
 builder.Services.AddSingleton<ICorEnumIdResolver>(sp => sp.GetRequiredService<CorEnumIdResolver>());
 builder.Services.AddHostedService<CorEnumSeedHostedService>();
+builder.Services.AddHostedService<Documate.Api.Infrastructure.PublicEvents.ActionBindingMigrateHostedService>();
 
 builder.Services.AddScoped<BusinessContextAccessor>();
 builder.Services.AddScoped<IBusinessContext>(sp => sp.GetRequiredService<BusinessContextAccessor>());
@@ -197,7 +198,8 @@ app.MapHealthChecks("/health");
 // Liveness for IIS deploy tooling — anonymous, no dependency checks.
 app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" }));
 
-RecurringJob.AddOrUpdate<EmailIntakeJobs>(
+// DI manager — static RecurringJob uses JobStorage.Current, which is unset until Hangfire is fully wired (IIS deploy crash).
+app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<EmailIntakeJobs>(
     "email-intake-mime-retention",
     j => j.PurgeExpiredMimeAsync(),
     Cron.Daily);

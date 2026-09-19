@@ -69,7 +69,9 @@ public sealed class WorkRecordService(
     DocumateDbContext db,
     IBusinessContext business,
     IObjectStorage storage,
-    ICorEnumIdResolver enums) : IWorkRecordService
+    ICorEnumIdResolver enums,
+    Documate.Api.Infrastructure.PublicEvents.IPublicEventEmitter publicEvents,
+    Documate.Api.Infrastructure.PublicEvents.IPublicEventPayloadBuilder publicPayloads) : IWorkRecordService
 {
     private const int MaxBlobParallelism = 8;
 
@@ -282,6 +284,28 @@ public sealed class WorkRecordService(
         else
         {
             await timer.MeasureDbAsync(FinalizeAsync, cancellationToken);
+        }
+
+        foreach (var file in insert.Files)
+        {
+            var sourceKey = await db.CorEnums.AsNoTracking()
+                .Where(e => e.Id == file.SourceEnumId)
+                .Select(e => e.EnumKey)
+                .FirstOrDefaultAsync(cancellationToken);
+            var eventName = Documate.Api.Infrastructure.PublicEvents.PublicEventCatalog.FileReceived;
+            var eventId = Documate.Api.Infrastructure.PublicEvents.PublicEventCatalog.EventIdForFile(file.Id, eventName);
+            var payloadJson = await publicPayloads.BuildFilePayloadAsync(file, eventName, eventId, cancellationToken);
+            await publicEvents.EmitAsync(
+                new Documate.Api.Infrastructure.PublicEvents.PublicEventEmitRequest(
+                    eventName,
+                    eventId,
+                    file.BusinessId,
+                    file.QueueId,
+                    Documate.Api.Infrastructure.PublicEvents.PublicEventCatalog.ResourceFile,
+                    file.Id,
+                    sourceKey,
+                    payloadJson),
+                cancellationToken);
         }
 
         return insert.Files;

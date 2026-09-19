@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 
 public static class DocumentWebhookPayload
 {
-    public const string EventName = "document.terminal";
+    public const string EventName = "Document ready"; // fallback only; emitters pass typed catalog names
     public const string SignatureHeader = "X-Documate-Signature";
     public const string EventHeader = "X-Documate-Event";
     public const string DeliveryHeader = "X-Documate-Delivery";

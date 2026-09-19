@@ -2,6 +2,17 @@
   <h1>Documentation</h1>
   <p class="subtitle">API references for integrating with Documate</p>
 
+  <p-card header="Public events &amp; webhooks">
+    <p>Partners subscribe via Business → Integrations &amp; events (queues inherit by default).</p>
+    <ul>
+      <li><code>File received</code> — after file + blob committed (async / email)</li>
+      <li><code>Document ready</code> / <code>Document failed</code> / <code>Document cancelled</code> — document terminals (<code>rejected</code> maps to failed)</li>
+      <li><code>File completed</code> — only when <strong>all</strong> documents on the file are Ready</li>
+    </ul>
+    <p>Headers: <code>X-Documate-Event</code>, <code>X-Documate-Delivery</code> (event id), <code>X-Documate-Signature</code> (HMAC). Sync extract (<code>api_sync</code>) suppresses all public actions.</p>
+    <p>Settings APIs: <code>/api/app/business/public-actions</code>, <code>/api/app/queues/&#123;id&#125;/public-actions</code>.</p>
+  </p-card>
+
   <p-card header="Customer app API">
     <p>FrontendSupport endpoints used by this app:</p>
     <ul>

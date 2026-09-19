@@ -74,7 +74,8 @@ public sealed class CreateBusinessHandler(
     DocumateDbContext db,
     IBusinessContext business,
     IDefaultQueueBootstrap defaultQueues,
-    IDefaultWorkflowBootstrap defaultWorkflows)
+    IDefaultWorkflowBootstrap defaultWorkflows,
+    Documate.Api.Infrastructure.PublicEvents.IActionBindingBootstrap actionBindings)
     : IRequestHandler<CreateBusinessCommand, BusinessListItemDto>
 {
     public async Task<BusinessListItemDto> Handle(
@@ -106,6 +107,7 @@ public sealed class CreateBusinessHandler(
 
         await defaultQueues.EnsureDefaultAsync(newBusinessId, business.UserId, cancellationToken);
         await defaultWorkflows.EnsureNormalizeFieldsAsync(newBusinessId, business.UserId, cancellationToken);
+        await actionBindings.EnsureBusinessDefaultsAsync(newBusinessId, business.UserId, cancellationToken);
 
         return new BusinessListItemDto(
             row.IdenBusinessId,

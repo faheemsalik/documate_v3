@@ -43,6 +43,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Settings',
     items: [
       { label: 'Business profile', route: '/business/profile' },
+      { label: 'Integrations & events', route: '/business/integrations' },
       { label: 'Businesses', route: '/business/switch' },
       { label: 'API keys', route: '/api-keys' },
     ],

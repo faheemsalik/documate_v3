@@ -381,3 +381,52 @@ internal sealed class CorSystemSettingConfiguration : IEntityTypeConfiguration<C
         b.HasIndex(x => x.SettingKey).IsUnique().HasFilter("[IsDeleted] = 0");
     }
 }
+
+internal sealed class OpsActionBindingConfiguration : IEntityTypeConfiguration<OpsActionBinding>
+{
+    public void Configure(EntityTypeBuilder<OpsActionBinding> b)
+    {
+        EntityConfigHelpers.ConfigureWireFacing(b);
+        EntityConfigHelpers.BusinessId(b);
+        b.Property(x => x.ActionTypeKey).HasMaxLength(32).IsRequired();
+        b.Property(x => x.ConfigJson).HasColumnType("nvarchar(max)");
+        b.Property(x => x.EventKeysJson).HasColumnType("nvarchar(max)").IsRequired();
+        b.HasOne(x => x.Queue).WithMany().HasForeignKey(x => x.QueueId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => new { x.BusinessId, x.QueueId, x.ActionTypeKey });
+    }
+}
+
+internal sealed class OpsOutboundDeliveryConfiguration : IEntityTypeConfiguration<OpsOutboundDelivery>
+{
+    public void Configure(EntityTypeBuilder<OpsOutboundDelivery> b)
+    {
+        EntityConfigHelpers.ConfigureWireFacing(b);
+        EntityConfigHelpers.BusinessId(b);
+        b.Property(x => x.ActionTypeKey).HasMaxLength(32).IsRequired();
+        b.Property(x => x.EventName).HasMaxLength(64).IsRequired();
+        b.Property(x => x.EventId).HasMaxLength(128).IsRequired();
+        b.Property(x => x.ResourceTypeKey).HasMaxLength(32).IsRequired();
+        b.Property(x => x.LastError).HasMaxLength(4000);
+        b.Property(x => x.PayloadJson).HasColumnType("nvarchar(max)").IsRequired();
+        b.HasOne(x => x.ActionBinding).WithMany().HasForeignKey(x => x.ActionBindingId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.Status).WithMany().HasForeignKey(x => x.StatusEnumId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => new { x.BusinessId, x.EventId, x.ActionBindingId });
+        b.HasIndex(x => new { x.BusinessId, x.ResourceTypeKey, x.ResourceId });
+    }
+}
+
+internal sealed class OpsInAppNotificationConfiguration : IEntityTypeConfiguration<OpsInAppNotification>
+{
+    public void Configure(EntityTypeBuilder<OpsInAppNotification> b)
+    {
+        EntityConfigHelpers.ConfigureWireFacing(b);
+        EntityConfigHelpers.BusinessId(b);
+        b.Property(x => x.EventId).HasMaxLength(128).IsRequired();
+        b.Property(x => x.EventName).HasMaxLength(64).IsRequired();
+        b.Property(x => x.Title).HasMaxLength(512).IsRequired();
+        b.Property(x => x.Body).HasMaxLength(4000).IsRequired();
+        b.Property(x => x.PayloadJson).HasColumnType("nvarchar(max)");
+        b.HasIndex(x => new { x.BusinessId, x.CreatedAt });
+        b.HasIndex(x => new { x.BusinessId, x.EventId });
+    }
+}

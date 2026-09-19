@@ -1,0 +1,64 @@
+<div class="page">
+  <h1>Integrations &amp; events</h1>
+  <p class="subtitle">Business defaults for webhooks, email, and in-app notifications. Queues inherit these unless they override.</p>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+  @if (info()) {
+    <p-message severity="success" [text]="info()!" />
+  }
+  @if (loading()) {
+    <p-message severity="info" text="Loading…" />
+  } @else {
+    <section class="block">
+      <h2>Webhook</h2>
+      <label class="checkbox-row"><p-checkbox [(ngModel)]="webhookEnabled" [binary]="true" /> Enabled</label>
+      <input pInputText class="full" [(ngModel)]="webhookUrl" placeholder="https://…" />
+      <input pInputText class="full" type="password" [(ngModel)]="webhookSecret" placeholder="Secret (leave blank to keep)" />
+      <div class="events">
+        @for (ev of webhookEvents; track ev.eventKey) {
+          <label class="checkbox-row">
+            <p-checkbox [(ngModel)]="ev.enabled" [binary]="true" />
+            {{ ev.eventKey }}
+          </label>
+        }
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>Email notify</h2>
+      <label class="checkbox-row"><p-checkbox [(ngModel)]="emailEnabled" [binary]="true" /> Enabled</label>
+      <label>Audience
+        <select [(ngModel)]="emailAudience">
+          <option value="partner">Partner recipients</option>
+          <option value="platform">Documate support (platform)</option>
+        </select>
+      </label>
+      <textarea pTextarea class="full" rows="2" [(ngModel)]="emailRecipientsText" placeholder="a@x.com, b@y.com"></textarea>
+      <div class="events">
+        @for (ev of emailEvents; track ev.eventKey) {
+          <label class="checkbox-row">
+            <p-checkbox [(ngModel)]="ev.enabled" [binary]="true" />
+            {{ ev.eventKey }}
+          </label>
+        }
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>In-app notify</h2>
+      <label class="checkbox-row"><p-checkbox [(ngModel)]="inAppEnabled" [binary]="true" /> Enabled</label>
+      <div class="events">
+        @for (ev of inAppEvents; track ev.eventKey) {
+          <label class="checkbox-row">
+            <p-checkbox [(ngModel)]="ev.enabled" [binary]="true" />
+            {{ ev.eventKey }}
+          </label>
+        }
+      </div>
+    </section>
+
+    <p-button label="Save" (onClick)="save()" [loading]="saving()" />
+  }
+</div>

@@ -26,6 +26,9 @@ public sealed class DocumateDbContext(DbContextOptions<DocumateDbContext> option
     public DbSet<OpsDocument> OpsDocuments => Set<OpsDocument>();
     public DbSet<OpsIntakeRejection> OpsIntakeRejections => Set<OpsIntakeRejection>();
     public DbSet<OpsWorkEvent> OpsWorkEvents => Set<OpsWorkEvent>();
+    public DbSet<OpsActionBinding> OpsActionBindings => Set<OpsActionBinding>();
+    public DbSet<OpsOutboundDelivery> OpsOutboundDeliveries => Set<OpsOutboundDelivery>();
+    public DbSet<OpsInAppNotification> OpsInAppNotifications => Set<OpsInAppNotification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

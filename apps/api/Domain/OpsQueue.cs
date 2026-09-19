@@ -14,6 +14,8 @@ public sealed class OpsQueue : WireFacingEntity, IHasRowVersion
     /// <summary>Data-Protection payload of the HMAC secret (hash alone cannot sign).</summary>
     public string? WebhookSecretProtected { get; set; }
     public bool WebhookEnabled { get; set; }
+    /// <summary>When true, use Business-default action bindings; when false, use Queue-scoped bindings.</summary>
+    public bool PublicActionsInherit { get; set; } = true;
     public bool EmailIntakeEnabled { get; set; }
     public string? EmailLocalPart { get; set; }
     public string? EmailDomain { get; set; }

@@ -53,7 +53,6 @@
           [defaultColDef]="defaultColDef"
           [overlayNoRowsTemplate]="loading() ? 'Loading…' : 'No files match filters'"
           (gridReady)="onFileGridReady($event)"
-          (rowClicked)="onFileRowClicked($event)"
           (cellClicked)="onFileCellClicked($event)"
         />
         <div class="pager">
@@ -86,7 +85,6 @@
           [defaultColDef]="defaultColDef"
           [overlayNoRowsTemplate]="loading() ? 'Loading…' : 'No documents match filters'"
           (gridReady)="onDocGridReady($event)"
-          (rowClicked)="onDocRowClicked($event)"
           (cellClicked)="onDocCellClicked($event)"
         />
         <div class="pager">

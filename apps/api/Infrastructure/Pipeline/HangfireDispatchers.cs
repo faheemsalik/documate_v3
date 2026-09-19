@@ -21,7 +21,7 @@ public sealed class HangfireWorkDispatcher(IBackgroundJobClient jobs) : IWorkDis
     }
 }
 
-/// <summary>Hangfire enqueue onto the webhooks queue (DQ-0801).</summary>
+/// <summary>Hangfire enqueue onto the webhooks queue (DQ-0801 / Band 18).</summary>
 public sealed class HangfireWebhookDispatcher(IBackgroundJobClient jobs) : IWebhookDispatcher
 {
     public ValueTask EnqueueDocumentWebhookAsync(
@@ -33,6 +33,16 @@ public sealed class HangfireWebhookDispatcher(IBackgroundJobClient jobs) : IWebh
         jobs.Enqueue<WebhookJobs>(j => j.DeliverDocumentWebhookAsync(documentId, businessId));
         return ValueTask.CompletedTask;
     }
+
+    public ValueTask EnqueuePublicActionAsync(
+        Guid deliveryId,
+        string businessId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        jobs.Enqueue<PublicActionJobs>(j => j.ExecutePublicActionAsync(deliveryId, businessId));
+        return ValueTask.CompletedTask;
+    }
 }
 
 public sealed class FilePipelineJobs(IFilePipelineStub stub)
@@ -42,11 +52,20 @@ public sealed class FilePipelineJobs(IFilePipelineStub stub)
         stub.ProcessAsync(new FileWorkItem(fileId, businessId, userId));
 }
 
-/// <summary>Per-Document HTTPS webhook (DQ-0801). Retries are self-scheduled; Hangfire auto-retry is off.</summary>
+/// <summary>Per-Document HTTPS webhook (legacy path). Prefer PublicActionJobs.</summary>
 public sealed class WebhookJobs(DocumentWebhookDelivery delivery)
 {
     [Queue("webhooks")]
     [AutomaticRetry(Attempts = 0)]
     public Task DeliverDocumentWebhookAsync(Guid documentId, string businessId) =>
         delivery.DeliverAsync(documentId, businessId);
+}
+
+/// <summary>Public action execution (webhook / email / in_app) — Band 18.</summary>
+public sealed class PublicActionJobs(Documate.Api.Infrastructure.PublicEvents.PublicActionExecutor executor)
+{
+    [Queue("webhooks")]
+    [AutomaticRetry(Attempts = 0)]
+    public Task ExecutePublicActionAsync(Guid deliveryId, string businessId) =>
+        executor.ExecuteAsync(deliveryId, businessId);
 }

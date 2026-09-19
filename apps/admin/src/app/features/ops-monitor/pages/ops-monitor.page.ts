@@ -8,7 +8,6 @@ import {
   type CellClickedEvent,
   type ColDef,
   type GridApi,
-  type RowClickedEvent,
 } from 'ag-grid-community';
 import { Button } from 'primeng/button';
 import { InputText } from 'primeng/inputtext';
@@ -281,30 +280,28 @@ export class OpsMonitorPage implements OnInit {
     this.applyVisible(this.docGridApi, this.docVisibleCols);
   }
 
-  onFileRowClicked(event: RowClickedEvent<AdminFileListItem>): void {
+  onFileCellClicked(event: CellClickedEvent<AdminFileListItem>): void {
+    if (this.isResetClick(event)) {
+      const row = event.data;
+      if (!row) return;
+      this.resetFile(row);
+      return;
+    }
     if (event.column?.getColId() === 'actions') return;
     const id = event.data?.id;
     if (id) void this.router.navigate(['/ops/files', id]);
   }
 
-  onDocRowClicked(event: RowClickedEvent<AdminDocumentListItem>): void {
+  onDocCellClicked(event: CellClickedEvent<AdminDocumentListItem>): void {
+    if (this.isResetClick(event)) {
+      const row = event.data;
+      if (!row) return;
+      this.resetDocument(row);
+      return;
+    }
     if (event.column?.getColId() === 'actions') return;
     const id = event.data?.id;
     if (id) void this.router.navigate(['/ops/documents', id]);
-  }
-
-  onFileCellClicked(event: CellClickedEvent<AdminFileListItem>): void {
-    if (!this.isResetClick(event)) return;
-    const row = event.data;
-    if (!row) return;
-    this.resetFile(row);
-  }
-
-  onDocCellClicked(event: CellClickedEvent<AdminDocumentListItem>): void {
-    if (!this.isResetClick(event)) return;
-    const row = event.data;
-    if (!row) return;
-    this.resetDocument(row);
   }
 
   private resetFile(row: AdminFileListItem): void {

@@ -13,6 +13,10 @@ import { AgentsApiService, type Agent } from '../../../core/api/agents-api.servi
 import { CatalogsApiService, type DocumentType } from '../../../core/api/catalogs-api.service';
 import { QueuesApiService, type Queue, type QueueRoute } from '../../../core/api/queues-api.service';
 import {
+  PublicActionsApiService,
+  type PublicEventToggle,
+} from '../../../core/api/public-actions-api.service';
+import {
   IntakeMailboxesApiService,
   type IntakeMailbox,
   type MailboxAllowlistEntry,
@@ -40,6 +44,7 @@ import {
 })
 export class QueueOverviewPage {
   private readonly queuesApi = inject(QueuesApiService);
+  private readonly publicActionsApi = inject(PublicActionsApiService);
   private readonly agentsApi = inject(AgentsApiService);
   private readonly catalogsApi = inject(CatalogsApiService);
   private readonly mailboxesApi = inject(IntakeMailboxesApiService);
@@ -59,9 +64,11 @@ export class QueueOverviewPage {
   readonly selectedMailbox = signal<IntakeMailbox | null>(null);
 
   activeTab: string | number = '0';
+  publicActionsInherit = true;
   webhookEnabled = false;
   webhookUrl = '';
   webhookSecret = '';
+  webhookEvents: PublicEventToggle[] = [];
   emailIntakeEnabled = false;
   newRouteDocTypeId: number | null = null;
   newRouteAgentId: string | null = null;
@@ -109,20 +116,35 @@ export class QueueOverviewPage {
     const q = this.queue();
     if (!q) return;
     this.saving.set(true);
-    this.queuesApi
-      .updateWebhook(q.id, {
-        enabled: this.webhookEnabled,
-        url: this.webhookUrl || null,
-        secret: this.webhookSecret || null,
+    this.publicActionsApi
+      .putQueue(q.id, {
+        inherit: this.publicActionsInherit,
+        override: this.publicActionsInherit
+          ? null
+          : {
+              webhook: {
+                enabled: this.webhookEnabled,
+                url: this.webhookUrl || null,
+                secret: this.webhookSecret || null,
+                eventKeys: this.webhookEvents.filter((e) => e.enabled).map((e) => e.eventKey),
+              },
+            },
       })
       .subscribe({
-        next: (updated) => {
-          this.queue.set(updated);
+        next: (settings) => {
+          this.publicActionsInherit = settings.inherit;
+          const src = settings.inherit ? settings.effective : settings.override ?? settings.effective;
+          this.webhookEnabled = src.webhook.enabled;
+          this.webhookUrl = src.webhook.url ?? '';
+          this.webhookEvents = src.webhook.events.map((e) => ({ ...e }));
+          this.webhookSecret = '';
           this.saving.set(false);
+          this.info.set(settings.inherit ? 'Inheriting Business defaults.' : 'Queue override saved.');
+          this.load(q.id);
         },
         error: () => {
           this.saving.set(false);
-          this.error.set('Webhook update failed.');
+          this.error.set('Webhook / events update failed.');
         },
       });
   }
@@ -139,7 +161,7 @@ export class QueueOverviewPage {
   createMultiMailbox(): void {
     this.mailboxesApi.createMulti().subscribe({
       next: () => this.reloadMailboxes(),
-      error: (err) => this.error.set(err?.error?.error ?? 'Could not create multi mailbox.'),
+      error: (err) => this.error.set(err?.error?.error ?? 'Could not create channel intake email.'),
     });
   }
 
@@ -303,11 +325,19 @@ export class QueueOverviewPage {
       next: (detail) => {
         this.queue.set(detail.queue);
         this.routes.set(detail.routes);
-        this.webhookEnabled = detail.queue.webhookEnabled;
-        this.webhookUrl = detail.queue.webhookUrl ?? '';
+        this.publicActionsInherit = detail.queue.publicActionsInherit ?? true;
         this.emailIntakeEnabled = detail.queue.emailIntakeEnabled;
         this.loading.set(false);
         this.reloadMailboxes();
+        this.publicActionsApi.getQueue(queueId).subscribe({
+          next: (settings) => {
+            this.publicActionsInherit = settings.inherit;
+            const src = settings.inherit ? settings.effective : settings.override ?? settings.effective;
+            this.webhookEnabled = src.webhook.enabled;
+            this.webhookUrl = src.webhook.url ?? '';
+            this.webhookEvents = src.webhook.events.map((e) => ({ ...e }));
+          },
+        });
       },
       error: () => {
         this.loading.set(false);

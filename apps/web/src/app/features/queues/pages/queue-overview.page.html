@@ -56,16 +56,36 @@
         </p-tabpanel>
         <p-tabpanel value="1">
           <section class="block">
-            <h3>Webhook</h3>
-            <label class="checkbox-row"><p-checkbox [(ngModel)]="webhookEnabled" [binary]="true" /> Enabled</label>
-            <input pInputText [(ngModel)]="webhookUrl" placeholder="https://…" class="full" />
-            <input pInputText [(ngModel)]="webhookSecret" placeholder="Secret (optional)" class="full" type="password" />
-            <p-button label="Save webhook" (onClick)="saveWebhook()" [loading]="saving()" />
+            <h3>Events &amp; webhook</h3>
+            <label class="checkbox-row">
+              <p-checkbox [(ngModel)]="publicActionsInherit" [binary]="true" />
+              Inherit Business defaults
+            </label>
+            @if (!publicActionsInherit) {
+              <label class="checkbox-row"><p-checkbox [(ngModel)]="webhookEnabled" [binary]="true" /> Enabled</label>
+              <input pInputText [(ngModel)]="webhookUrl" placeholder="https://…" class="full" />
+              <input pInputText [(ngModel)]="webhookSecret" placeholder="Secret (optional)" class="full" type="password" />
+              <div class="events">
+                @for (ev of webhookEvents; track ev.eventKey) {
+                  <label class="checkbox-row">
+                    <p-checkbox [(ngModel)]="ev.enabled" [binary]="true" />
+                    {{ ev.eventKey }}
+                  </label>
+                }
+              </div>
+            } @else {
+              <p class="hint">Using Business Integrations settings. Uncheck inherit to override on this channel.</p>
+            }
+            <p-button label="Save events" (onClick)="saveWebhook()" [loading]="saving()" />
           </section>
           <section class="block">
-            <h3>Multi-type intake emails</h3>
-            <p class="hint">Use for mixed document packs. Typed agent emails are managed on each Agent page.</p>
-            <p-button label="Create multi-type email" (onClick)="createMultiMailbox()" severity="secondary" />
+            <h3>Channel intake emails</h3>
+            <p class="hint">
+              Emails to this channel are processed using the document types mapped under
+              <strong>Document types</strong> (one type or several). For a dedicated inbox tied to a single
+              Agent, create the intake email on that Agent page instead.
+            </p>
+            <p-button label="Create channel intake email" (onClick)="createMultiMailbox()" severity="secondary" />
             <p-table [value]="mailboxes()">
               <ng-template pTemplate="header">
                 <tr><th>Address</th><th>Enabled</th><th>Allowlist</th><th></th></tr>
@@ -128,7 +148,7 @@
                 </ng-template>
               </p-table>
             } @else {
-              <p class="hint">Select a multi-type mailbox above to edit its allowlist.</p>
+              <p class="hint">Select a channel intake mailbox above to edit its allowlist.</p>
             }
           </section>
           <section class="block">
