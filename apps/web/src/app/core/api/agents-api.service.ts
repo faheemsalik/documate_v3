@@ -12,6 +12,7 @@ export interface Agent {
   schemaVersion: number;
   instructions: string;
   postProcessPrompt: string;
+  additionalDocumentInstructions: string;
   sourceTemplateId?: number | null;
   defaultWorkflowId?: number | null;
   defaultProviderId?: number | null;
@@ -25,6 +26,7 @@ export interface CreateAgentBody {
   outputSchemaJson: string;
   instructions: string;
   postProcessPrompt?: string;
+  additionalDocumentInstructions?: string;
   defaultWorkflowId?: number | null;
   defaultProviderId?: number | null;
   schemaVersion?: number;

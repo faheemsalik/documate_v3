@@ -1,19 +1,102 @@
+:host {
+  display: block;
+  height: calc(100vh - 2.5rem);
+  min-height: 0;
+}
+
 .page {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  height: 100%;
+  min-height: 0;
+  gap: 0.75rem;
 }
 
-.page-header {
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(420px, 1.45fr) minmax(300px, 0.9fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+@media (max-width: 1100px) {
+  :host {
+    height: auto;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .preview-panel {
+    min-height: 60vh;
+  }
+
+  .side {
+    max-height: none;
+  }
+}
+
+.preview-panel {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 8px;
+  background: var(--p-content-background);
+  overflow: hidden;
+}
+
+.preview-frame,
+.preview-image {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--p-surface-100);
+  object-fit: contain;
+}
+
+.preview-fallback {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 100%;
+  overflow: auto;
+  min-width: 0;
+  min-height: 0;
+  padding-right: 0.15rem;
+}
+
+.side-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.15rem 0.1rem 0.35rem;
+}
+
+.side-header-top {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
 }
 
 .back-link {
-  display: inline-block;
-  margin-bottom: 0.35rem;
   color: var(--p-primary-color);
   text-decoration: none;
   font-size: 0.875rem;
@@ -21,45 +104,53 @@
 
 h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.35rem;
+  font-weight: 650;
+  line-height: 1.25;
 }
 
 .meta {
-  margin: 0.35rem 0 0;
+  margin: 0.2rem 0 0;
   color: var(--p-text-muted-color);
   font-size: 0.85rem;
-}
-
-.layout {
-  display: grid;
-  grid-template-columns: minmax(420px, 1.4fr) minmax(280px, 0.85fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-@media (max-width: 1100px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.side {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-height: min(82vh, 960px);
-  overflow: auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-.preview-frame,
-.preview-image {
-  width: 100%;
-  height: min(78vh, 900px);
-  min-height: 520px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--p-surface-100);
-  object-fit: contain;
+.meta.subtle {
+  font-size: 0.8rem;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--p-surface-200, var(--p-content-hover-background));
+  color: var(--p-text-color);
+}
+
+.status-pill[data-status='completed'],
+.status-pill[data-status='succeeded'],
+.status-pill[data-status='success'] {
+  background: color-mix(in srgb, var(--p-green-500, #22c55e) 18%, transparent);
+  color: var(--p-green-700, #15803d);
+}
+
+.status-pill[data-status='failed'],
+.status-pill[data-status='error'] {
+  background: color-mix(in srgb, var(--p-red-500, #ef4444) 18%, transparent);
+  color: var(--p-red-700, #b91c1c);
+}
+
+.status-pill[data-status='processing'],
+.status-pill[data-status='queued'],
+.status-pill[data-status='running'] {
+  background: color-mix(in srgb, var(--p-blue-500, #3b82f6) 18%, transparent);
+  color: var(--p-blue-700, #1d4ed8);
 }
 
 .meta-grid,
@@ -100,15 +191,42 @@ h1 {
 
 .prompt {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
-  font-family: ui-monospace, monospace;
-  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
   margin: 0 0 0.75rem;
-  max-height: 18rem;
+  max-height: 22rem;
   overflow: auto;
-  background: var(--p-surface-50, #f8fafc);
-  padding: 0.65rem;
+  background: var(--p-surface-ground, var(--p-content-background));
+  color: var(--p-text-color);
+  border: 1px solid var(--p-content-border-color);
+  padding: 0.75rem;
   border-radius: 6px;
+  min-width: 0;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-bottom: 0.65rem;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--p-text-color);
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 :host ::ng-deep .compact-table .p-datatable-tbody > tr > td,

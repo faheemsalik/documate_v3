@@ -44,7 +44,7 @@ public sealed class Mode1DocumateMetaExtractAdapter(
             request.SystemPrompt,
             request.Instructions,
             request.OutputSchemaJson,
-            request.PostProcessPrompt,
+            request.AdditionalDocumentInstructions,
             text);
 
         logger.LogInformation(

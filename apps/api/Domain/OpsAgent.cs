@@ -11,6 +11,7 @@ public sealed class OpsAgent : WireFacingEntity, IHasRowVersion
     public string Instructions { get; set; } = "";
     public string SystemPrompt { get; set; } = "";
     public string PostProcessPrompt { get; set; } = "";
+    public string AdditionalDocumentInstructions { get; set; } = "";
     public long? SourceTemplateId { get; set; }
     public long? DefaultWorkflowId { get; set; }
     public long? DefaultProviderId { get; set; }

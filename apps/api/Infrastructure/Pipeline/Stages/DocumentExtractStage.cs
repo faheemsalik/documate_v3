@@ -223,7 +223,7 @@ public sealed class DocumentExtractStage(
                 sourceText,
                 preferredLlmProviderKey,
                 agent.SystemPrompt,
-                agent.PostProcessPrompt),
+                agent.AdditionalDocumentInstructions),
             cancellationToken);
 
         await UpsertExtractPromptAsync(

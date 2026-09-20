@@ -280,6 +280,7 @@ export interface AdminAgentTemplate {
   defaultInstructions: string;
   systemPrompt: string;
   defaultPostProcessPrompt: string;
+  defaultAdditionalDocumentInstructions: string;
   defaultProviderId?: number | null;
   isPublished: boolean;
   version: number;
@@ -319,6 +320,7 @@ export interface AdminAgentDetail {
   instructions: string;
   systemPrompt: string;
   postProcessPrompt: string;
+  additionalDocumentInstructions: string;
   sourceTemplateId: number | null;
   defaultProviderId: number | null;
   isActive: boolean;
@@ -347,6 +349,7 @@ export interface CreateAdminAgentTemplateBody {
   defaultInstructions: string;
   systemPrompt?: string | null;
   defaultPostProcessPrompt?: string | null;
+  defaultAdditionalDocumentInstructions?: string | null;
   defaultProviderId?: number | null;
   isPublished: boolean;
 }
@@ -359,6 +362,7 @@ export interface UpdateAdminAgentTemplateBody {
   defaultInstructions: string;
   systemPrompt?: string | null;
   defaultPostProcessPrompt?: string | null;
+  defaultAdditionalDocumentInstructions?: string | null;
   defaultProviderId?: number | null;
   isPublished: boolean;
   pushSystemPrompt: boolean;
@@ -645,7 +649,7 @@ export class AdminApiService {
       systemPrompt?: string | null;
       instructions?: string | null;
       outputSchemaJson?: string | null;
-      postProcessPrompt?: string | null;
+      additionalDocumentInstructions?: string | null;
     },
   ): Observable<AdminAgentPromptPreview> {
     return this.http.post<AdminAgentPromptPreview>(

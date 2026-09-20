@@ -26,6 +26,8 @@ export interface AgentTemplate {
   documentTypeKey: string;
   defaultSchemaJson: string;
   defaultInstructions: string;
+  defaultPostProcessPrompt?: string;
+  defaultAdditionalDocumentInstructions?: string;
   defaultProviderId?: number | null;
   version: number;
 }

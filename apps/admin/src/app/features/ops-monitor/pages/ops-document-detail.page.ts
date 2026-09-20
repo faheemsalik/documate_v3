@@ -26,8 +26,20 @@ export class OpsDocumentDetailPage implements OnInit {
   readonly error = signal<string | null>(null);
   readonly document = signal<AdminDocumentDetail | null>(null);
   readonly previewObjectUrl = signal<string | null>(null);
+  readonly resultJsonOpen = signal(true);
+  readonly copied = signal(false);
 
   readonly parsedResult = computed(() => parseResultJson(this.document()?.resultJson ?? null));
+
+  readonly formattedResultJson = computed(() => {
+    const raw = this.document()?.resultJson;
+    if (raw == null) return null;
+    try {
+      return JSON.stringify(raw, null, 2);
+    } catch {
+      return String(raw);
+    }
+  });
 
   readonly canPreviewInline = computed(() => {
     const d = this.document();
@@ -42,6 +54,17 @@ export class OpsDocumentDetailPage implements OnInit {
     const url = this.previewObjectUrl();
     return url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
   });
+
+  /** Friendly H1 — document type name, not an internal id/key as-is. */
+  readonly pageTitle = computed(() => {
+    const key = this.document()?.documentTypeKey;
+    const label = humanizeKey(key);
+    return label || 'Document';
+  });
+
+  readonly typeLabel = computed(() => humanizeKey(this.document()?.documentTypeKey) || '—');
+  readonly statusLabel = computed(() => humanizeKey(this.document()?.publicStatusKey) || '—');
+  readonly stageLabel = computed(() => humanizeKey(this.document()?.internalStageKey) || '—');
 
   readonly formatFieldValue = formatFieldValue;
 
@@ -59,6 +82,19 @@ export class OpsDocumentDetailPage implements OnInit {
   refresh(): void {
     const documentId = this.route.snapshot.paramMap.get('documentId');
     if (documentId) this.load(documentId);
+  }
+
+  toggleResultJson(): void {
+    this.resultJsonOpen.update((open) => !open);
+  }
+
+  copyResultJson(): void {
+    const json = this.formattedResultJson();
+    if (!json || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+    void navigator.clipboard.writeText(json).then(() => {
+      this.copied.set(true);
+      window.setTimeout(() => this.copied.set(false), 1500);
+    });
   }
 
   private load(documentId: string): void {
@@ -180,4 +216,19 @@ function formatFieldValue(value: unknown): string {
   if (value == null) return '—';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+/** Turn snake/kebab/camel keys into readable labels for layman users. */
+function humanizeKey(key?: string | null): string {
+  if (!key?.trim()) return '';
+  const spaced = key
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_\-.]+/g, ' ')
+    .replace(/\s+/g, ' ');
+  return spaced
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
 }

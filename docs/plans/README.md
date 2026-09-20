@@ -51,6 +51,8 @@ Agents executing **engineering** DQs must not invent product behavior. Agents on
 | [22-document-agent-prompt-creation-exploration.md](./22-document-agent-prompt-creation-exploration.md) | Exploration | ✅ Phase 1 complete — PP1–PP7, P1–P5 locked (2026-09-20) |
 | [22-document-agent-prompt-creation-implementation-plan.md](./22-document-agent-prompt-creation-implementation-plan.md) | Implementation plan | ✅ Phase 2 complete → Band 19 DQ |
 | [22-document-agent-prompt-creation-dispatch-queue.md](./22-document-agent-prompt-creation-dispatch-queue.md) | Dispatch queue | 🔄 Band 19 — DQ-1901/1902/1903/1904/1907/1908/1909/1910 ✅; next = DQ-1905 |
+| [23-agent-post-process-pipeline-exploration.md](./23-agent-post-process-pipeline-exploration.md) | Exploration | 🔄 Phase 1 draft — NL → LLM scheme → code executor; PP-DSL1…PP-TMP1 open |
+| [24-schema-required-fallback-provenance-exploration.md](./24-schema-required-fallback-provenance-exploration.md) | Exploration | 🔄 Phase 1 draft — Required onMissing generate + field provenance; RF-CFG1…RF-SEC1 open |
 
 ## Plan-writing rules
 

@@ -54,7 +54,7 @@
       <div class="section-head">
         <div>
           <h2>System prompt (admin only)</h2>
-          <p class="hint">Customers never see this. Draft from instructions / schema / post-process, then Save.</p>
+          <p class="hint">Customers never see this. Draft from instructions / schema / additional document instructions, then Save.</p>
         </div>
         <div class="section-actions">
           <p-button
@@ -89,6 +89,15 @@
     <section class="panel">
       <h2>Schema</h2>
       <pre class="prompt">{{ prettySchema(a.outputSchemaJson) }}</pre>
+    </section>
+
+    <section class="panel">
+      <h2>Additional document instructions</h2>
+      @if (a.additionalDocumentInstructions.trim()) {
+        <pre class="prompt">{{ a.additionalDocumentInstructions }}</pre>
+      } @else {
+        <p class="muted">None</p>
+      }
     </section>
 
     <section class="panel">

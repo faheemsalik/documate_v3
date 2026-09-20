@@ -20,7 +20,7 @@ public sealed record ExtractAdapterRequest(
     /// <summary>Agent/template LLM provider key (e.g. gpt_5_6); falls back to Llm:DefaultProviderKey.</summary>
     string? PreferredLlmProviderKey = null,
     string? SystemPrompt = null,
-    string? PostProcessPrompt = null);
+    string? AdditionalDocumentInstructions = null);
 
 public sealed record ExtractAdapterResult(
     string ProviderKey,

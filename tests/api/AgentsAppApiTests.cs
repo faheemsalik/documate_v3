@@ -30,18 +30,21 @@ public class AgentsAppApiTests
                 1,
                 "inst",
                 "post",
+                "extra",
                 null,
                 null,
                 null,
                 true),
             Camel);
         var catalogJson = JsonSerializer.Serialize(
-            new AgentTemplateDto(1, "k", "n", null, 1, "invoice", "{}", "inst", "post", null, 1),
+            new AgentTemplateDto(1, "k", "n", null, 1, "invoice", "{}", "inst", "post", "extra", null, 1),
             Camel);
         var previewJson = JsonSerializer.Serialize(new AgentPromptPreviewDto("user only"), Camel);
 
         Assert.Contains("postProcessPrompt", agentJson, StringComparison.Ordinal);
+        Assert.Contains("additionalDocumentInstructions", agentJson, StringComparison.Ordinal);
         Assert.Contains("defaultPostProcessPrompt", catalogJson, StringComparison.Ordinal);
+        Assert.Contains("defaultAdditionalDocumentInstructions", catalogJson, StringComparison.Ordinal);
         Assert.Equal(["userPrompt"], PropertyNames(previewJson));
         Assert.DoesNotContain("systemPrompt", agentJson, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("systemPrompt", catalogJson, StringComparison.OrdinalIgnoreCase);
@@ -80,6 +83,7 @@ public class AgentsAppApiTests
             Instructions = "Stored inst",
             SystemPrompt = "SECRET SYSTEM",
             PostProcessPrompt = "Stored post",
+            AdditionalDocumentInstructions = "Stored extra",
             IsActive = true,
         });
         await db.SaveChangesAsync();
@@ -90,12 +94,14 @@ public class AgentsAppApiTests
             new ExtractPromptComposer());
 
         var live = await handler.Handle(
-            new GetAgentPromptPreviewQuery(id, new AgentPromptPreviewRequest("Live inst", null, "Live post")),
+            new GetAgentPromptPreviewQuery(id, new AgentPromptPreviewRequest("Live inst", null, "Live extra")),
             CancellationToken.None);
 
         Assert.NotNull(live);
         Assert.Contains("Live inst", live.UserPrompt, StringComparison.Ordinal);
-        Assert.Contains("Live post", live.UserPrompt, StringComparison.Ordinal);
+        Assert.Contains("Live extra", live.UserPrompt, StringComparison.Ordinal);
+        Assert.Contains("Additional document instructions:", live.UserPrompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stored post", live.UserPrompt, StringComparison.Ordinal);
         Assert.Contains("Supplier no", live.UserPrompt, StringComparison.Ordinal);
         Assert.Contains(ExtractPromptDefaults.DocumentTextPlaceholder, live.UserPrompt, StringComparison.Ordinal);
         Assert.DoesNotContain("SECRET SYSTEM", live.UserPrompt, StringComparison.Ordinal);
@@ -105,7 +111,8 @@ public class AgentsAppApiTests
         var stored = await handler.Handle(new GetAgentPromptPreviewQuery(id, null), CancellationToken.None);
         Assert.NotNull(stored);
         Assert.Contains("Stored inst", stored.UserPrompt, StringComparison.Ordinal);
-        Assert.Contains("Stored post", stored.UserPrompt, StringComparison.Ordinal);
+        Assert.Contains("Stored extra", stored.UserPrompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stored post", stored.UserPrompt, StringComparison.Ordinal);
         Assert.DoesNotContain("SECRET SYSTEM", stored.UserPrompt, StringComparison.Ordinal);
 
         var otherBiz = new GetAgentPromptPreviewHandler(

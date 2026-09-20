@@ -103,6 +103,7 @@ public sealed record AdminAgentDetailDto(
     string Instructions,
     string SystemPrompt,
     string PostProcessPrompt,
+    string AdditionalDocumentInstructions,
     long? SourceTemplateId,
     long? DefaultProviderId,
     bool IsActive,
@@ -112,7 +113,7 @@ public sealed record AdminAgentPromptPreviewRequest(
     string? SystemPrompt,
     string? Instructions,
     string? OutputSchemaJson,
-    string? PostProcessPrompt);
+    string? AdditionalDocumentInstructions);
 
 public sealed record AdminAgentPromptPreviewDto(string SystemPrompt, string UserPrompt);
 
@@ -248,6 +249,7 @@ public sealed class GetAdminAgentHandler(DocumateDbContext db)
             agent.Instructions,
             agent.SystemPrompt,
             agent.PostProcessPrompt,
+            agent.AdditionalDocumentInstructions,
             agent.SourceTemplateId,
             agent.DefaultProviderId,
             agent.IsActive,
@@ -274,7 +276,7 @@ public sealed class GetAdminAgentPromptPreviewHandler(DocumateDbContext db, IExt
             string.IsNullOrWhiteSpace(o?.SystemPrompt) ? agent.SystemPrompt : o.SystemPrompt,
             o?.Instructions ?? agent.Instructions,
             string.IsNullOrWhiteSpace(o?.OutputSchemaJson) ? agent.OutputSchemaJson : o.OutputSchemaJson,
-            o?.PostProcessPrompt ?? agent.PostProcessPrompt,
+            o?.AdditionalDocumentInstructions ?? agent.AdditionalDocumentInstructions,
             documentText: null);
 
         return new AdminAgentPromptPreviewDto(composed.SystemMessage, composed.UserMessage);
@@ -298,7 +300,7 @@ public sealed class SuggestAdminAgentSystemPromptHandler(DocumateDbContext db, I
         var draft = composer.SuggestSystemPrompt(
             agent.Instructions,
             agent.OutputSchemaJson,
-            agent.PostProcessPrompt);
+            agent.AdditionalDocumentInstructions);
         return new AdminAgentSuggestSystemPromptDto(draft);
     }
 }

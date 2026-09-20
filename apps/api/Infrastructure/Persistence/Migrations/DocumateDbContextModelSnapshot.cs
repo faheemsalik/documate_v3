@@ -42,6 +42,10 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("DefaultAdditionalDocumentInstructions")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("DefaultInstructions")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -790,6 +794,10 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AdditionalDocumentInstructions")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("BusinessId")
                         .IsRequired()

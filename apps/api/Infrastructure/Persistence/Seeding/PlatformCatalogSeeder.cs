@@ -228,6 +228,7 @@ public static class PlatformCatalogSeeder
                 DefaultInstructions = instructions,
                 SystemPrompt = ExtractPromptDefaults.SystemPrompt,
                 DefaultPostProcessPrompt = "",
+                DefaultAdditionalDocumentInstructions = "",
                 DefaultProviderId = providerId,
                 IsPublished = true,
                 Version = 1,

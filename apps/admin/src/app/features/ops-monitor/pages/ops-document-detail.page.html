@@ -1,23 +1,10 @@
 <div class="page">
-  <header class="page-header">
-    <div>
-      @if (document(); as d) {
-        <a [routerLink]="['/ops/files', d.fileId]" class="back-link">← File detail</a>
-      } @else {
-        <a routerLink="/ops" class="back-link">← Files &amp; documents</a>
-      }
-      <h1>{{ document()?.documentTypeKey ?? 'Document' }}</h1>
-      @if (document(); as d) {
-        <p class="meta">
-          {{ d.businessName }} · {{ d.publicStatusKey ?? '—' }}
-          @if (d.pageStart != null && d.pageEnd != null) {
-            · pages {{ d.pageStart }}–{{ d.pageEnd }}
-          }
-        </p>
-      }
-    </div>
-    <p-button label="Refresh" icon="pi pi-refresh" severity="secondary" [loading]="loading()" (onClick)="refresh()" />
-  </header>
+  @if (!document()) {
+    <header class="side-header">
+      <a routerLink="/ops" class="back-link">← Files &amp; documents</a>
+      <h1>Document</h1>
+    </header>
+  }
 
   @if (loading()) {
     <p-message severity="info" text="Loading document…" />
@@ -27,32 +14,63 @@
 
   @if (document(); as d) {
     <div class="layout">
-      <section>
-        <p-card header="Preview">
-          @if (safePreviewUrl(); as url) {
-            @if (canPreviewInline()) {
-              @if (isPdf()) {
-                <iframe class="preview-frame" [src]="url" title="Document preview"></iframe>
-              } @else {
-                <img class="preview-image" [src]="previewObjectUrl()!" alt="Document preview" />
-              }
+      <section class="preview-panel" aria-label="Document preview">
+        @if (safePreviewUrl(); as url) {
+          @if (canPreviewInline()) {
+            @if (isPdf()) {
+              <iframe class="preview-frame" [src]="url" title="Document preview"></iframe>
             } @else {
-              <p class="muted">Inline preview unavailable ({{ d.contentType ?? 'unknown' }}).</p>
+              <img class="preview-image" [src]="previewObjectUrl()!" alt="Document preview" />
             }
-          } @else if (previewLoading()) {
-            <p class="muted">Loading preview…</p>
           } @else {
-            <p class="muted">Preview not available.</p>
+            <div class="preview-fallback">
+              <p class="muted">Inline preview unavailable ({{ d.contentType ?? 'unknown' }}).</p>
+            </div>
           }
-        </p-card>
+        } @else if (previewLoading()) {
+          <div class="preview-fallback">
+            <p class="muted">Loading preview…</p>
+          </div>
+        } @else {
+          <div class="preview-fallback">
+            <p class="muted">Preview not available.</p>
+          </div>
+        }
       </section>
 
       <section class="side">
+        <header class="side-header">
+          <div class="side-header-top">
+            <a [routerLink]="['/ops/files', d.fileId]" class="back-link">← Back to file</a>
+            <p-button
+              label="Refresh"
+              icon="pi pi-refresh"
+              severity="secondary"
+              size="small"
+              [loading]="loading()"
+              (onClick)="refresh()"
+            />
+          </div>
+          <h1>{{ pageTitle() }}</h1>
+          <p class="meta">
+            <span class="status-pill" [attr.data-status]="(d.publicStatusKey ?? '').toLowerCase()">
+              {{ statusLabel() }}
+            </span>
+            @if (d.originalFileName) {
+              <span>· {{ d.originalFileName }}</span>
+            }
+            @if (d.pageStart != null && d.pageEnd != null) {
+              <span>· pages {{ d.pageStart }}–{{ d.pageEnd }}</span>
+            }
+          </p>
+          <p class="meta subtle">{{ d.businessName }}</p>
+        </header>
+
         <p-card header="Status">
           <dl class="meta-grid">
-            <dt>Status</dt><dd>{{ d.publicStatusKey ?? '—' }}</dd>
-            <dt>Stage</dt><dd>{{ d.internalStageKey ?? '—' }}</dd>
-            <dt>Type</dt><dd>{{ d.documentTypeKey ?? '—' }}</dd>
+            <dt>Status</dt><dd>{{ statusLabel() }}</dd>
+            <dt>Stage</dt><dd>{{ stageLabel() }}</dd>
+            <dt>Type</dt><dd>{{ typeLabel() }}</dd>
             <dt>Source file</dt><dd>{{ d.originalFileName ?? '—' }}</dd>
             <dt>Created</dt><dd>{{ d.createdAt | date: 'medium' }}</dd>
             <dt>Completed</dt><dd>{{ d.completedAt ? (d.completedAt | date: 'medium') : '—' }}</dd>
@@ -92,6 +110,37 @@
                   </tr>
                 </ng-template>
               </p-table>
+            }
+          }
+        </p-card>
+
+        <p-card>
+          <div class="card-head">
+            <h2 class="card-title">Result JSON</h2>
+            <div class="card-actions">
+              @if (formattedResultJson()) {
+                <p-button
+                  icon="pi pi-copy"
+                  [label]="copied() ? 'Copied' : 'Copy'"
+                  severity="secondary"
+                  [text]="true"
+                  size="small"
+                  (onClick)="copyResultJson()"
+                />
+              }
+              <p-button
+                [label]="resultJsonOpen() ? 'Hide' : 'Show'"
+                [text]="true"
+                size="small"
+                (onClick)="toggleResultJson()"
+              />
+            </div>
+          </div>
+          @if (resultJsonOpen()) {
+            @if (formattedResultJson(); as json) {
+              <pre class="prompt">{{ json }}</pre>
+            } @else {
+              <p class="muted">No ResultJson stored for this document.</p>
             }
           }
         </p-card>

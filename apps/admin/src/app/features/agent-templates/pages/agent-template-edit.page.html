@@ -72,12 +72,21 @@
         <textarea pTextarea [(ngModel)]="defaultInstructions" rows="5"></textarea>
       </label>
       <label class="full">
+        Default additional document instructions
+        <textarea
+          pTextarea
+          [(ngModel)]="defaultAdditionalDocumentInstructions"
+          rows="4"
+          placeholder="Appended to the extract user prompt after the schema"
+        ></textarea>
+      </label>
+      <label class="full">
         Default post-process prompt
         <textarea
           pTextarea
           [(ngModel)]="defaultPostProcessPrompt"
           rows="4"
-          placeholder="Appended to the extract user prompt after the schema"
+          placeholder="Natural-language rules for the post-extract pipeline (not sent at extract)"
         ></textarea>
       </label>
     </div>

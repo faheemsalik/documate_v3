@@ -10,6 +10,7 @@ public sealed class CorAgentTemplate : CatalogEntity
     public string DefaultInstructions { get; set; } = "";
     public string SystemPrompt { get; set; } = "";
     public string DefaultPostProcessPrompt { get; set; } = "";
+    public string DefaultAdditionalDocumentInstructions { get; set; } = "";
     public long? DefaultProviderId { get; set; }
     public bool IsPublished { get; set; }
     public int Version { get; set; } = 1;

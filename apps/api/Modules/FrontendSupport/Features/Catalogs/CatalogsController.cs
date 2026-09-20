@@ -50,6 +50,7 @@ public sealed record AgentTemplateDto(
     string DefaultSchemaJson,
     string DefaultInstructions,
     string DefaultPostProcessPrompt,
+    string DefaultAdditionalDocumentInstructions,
     long? DefaultProviderId,
     int Version);
 
@@ -116,6 +117,7 @@ public sealed class ListAgentTemplatesHandler(DocumateDbContext db)
                 t.DefaultSchemaJson,
                 t.DefaultInstructions,
                 t.DefaultPostProcessPrompt,
+                t.DefaultAdditionalDocumentInstructions,
                 t.DefaultProviderId,
                 t.Version)
         ).ToListAsync(cancellationToken);
@@ -141,6 +143,7 @@ public sealed class GetAgentTemplateByKeyHandler(DocumateDbContext db)
                 t.DefaultSchemaJson,
                 t.DefaultInstructions,
                 t.DefaultPostProcessPrompt,
+                t.DefaultAdditionalDocumentInstructions,
                 t.DefaultProviderId,
                 t.Version)
         ).FirstOrDefaultAsync(cancellationToken);

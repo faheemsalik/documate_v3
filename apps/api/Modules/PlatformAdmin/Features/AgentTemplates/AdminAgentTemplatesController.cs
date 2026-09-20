@@ -90,6 +90,7 @@ public sealed record AdminAgentTemplateDto(
     string DefaultInstructions,
     string SystemPrompt,
     string DefaultPostProcessPrompt,
+    string DefaultAdditionalDocumentInstructions,
     long? DefaultProviderId,
     bool IsPublished,
     int Version,
@@ -109,6 +110,7 @@ public sealed record CreateAdminAgentTemplateRequest(
     string DefaultInstructions,
     string? SystemPrompt,
     string? DefaultPostProcessPrompt,
+    string? DefaultAdditionalDocumentInstructions,
     long? DefaultProviderId,
     bool IsPublished);
 
@@ -120,6 +122,7 @@ public sealed record UpdateAdminAgentTemplateRequest(
     string DefaultInstructions,
     string? SystemPrompt,
     string? DefaultPostProcessPrompt,
+    string? DefaultAdditionalDocumentInstructions,
     long? DefaultProviderId,
     bool IsPublished,
     bool PushSystemPrompt);
@@ -159,6 +162,7 @@ file static class AdminAgentTemplateMapping
                 t.DefaultInstructions,
                 t.SystemPrompt,
                 t.DefaultPostProcessPrompt,
+                t.DefaultAdditionalDocumentInstructions,
                 t.DefaultProviderId,
                 t.IsPublished,
                 t.Version,
@@ -185,6 +189,7 @@ file static class AdminAgentTemplateMapping
                 r.DefaultInstructions,
                 r.SystemPrompt,
                 r.DefaultPostProcessPrompt,
+                r.DefaultAdditionalDocumentInstructions,
                 r.DefaultProviderId,
                 r.IsPublished,
                 r.Version,
@@ -213,6 +218,7 @@ file static class AdminAgentTemplateMapping
                 t.DefaultInstructions,
                 t.SystemPrompt,
                 t.DefaultPostProcessPrompt,
+                t.DefaultAdditionalDocumentInstructions,
                 t.DefaultProviderId,
                 t.IsPublished,
                 t.Version,
@@ -237,6 +243,7 @@ file static class AdminAgentTemplateMapping
             row.DefaultInstructions,
             row.SystemPrompt,
             row.DefaultPostProcessPrompt,
+            row.DefaultAdditionalDocumentInstructions,
             row.DefaultProviderId,
             row.IsPublished,
             row.Version,
@@ -296,6 +303,7 @@ public sealed class CreateAdminAgentTemplateHandler(DocumateDbContext db)
                 ? ExtractPromptDefaults.SystemPrompt
                 : req.SystemPrompt.Trim(),
             DefaultPostProcessPrompt = req.DefaultPostProcessPrompt ?? "",
+            DefaultAdditionalDocumentInstructions = req.DefaultAdditionalDocumentInstructions ?? "",
             DefaultProviderId = req.DefaultProviderId,
             IsPublished = req.IsPublished,
             Version = 1,
@@ -340,6 +348,7 @@ public sealed class UpdateAdminAgentTemplateHandler(DocumateDbContext db)
         row.DefaultInstructions = req.DefaultInstructions ?? "";
         row.SystemPrompt = systemPrompt;
         row.DefaultPostProcessPrompt = req.DefaultPostProcessPrompt ?? "";
+        row.DefaultAdditionalDocumentInstructions = req.DefaultAdditionalDocumentInstructions ?? "";
         row.DefaultProviderId = req.DefaultProviderId;
         row.IsPublished = req.IsPublished;
         row.Version += 1;

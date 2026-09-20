@@ -18,11 +18,14 @@ public interface IExtractPromptComposer
         string? systemPrompt,
         string? instructions,
         string outputSchemaJson,
-        string? postProcessPrompt,
+        string? additionalDocumentInstructions,
         string? documentText);
 
     /// <summary>Draft an admin system prompt from user-facing agent ingredients (no LLM).</summary>
-    string SuggestSystemPrompt(string? instructions, string? outputSchemaJson, string? postProcessPrompt);
+    string SuggestSystemPrompt(
+        string? instructions,
+        string? outputSchemaJson,
+        string? additionalDocumentInstructions);
 }
 
 /// <summary>Plan 22 / DQ-1902 — shared extract prompt composer (preview and runtime).</summary>
@@ -32,7 +35,7 @@ public sealed class ExtractPromptComposer : IExtractPromptComposer
         string? systemPrompt,
         string? instructions,
         string outputSchemaJson,
-        string? postProcessPrompt,
+        string? additionalDocumentInstructions,
         string? documentText)
     {
         var system = string.IsNullOrWhiteSpace(systemPrompt)
@@ -46,12 +49,12 @@ public sealed class ExtractPromptComposer : IExtractPromptComposer
         user.AppendLine("Output JSON Schema:");
         user.AppendLine(string.IsNullOrWhiteSpace(outputSchemaJson) ? "{}" : outputSchemaJson);
 
-        var post = postProcessPrompt?.Trim();
-        if (!string.IsNullOrWhiteSpace(post))
+        var extra = additionalDocumentInstructions?.Trim();
+        if (!string.IsNullOrWhiteSpace(extra))
         {
             user.AppendLine();
-            user.AppendLine("Additional post-process instructions:");
-            user.AppendLine(post);
+            user.AppendLine("Additional document instructions:");
+            user.AppendLine(extra);
         }
 
         user.AppendLine();
@@ -66,13 +69,13 @@ public sealed class ExtractPromptComposer : IExtractPromptComposer
     public string SuggestSystemPrompt(
         string? instructions,
         string? outputSchemaJson,
-        string? postProcessPrompt)
+        string? additionalDocumentInstructions)
     {
         var sb = new StringBuilder();
         sb.AppendLine(ExtractPromptDefaults.SystemPrompt);
         sb.AppendLine();
         sb.AppendLine(
-            "The user message includes agent instructions, the output JSON schema, optional post-process rules, and the document text. Follow those sections in order.");
+            "The user message includes agent instructions, the output JSON schema, optional additional document instructions, and the document text. Follow those sections in order. Post-process rules (if configured) apply after extract in a later pipeline step.");
 
         var inst = instructions?.Trim();
         if (!string.IsNullOrWhiteSpace(inst))
@@ -94,12 +97,12 @@ public sealed class ExtractPromptComposer : IExtractPromptComposer
             }
         }
 
-        var post = postProcessPrompt?.Trim();
-        if (!string.IsNullOrWhiteSpace(post))
+        var extra = additionalDocumentInstructions?.Trim();
+        if (!string.IsNullOrWhiteSpace(extra))
         {
             sb.AppendLine();
-            sb.AppendLine("Always honor post-process constraints from the user message, including:");
-            sb.AppendLine(Truncate(post, 800));
+            sb.AppendLine("Always honor additional document instructions from the user message, including:");
+            sb.AppendLine(Truncate(extra, 800));
         }
 
         return sb.ToString().TrimEnd();

@@ -18,7 +18,7 @@ export class AppShellComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
-  readonly brand = 'DOCUMATE ADMIN';
+  readonly brand = 'Documate';
   readonly groups = NAV_GROUPS;
   readonly userId = computed(() => this.auth.current()?.userId ?? 'ops-admin');
 

@@ -136,6 +136,7 @@ internal sealed class CorAgentTemplateConfiguration : IEntityTypeConfiguration<C
         b.Property(x => x.DefaultInstructions).HasColumnType("nvarchar(max)").IsRequired();
         b.Property(x => x.SystemPrompt).HasColumnType("nvarchar(max)").IsRequired();
         b.Property(x => x.DefaultPostProcessPrompt).HasColumnType("nvarchar(max)").IsRequired();
+        b.Property(x => x.DefaultAdditionalDocumentInstructions).HasColumnType("nvarchar(max)").IsRequired();
         b.HasOne(x => x.DocumentType).WithMany().HasForeignKey(x => x.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.DefaultProvider).WithMany().HasForeignKey(x => x.DefaultProviderId).OnDelete(DeleteBehavior.Restrict);
     }
@@ -181,6 +182,7 @@ internal sealed class OpsAgentConfiguration : IEntityTypeConfiguration<OpsAgent>
         b.Property(x => x.Instructions).HasColumnType("nvarchar(max)").IsRequired();
         b.Property(x => x.SystemPrompt).HasColumnType("nvarchar(max)").IsRequired();
         b.Property(x => x.PostProcessPrompt).HasColumnType("nvarchar(max)").IsRequired();
+        b.Property(x => x.AdditionalDocumentInstructions).HasColumnType("nvarchar(max)").IsRequired();
         b.Property(x => x.ProviderStrategyJson).HasColumnType("nvarchar(max)");
         b.HasOne(x => x.DocumentType).WithMany().HasForeignKey(x => x.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.SourceTemplate).WithMany().HasForeignKey(x => x.SourceTemplateId).OnDelete(DeleteBehavior.Restrict);

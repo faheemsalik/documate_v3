@@ -42,7 +42,7 @@ public sealed class LiveLlmDocumentExtractAdapter(
             request.SystemPrompt,
             request.Instructions,
             request.OutputSchemaJson,
-            request.PostProcessPrompt,
+            request.AdditionalDocumentInstructions,
             text);
         Exception? last = null;
         for (var attempt = 1; attempt <= 2; attempt++)

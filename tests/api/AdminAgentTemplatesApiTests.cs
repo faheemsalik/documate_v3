@@ -22,6 +22,7 @@ public class AdminAgentTemplatesApiTests
             DefaultInstructions = "",
             SystemPrompt = "sys",
             DefaultPostProcessPrompt = "",
+            DefaultAdditionalDocumentInstructions = "",
             IsPublished = true,
             Version = 1,
         });
@@ -35,6 +36,7 @@ public class AdminAgentTemplatesApiTests
             SourceTemplateId = 10,
             SystemPrompt = "sys",
             PostProcessPrompt = "",
+            AdditionalDocumentInstructions = "",
             IsActive = true,
         });
         await db.SaveChangesAsync();

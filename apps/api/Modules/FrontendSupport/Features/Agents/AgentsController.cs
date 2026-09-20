@@ -98,6 +98,7 @@ public sealed record AgentDto(
     int SchemaVersion,
     string Instructions,
     string PostProcessPrompt,
+    string AdditionalDocumentInstructions,
     long? SourceTemplateId,
     long? DefaultWorkflowId,
     long? DefaultProviderId,
@@ -110,6 +111,7 @@ public sealed record CreateAgentRequest(
     string OutputSchemaJson,
     string Instructions,
     string? PostProcessPrompt,
+    string? AdditionalDocumentInstructions,
     long? DefaultWorkflowId,
     long? DefaultProviderId,
     int? SchemaVersion);
@@ -121,6 +123,7 @@ public sealed record UpdateAgentRequest(
     string OutputSchemaJson,
     string Instructions,
     string? PostProcessPrompt,
+    string? AdditionalDocumentInstructions,
     long? DefaultWorkflowId,
     long? DefaultProviderId,
     int SchemaVersion,
@@ -134,7 +137,7 @@ public sealed record CloneAgentFromTemplateRequest(
 public sealed record AgentPromptPreviewRequest(
     string? Instructions,
     string? OutputSchemaJson,
-    string? PostProcessPrompt);
+    string? AdditionalDocumentInstructions);
 
 public sealed record AgentPromptPreviewDto(string UserPrompt);
 
@@ -160,6 +163,7 @@ internal static class AgentMapping
             a.SchemaVersion,
             a.Instructions,
             a.PostProcessPrompt,
+            a.AdditionalDocumentInstructions,
             a.SourceTemplateId,
             a.DefaultWorkflowId,
             a.DefaultProviderId,
@@ -186,6 +190,7 @@ public sealed class ListAgentsHandler(DocumateDbContext db, IBusinessContext bus
                 a.SchemaVersion,
                 a.Instructions,
                 a.PostProcessPrompt,
+                a.AdditionalDocumentInstructions,
                 a.SourceTemplateId,
                 a.DefaultWorkflowId,
                 a.DefaultProviderId,
@@ -213,6 +218,7 @@ public sealed class GetAgentByIdHandler(DocumateDbContext db, IBusinessContext b
                 a.SchemaVersion,
                 a.Instructions,
                 a.PostProcessPrompt,
+                a.AdditionalDocumentInstructions,
                 a.SourceTemplateId,
                 a.DefaultWorkflowId,
                 a.DefaultProviderId,
@@ -243,7 +249,7 @@ public sealed class GetAgentPromptPreviewHandler(
             agent.SystemPrompt,
             o?.Instructions ?? agent.Instructions,
             string.IsNullOrWhiteSpace(o?.OutputSchemaJson) ? agent.OutputSchemaJson : o.OutputSchemaJson,
-            o?.PostProcessPrompt ?? agent.PostProcessPrompt,
+            o?.AdditionalDocumentInstructions ?? agent.AdditionalDocumentInstructions,
             documentText: null);
 
         return new AgentPromptPreviewDto(composed.UserMessage);
@@ -276,6 +282,7 @@ public sealed class CreateAgentHandler(
                 Instructions = request.Instructions ?? "",
                 SystemPrompt = ExtractPromptDefaults.SystemPrompt,
                 PostProcessPrompt = request.PostProcessPrompt ?? "",
+                AdditionalDocumentInstructions = request.AdditionalDocumentInstructions ?? "",
                 DefaultWorkflowId = request.DefaultWorkflowId,
                 DefaultProviderId = request.DefaultProviderId,
                 SchemaVersion = request.SchemaVersion ?? 1,
@@ -323,6 +330,11 @@ public sealed class UpdateAgentHandler(DocumateDbContext db, IBusinessContext bu
         if (request.PostProcessPrompt is not null)
         {
             agent.PostProcessPrompt = request.PostProcessPrompt;
+        }
+
+        if (request.AdditionalDocumentInstructions is not null)
+        {
+            agent.AdditionalDocumentInstructions = request.AdditionalDocumentInstructions;
         }
 
         agent.DefaultWorkflowId = request.DefaultWorkflowId;
@@ -394,6 +406,7 @@ public sealed class CloneAgentFromTemplateHandler(
                     ? ExtractPromptDefaults.SystemPrompt
                     : tmpl.SystemPrompt,
                 PostProcessPrompt = tmpl.DefaultPostProcessPrompt ?? "",
+                AdditionalDocumentInstructions = tmpl.DefaultAdditionalDocumentInstructions ?? "",
                 SourceTemplateId = tmpl.Id,
                 DefaultProviderId = tmpl.DefaultProviderId,
                 DefaultWorkflowId = null,

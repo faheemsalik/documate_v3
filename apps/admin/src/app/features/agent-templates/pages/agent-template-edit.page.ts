@@ -63,6 +63,7 @@ export class AgentTemplateEditPage implements OnInit {
   systemPrompt = DEFAULT_SYSTEM_PROMPT;
   defaultInstructions = '';
   defaultPostProcessPrompt = '';
+  defaultAdditionalDocumentInstructions = '';
   defaultSchemaJson = EMPTY_SCHEMA;
 
   private loadedSystemPrompt = DEFAULT_SYSTEM_PROMPT;
@@ -156,6 +157,7 @@ export class AgentTemplateEditPage implements OnInit {
           defaultInstructions: this.defaultInstructions,
           systemPrompt: this.systemPrompt,
           defaultPostProcessPrompt: this.defaultPostProcessPrompt,
+          defaultAdditionalDocumentInstructions: this.defaultAdditionalDocumentInstructions,
           defaultProviderId: this.defaultProviderId,
           isPublished: this.isPublished,
         })
@@ -184,6 +186,7 @@ export class AgentTemplateEditPage implements OnInit {
         defaultInstructions: this.defaultInstructions,
         systemPrompt: this.systemPrompt,
         defaultPostProcessPrompt: this.defaultPostProcessPrompt,
+        defaultAdditionalDocumentInstructions: this.defaultAdditionalDocumentInstructions,
         defaultProviderId: this.defaultProviderId,
         isPublished: this.isPublished,
         pushSystemPrompt,
@@ -212,6 +215,7 @@ export class AgentTemplateEditPage implements OnInit {
     this.loadedSystemPrompt = t.systemPrompt;
     this.defaultInstructions = t.defaultInstructions;
     this.defaultPostProcessPrompt = t.defaultPostProcessPrompt;
+    this.defaultAdditionalDocumentInstructions = t.defaultAdditionalDocumentInstructions ?? '';
     this.defaultSchemaJson = t.defaultSchemaJson || EMPTY_SCHEMA;
   }
 }

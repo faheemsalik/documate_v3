@@ -55,6 +55,7 @@ public class AdminAgentsApiTests
             Instructions = "Stored inst",
             SystemPrompt = "SECRET SYSTEM",
             PostProcessPrompt = "Stored post",
+            AdditionalDocumentInstructions = "Stored extra",
             IsActive = true,
         });
         await db.SaveChangesAsync();
@@ -65,7 +66,8 @@ public class AdminAgentsApiTests
         Assert.NotNull(stored);
         Assert.Equal("SECRET SYSTEM", stored.SystemPrompt);
         Assert.Contains("Stored inst", stored.UserPrompt, StringComparison.Ordinal);
-        Assert.Contains("Stored post", stored.UserPrompt, StringComparison.Ordinal);
+        Assert.Contains("Stored extra", stored.UserPrompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stored post", stored.UserPrompt, StringComparison.Ordinal);
         Assert.Contains("Supplier no", stored.UserPrompt, StringComparison.Ordinal);
         Assert.Contains(ExtractPromptDefaults.DocumentTextPlaceholder, stored.UserPrompt, StringComparison.Ordinal);
         Assert.Equal(["systemPrompt", "userPrompt"], PropertyNames(JsonSerializer.Serialize(stored, Camel)));
@@ -73,12 +75,12 @@ public class AdminAgentsApiTests
         var live = await handler.Handle(
             new GetAdminAgentPromptPreviewQuery(
                 id,
-                new AdminAgentPromptPreviewRequest("LIVE SYSTEM", "Live inst", null, "Live post")),
+                new AdminAgentPromptPreviewRequest("LIVE SYSTEM", "Live inst", null, "Live extra")),
             CancellationToken.None);
         Assert.NotNull(live);
         Assert.Equal("LIVE SYSTEM", live.SystemPrompt);
         Assert.Contains("Live inst", live.UserPrompt, StringComparison.Ordinal);
-        Assert.Contains("Live post", live.UserPrompt, StringComparison.Ordinal);
+        Assert.Contains("Live extra", live.UserPrompt, StringComparison.Ordinal);
         Assert.DoesNotContain("Stored inst", live.UserPrompt, StringComparison.Ordinal);
     }
 
@@ -256,6 +258,7 @@ public class AdminAgentsApiTests
             Instructions = "inst",
             SystemPrompt = "SYS",
             PostProcessPrompt = "post",
+            AdditionalDocumentInstructions = "extra",
             IsActive = true,
         });
         await db.SaveChangesAsync();
@@ -266,6 +269,7 @@ public class AdminAgentsApiTests
         Assert.Equal("SYS", dto.SystemPrompt);
         Assert.Equal("inst", dto.Instructions);
         Assert.Equal("post", dto.PostProcessPrompt);
+        Assert.Equal("extra", dto.AdditionalDocumentInstructions);
         Assert.Equal("{}", dto.OutputSchemaJson);
         Assert.Equal("Acme Ops", dto.BusinessName);
         Assert.Equal("Acme", dto.TenantName);

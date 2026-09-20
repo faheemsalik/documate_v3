@@ -112,7 +112,7 @@ export class AgentDetailPage implements OnInit {
         systemPrompt: this.systemPromptDraft,
         instructions: agent.instructions,
         outputSchemaJson: agent.outputSchemaJson,
-        postProcessPrompt: agent.postProcessPrompt,
+        additionalDocumentInstructions: agent.additionalDocumentInstructions,
       })
       .subscribe({
         next: (p) => this.preview.set(p),

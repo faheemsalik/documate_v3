@@ -66,6 +66,7 @@ export class AgentEditPage implements OnInit {
   schemaVersion = 1;
   isActive = true;
   postProcessPrompt = '';
+  additionalDocumentInstructions = '';
   mailboxEnabled = true;
   mailboxAllowlistModeEnumId: number | null = null;
   mailboxAllowlistMatchType = 'email';
@@ -189,6 +190,7 @@ export class AgentEditPage implements OnInit {
         outputSchemaJson: this.outputSchemaJson,
         instructions: this.instructions,
         postProcessPrompt: this.postProcessPrompt,
+        additionalDocumentInstructions: this.additionalDocumentInstructions,
         schemaVersion: this.schemaVersion,
         isActive: this.isActive,
         defaultWorkflowId: agent.defaultWorkflowId ?? null,
@@ -199,6 +201,7 @@ export class AgentEditPage implements OnInit {
           this.agent.set(updated);
           this.schemaVersion = updated.schemaVersion;
           this.postProcessPrompt = updated.postProcessPrompt ?? '';
+          this.additionalDocumentInstructions = updated.additionalDocumentInstructions ?? '';
           this.saving.set(false);
         },
         error: () => {
@@ -227,6 +230,7 @@ export class AgentEditPage implements OnInit {
         this.schemaVersion = a.schemaVersion;
         this.isActive = a.isActive;
         this.postProcessPrompt = a.postProcessPrompt ?? '';
+        this.additionalDocumentInstructions = a.additionalDocumentInstructions ?? '';
         this.loading.set(false);
         this.loadTypedMailbox(a.id);
       },

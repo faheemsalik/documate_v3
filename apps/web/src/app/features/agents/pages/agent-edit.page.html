@@ -42,6 +42,18 @@
               Instructions
               <textarea pTextarea [(ngModel)]="instructions" rows="5"></textarea>
             </label>
+            <label class="full">
+              Additional document instructions
+              <textarea
+                pTextarea
+                [(ngModel)]="additionalDocumentInstructions"
+                rows="5"
+                placeholder="Appended to the extract prompt after the schema (dates, totals, vendor names, …)"
+              ></textarea>
+            </label>
+            <p class="hint full">
+              Included in the extract user prompt. Separate from post-process rules (next tab).
+            </p>
             <label class="checkbox-row">
               <p-checkbox [(ngModel)]="isActive" [binary]="true" />
               Active
@@ -57,16 +69,16 @@
         <p-tabpanel value="2">
           <div class="form-grid">
             <label class="full">
-              Extra extract instructions
+              Post-process instructions
               <textarea
                 pTextarea
                 [(ngModel)]="postProcessPrompt"
                 rows="8"
-                placeholder="Appended to the extract prompt after the schema (dates, totals, vendor names, …)"
+                placeholder="Natural-language rules for the post-extract pipeline"
               ></textarea>
             </label>
             <p class="hint">
-              This text is added to the user prompt at extract time. It is not a post-extract workflow.
+              Stored for post-extract rules (coming pipeline). Not sent as part of the extract LLM prompt.
             </p>
           </div>
         </p-tabpanel>
