@@ -48,7 +48,7 @@ public sealed class DocumentWebhookDelivery(
 
         var queue = await db.OpsQueues.AsNoTracking().FirstOrDefaultAsync(
             q => q.Id == doc.QueueId && q.BusinessId == businessId && !q.IsDeleted, cancellationToken);
-        var file = await db.OpsFiles.AsNoTracking().FirstOrDefaultAsync(
+        var file = await db.OpsFiles.FirstOrDefaultAsync(
             f => f.Id == doc.FileId && f.BusinessId == businessId && !f.IsDeleted, cancellationToken);
         if (queue is null || file is null || !queue.WebhookEnabled || string.IsNullOrWhiteSpace(queue.WebhookUrl))
         {
@@ -57,6 +57,7 @@ public sealed class DocumentWebhookDelivery(
             return;
         }
 
+        await signedUrls.RefreshFileAsync(file, cancellationToken);
         await signedUrls.RefreshDocumentAsync(doc, cancellationToken);
 
         if (!Uri.TryCreate(queue.WebhookUrl, UriKind.Absolute, out var uri)
@@ -93,7 +94,22 @@ public sealed class DocumentWebhookDelivery(
         if (!string.Equals(sourceKey, "api", StringComparison.Ordinal)
             && !string.Equals(sourceKey, "api_sync", StringComparison.Ordinal))
         {
-            original = new DocumentWebhookOriginalFile(file.OriginalFileName, file.ContentType, file.SizeBytes);
+            original = new DocumentWebhookOriginalFile(
+                file.OriginalFileName,
+                file.ContentType,
+                file.SizeBytes,
+                file.DownloadUrl,
+                file.DownloadUrlExpiresAt);
+        }
+        else if (!string.IsNullOrWhiteSpace(file.DownloadUrl))
+        {
+            // API uploads still expose the full File URL for multi-doc partners that need the pack.
+            original = new DocumentWebhookOriginalFile(
+                file.OriginalFileName,
+                file.ContentType,
+                file.SizeBytes,
+                file.DownloadUrl,
+                file.DownloadUrlExpiresAt);
         }
 
         JsonNode? emailIntake = null;

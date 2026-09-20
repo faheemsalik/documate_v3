@@ -8,6 +8,8 @@ public sealed class CorAgentTemplate : CatalogEntity
     public long DocumentTypeId { get; set; }
     public string DefaultSchemaJson { get; set; } = "{}";
     public string DefaultInstructions { get; set; } = "";
+    public string SystemPrompt { get; set; } = "";
+    public string DefaultPostProcessPrompt { get; set; } = "";
     public long? DefaultProviderId { get; set; }
     public bool IsPublished { get; set; }
     public int Version { get; set; } = 1;

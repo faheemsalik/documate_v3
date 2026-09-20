@@ -1,0 +1,77 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Agents</h1>
+      <p class="meta">Customer agents across tenants · {{ total() }} total</p>
+    </div>
+    <div class="actions">
+      <input pInputText [(ngModel)]="name" placeholder="Search name" (keyup.enter)="reload()" />
+      <p-select
+        [options]="tenantOptions()"
+        [(ngModel)]="tenantId"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Tenant"
+        [showClear]="true"
+        [filter]="true"
+        filterBy="label"
+        styleClass="filter"
+        (ngModelChange)="onTenantChange()"
+      />
+      <p-select
+        [options]="businessOptions()"
+        [(ngModel)]="businessId"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Business"
+        [showClear]="true"
+        [filter]="true"
+        filterBy="label"
+        styleClass="filter"
+      />
+      <p-button label="Search" [outlined]="true" (onClick)="reload()" />
+    </div>
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (!loading() && rows().length === 0) {
+    <p class="empty">No agents found.</p>
+  } @else if (!loading()) {
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Business</th>
+          <th>Tenant</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (a of rows(); track a.id) {
+          <tr>
+            <td><a [routerLink]="['/agents', a.id]">{{ a.name }}</a></td>
+            <td>
+              <a [routerLink]="['/businesses', a.businessId]">{{ a.businessName }}</a>
+            </td>
+            <td>
+              <a [routerLink]="['/tenants', a.tenantId]">{{ a.tenantName }}</a>
+            </td>
+            <td>{{ a.documentTypeKey ?? '—' }}</td>
+            <td>
+              <p-tag
+                [value]="a.isActive ? 'Active' : 'Inactive'"
+                [severity]="a.isActive ? 'success' : 'secondary'"
+              />
+            </td>
+            <td class="mono">{{ fmt(a.createdAt) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

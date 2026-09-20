@@ -1,6 +1,7 @@
 namespace Documate.Api.Infrastructure.Persistence.Seeding;
 
 using Documate.Api.Domain;
+using Documate.Api.Infrastructure.Extract;
 using Microsoft.EntityFrameworkCore;
 
 public static class PlatformCatalogSeeder
@@ -55,6 +56,13 @@ public static class PlatformCatalogSeeder
         var creditNoteTypeId = await EnsureDocumentType(db, "credit_note", "Credit note", null, now, cancellationToken);
         var deliveryNoteTypeId = await EnsureDocumentType(db, "delivery_note", "Delivery note", null, now, cancellationToken);
         await EnsureDocumentType(db, "purchase_order", "Purchase order", null, now, cancellationToken);
+        await EnsureDocumentType(db, "vendor_statement", "Vendor Statement", null, now, cancellationToken);
+        await EnsureDocumentType(db, "bank_statement", "Bank Statement", null, now, cancellationToken);
+        await EnsureDocumentType(db, "passport_canada", "Passport Canada", null, now, cancellationToken);
+        await EnsureDocumentType(db, "passport_france", "Passport France", null, now, cancellationToken);
+        await EnsureDocumentType(db, "passport_uk", "Passport UK", null, now, cancellationToken);
+        await EnsureDocumentType(db, "passport_india", "Passport India", null, now, cancellationToken);
+        await EnsureDocumentType(db, "passport_ksa", "Passport KSA", null, now, cancellationToken);
 
         var defaultLlmProvider = await db.CorProviders.SingleAsync(p => p.ProviderKey == "gpt_5_6", cancellationToken);
 
@@ -218,6 +226,8 @@ public static class PlatformCatalogSeeder
                 DocumentTypeId = documentTypeId,
                 DefaultSchemaJson = schemaJson,
                 DefaultInstructions = instructions,
+                SystemPrompt = ExtractPromptDefaults.SystemPrompt,
+                DefaultPostProcessPrompt = "",
                 DefaultProviderId = providerId,
                 IsPublished = true,
                 Version = 1,
@@ -238,9 +248,21 @@ public static class PlatformCatalogSeeder
         }
 
         // DQ-0704: templates use LLM DefaultProviderId (not documate_meta).
+        var dirty = false;
         if (row.DefaultProviderId != providerId)
         {
             row.DefaultProviderId = providerId;
+            dirty = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(row.SystemPrompt))
+        {
+            row.SystemPrompt = ExtractPromptDefaults.SystemPrompt;
+            dirty = true;
+        }
+
+        if (dirty)
+        {
             row.UpdatedAt = now;
             await db.SaveChangesAsync(cancellationToken);
         }

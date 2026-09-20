@@ -95,6 +95,23 @@
             }
           }
         </p-card>
+
+        <p-card header="Extract prompt">
+          @if (d.extractSystemPrompt || d.extractUserPrompt) {
+            <p class="muted">
+              Captured
+              {{ d.extractPromptCapturedAt ? (d.extractPromptCapturedAt | date: 'medium') : '—' }}
+            </p>
+            <h3 class="table-title">System prompt</h3>
+            <pre class="prompt">{{ d.extractSystemPrompt || '—' }}</pre>
+            <h3 class="table-title">User prompt</h3>
+            <pre class="prompt">{{ d.extractUserPrompt || '—' }}</pre>
+          } @else {
+            <p class="muted">
+              No extract prompt stored. It may not have been captured yet, or it was purged after 7 days.
+            </p>
+          }
+        </p-card>
       </section>
     </div>
   }

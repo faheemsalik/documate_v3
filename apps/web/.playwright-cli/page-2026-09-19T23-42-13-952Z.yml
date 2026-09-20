@@ -1,0 +1,78 @@
+- generic [ref=e25]:
+  - banner [ref=e26]:
+    - generic [ref=e27]:
+      - generic [ref=e28]: Documate
+      - generic [ref=e29]: Customer app · Nav B
+    - generic [ref=e30]:
+      - generic [ref=e31]: Light
+      - generic [ref=e32]:
+        - switch "Toggle dark theme" [checked] [ref=e33] [cursor=pointer]
+        - generic [ref=e34] [cursor=pointer]
+      - generic [ref=e36]: Dark
+      - button "Sign out" [ref=e38] [cursor=pointer]
+  - generic [ref=e40]:
+    - complementary [ref=e41]:
+      - generic [ref=e42]: Documate
+      - navigation "Pinned" [ref=e43]:
+        - link "My agents" [ref=e44] [cursor=pointer]:
+          - /url: /agents
+        - link "New agent" [ref=e45] [cursor=pointer]:
+          - /url: /agents/templates
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - button "Overview ▾" [ref=e49] [cursor=pointer]:
+            - generic [ref=e50]: Overview
+            - generic [ref=e51]: ▾
+          - link "Dashboard" [ref=e52] [cursor=pointer]:
+            - /url: /home
+          - link "Usage stats" [ref=e53] [cursor=pointer]:
+            - /url: /coming-soon/usage
+        - button "Documents ▸" [ref=e55] [cursor=pointer]:
+          - generic [ref=e56]: Documents
+          - generic [ref=e57]: ▸
+        - button "Workflow ▸" [ref=e59] [cursor=pointer]:
+          - generic [ref=e60]: Workflow
+          - generic [ref=e61]: ▸
+        - button "Settings ▸" [ref=e63] [cursor=pointer]:
+          - generic [ref=e64]: Settings
+          - generic [ref=e65]: ▸
+      - navigation "Help" [ref=e67]:
+        - link "Documentation" [ref=e68] [cursor=pointer]:
+          - /url: /docs
+        - link "Support requests" [ref=e69] [cursor=pointer]:
+          - /url: /coming-soon/support
+        - link "Workflows · soon" [ref=e70] [cursor=pointer]:
+          - /url: /coming-soon/workflows
+      - link "Dev Business Switch business ▴" [ref=e71] [cursor=pointer]:
+        - /url: /business/switch
+        - generic [ref=e72]: Dev Business
+        - generic [ref=e73]: Switch business ▴
+    - main [ref=e74]:
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - heading "Dashboard" [level=1] [ref=e78]
+          - paragraph [ref=e79]: File processing overview · default queue
+        - generic [ref=e80]:
+          - generic [ref=e83]:
+            - generic [ref=e84]: "90"
+            - generic [ref=e85]: Total files
+            - link "View all →" [ref=e86] [cursor=pointer]:
+              - /url: /files
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - generic [ref=e91]: "10"
+              - generic [ref=e92]: failed
+            - link "Files →" [ref=e94] [cursor=pointer]:
+              - /url: /files
+          - generic [ref=e97]:
+            - generic [ref=e98]:
+              - generic [ref=e99]: "3"
+              - generic [ref=e100]: partial ready
+            - link "Files →" [ref=e102] [cursor=pointer]:
+              - /url: /files
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - generic [ref=e107]: "77"
+              - generic [ref=e108]: ready
+            - link "Files →" [ref=e110] [cursor=pointer]:
+              - /url: /files

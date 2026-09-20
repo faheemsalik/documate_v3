@@ -1,0 +1,49 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Agent templates</h1>
+      <p class="meta">Platform defaults cloned by customers · {{ rows().length }} templates</p>
+    </div>
+    <div class="actions">
+      <p-button label="New template" icon="pi pi-plus" routerLink="/agent-templates/new" />
+    </div>
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading templates…" />
+  } @else if (rows().length === 0) {
+    <p class="empty">No templates yet.</p>
+  } @else {
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Key</th>
+          <th>Document type</th>
+          <th>Published</th>
+          <th>Clones</th>
+          <th>Version</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (t of rows(); track t.id) {
+          <tr>
+            <td><a [routerLink]="['/agent-templates', t.id]">{{ t.name }}</a></td>
+            <td class="mono">{{ t.agentTemplateKey }}</td>
+            <td>{{ t.documentTypeKey }}</td>
+            <td>
+              <p-tag
+                [value]="t.isPublished ? 'Published' : 'Draft'"
+                [severity]="t.isPublished ? 'success' : 'secondary'"
+              />
+            </td>
+            <td>{{ t.clonedAgentCount }}</td>
+            <td class="mono">{{ t.version }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

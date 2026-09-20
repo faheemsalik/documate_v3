@@ -265,6 +265,8 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 
 **Bootstrap (DECIDED 2026-08-28):** When a `CorTenantBusiness` row is first created / ensured for an Iden Business, also create the Business’s **default Queue** (`IsDefault = true`) if none exists. Partners and UI discover that Queue’s UUID as the Phase 1 upload target.
 
+**Ensure cache (2026-09-19):** `TenantBusinessProvisioningMiddleware` still calls `TenantBusinessProvisioner.EnsureAsync` on every authenticated request, but ensure work (CorTenant / CorTenantBusiness upsert, default Queue, default `normalize_fields_v1` workflow) runs **once per `tenantId|businessId` per API process** via singleton `TenantBusinessEnsureCache`. Subsequent requests skip those SQL round-trips. Claim-driven **name** projection sync (`CorTenant.Name` / `CorTenantBusiness.Name` / `TenantName`) therefore applies on first ensure in-process; API restart (or a future invalidate API) is required to re-sync renames from auth claims.
+
 
 | Field                        | Type   | Notes                                                                                     |
 | ---------------------------- | ------ | ----------------------------------------------------------------------------------------- |
@@ -273,7 +275,7 @@ WorkEvent → subject by type + subject's UUID Id (for wire-facing subjects)
 | `CorTenantId`                | UUID   | FK → CorTenant (parent tenant — **only** place operational path links tenant)             |
 | `IdenBusinessId`             | string | Unique — Iden Business                                                                    |
 | `Name`                       | string | Business display name                                                                     |
-| `TenantName`                 | string | **Projection** of parent `CorTenant.Name` (cached for lists/UI; refresh on tenant rename) |
+| `TenantName`                 | string | **Projection** of parent `CorTenant.Name` (cached for lists/UI; refreshed on ensure — see ensure cache note above) |
 | `IsActive`                   | bool   |                                                                                           |
 | *(soft-delete + RowVersion)* |        |                                                                                           |
 
@@ -1108,6 +1110,7 @@ Bands for **this product plan** (distinct from Plan 00 eng bands; Phase 3 DQ doc
 
 - Iden human auth integration (Tenant + Business claims).
 - Business (+ Tenant) context in MediatR pipeline behaviors; mirrors for CorTenant / CorTenantBusiness.
+- **Runtime:** `TenantBusinessProvisioningMiddleware` → `TenantBusinessProvisioner` (default Queue + default workflow); **process-lifetime** `TenantBusinessEnsureCache` avoids re-ensure SQL on every request (see CorTenantBusiness bootstrap).
 
 
 
@@ -1356,5 +1359,6 @@ Select a DQ item to implement (do not code until selected).
 | 2026-09-15 | **Decision E amended (Plan 04):** lock **P9/F6** real split — dual models + admin fallback, C1, Failed unresolved, anchor reset N=2, classify after group, type skips classify only, always-separate extract, S3 text+layout + original File for webhooks, full observability. Flow 1 / intake hints / Wave **4b** updated. Phase 3 follow-on DQ pending approval. |
 | 2026-09-15 | **Source PDF URLs locked:** webhook + External Document/File detail return signed download URL; File detail embeds full Documents with URLs; cache `DownloadUrl` + `DownloadUrlExpiresAt` on Document/File; refresh after expiry to limit object-store sign calls. |
 | 2026-09-15 | **Document URL amended:** Document download URL **only** after Document PDF generated; **no** parent-File fallback (omit/null until then). File URL remains original upload. Wave 4b requires per-Document PDF materialization. |
+| 2026-09-19 | **DQ-0102 perf:** `TenantBusinessEnsureCache` (singleton) — ensure CorTenant/CorTenantBusiness + default Queue/workflow once per `tenantId|businessId` per process; middleware still invoked every authenticated request. |
 
 

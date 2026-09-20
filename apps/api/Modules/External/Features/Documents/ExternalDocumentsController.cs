@@ -4,6 +4,7 @@ using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Work;
+using Documate.Api.Modules.FrontendSupport.Features.Files;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -36,6 +37,14 @@ public sealed class ExternalDocumentsController(IMediator mediator) : Controller
     {
         var dto = await mediator.Send(new GetExternalDocumentQuery(documentId), cancellationToken);
         return dto is null ? NotFound() : Ok(dto);
+    }
+
+    /// <summary>Authenticated document PDF bytes (slice when materialized; otherwise parent file).</summary>
+    [HttpGet("documents/{documentId:guid}/content")]
+    public async Task<IActionResult> Content(Guid documentId, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetExternalDocumentContentQuery(documentId), cancellationToken);
+        return result is null ? NotFound() : File(result.Content, result.ContentType, result.FileName);
     }
 
     /// <summary>Cancel Document (Plan 02 §11.2 / DQ-1001). File rollup updates; webhook for newly cancelled.</summary>
@@ -85,6 +94,8 @@ public sealed record ListExternalDocumentsQuery(
     DateTimeOffset? CreatedTo) : IRequest<IReadOnlyList<ExternalDocumentDto>>;
 
 public sealed record GetExternalDocumentQuery(Guid DocumentId) : IRequest<ExternalDocumentDto?>;
+
+public sealed record GetExternalDocumentContentQuery(Guid DocumentId) : IRequest<FileContentResultDto?>;
 
 public sealed record CancelExternalDocumentCommand(Guid DocumentId) : IRequest<ExternalDocumentDto?>;
 
@@ -165,6 +176,10 @@ public sealed class ListExternalDocumentsHandler(DocumateDbContext db, IBusiness
         return docs.Select(d =>
         {
             enumKeys.TryGetValue(d.PublicStatusEnumId, out var statusKey);
+            if (string.IsNullOrWhiteSpace(statusKey) && !string.IsNullOrWhiteSpace(d.ResultJson))
+            {
+                statusKey = "ready";
+            }
             string? stageKey = null;
             if (d.InternalStageEnumId is long sid)
             {
@@ -239,6 +254,44 @@ public sealed class GetExternalDocumentHandler(
         await signedUrls.RefreshDocumentAsync(doc, cancellationToken);
         var list = await ListExternalDocumentsHandler.MapAsync(db, [doc], cancellationToken);
         return list.FirstOrDefault();
+    }
+}
+
+public sealed class GetExternalDocumentContentHandler(
+    DocumateDbContext db,
+    IObjectStorage storage,
+    IBusinessContext business)
+    : IRequestHandler<GetExternalDocumentContentQuery, FileContentResultDto?>
+{
+    public async Task<FileContentResultDto?> Handle(
+        GetExternalDocumentContentQuery request,
+        CancellationToken cancellationToken)
+    {
+        var doc = await db.OpsDocuments.AsNoTracking().FirstOrDefaultAsync(
+            d => d.Id == request.DocumentId && d.BusinessId == business.BusinessId && !d.IsDeleted,
+            cancellationToken);
+        if (doc is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(doc.PdfStorageBucket) && !string.IsNullOrWhiteSpace(doc.PdfStorageKey))
+        {
+            var pdfStream = await storage.DownloadAsync(doc.PdfStorageBucket, doc.PdfStorageKey, cancellationToken);
+            return new FileContentResultDto(pdfStream, "application/pdf", $"document-{doc.Id}.pdf");
+        }
+
+        var file = await db.OpsFiles.AsNoTracking().FirstOrDefaultAsync(
+            f => f.Id == doc.FileId && f.BusinessId == business.BusinessId && !f.IsDeleted,
+            cancellationToken);
+        if (file is null || string.IsNullOrWhiteSpace(file.StorageBucket) || string.IsNullOrWhiteSpace(file.StorageKey))
+        {
+            return null;
+        }
+
+        var stream = await storage.DownloadAsync(file.StorageBucket, file.StorageKey, cancellationToken);
+        var contentType = GetFileContentHandler.ResolveContentType(file.ContentType, file.OriginalFileName);
+        return new FileContentResultDto(stream, contentType, file.OriginalFileName);
     }
 }
 

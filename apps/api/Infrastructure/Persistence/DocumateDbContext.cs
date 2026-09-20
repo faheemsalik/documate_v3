@@ -24,6 +24,7 @@ public sealed class DocumateDbContext(DbContextOptions<DocumateDbContext> option
     public DbSet<OpsBatch> OpsBatches => Set<OpsBatch>();
     public DbSet<OpsFile> OpsFiles => Set<OpsFile>();
     public DbSet<OpsDocument> OpsDocuments => Set<OpsDocument>();
+    public DbSet<OpsDocumentExtractPrompt> OpsDocumentExtractPrompts => Set<OpsDocumentExtractPrompt>();
     public DbSet<OpsIntakeRejection> OpsIntakeRejections => Set<OpsIntakeRejection>();
     public DbSet<OpsWorkEvent> OpsWorkEvents => Set<OpsWorkEvent>();
     public DbSet<OpsActionBinding> OpsActionBindings => Set<OpsActionBinding>();

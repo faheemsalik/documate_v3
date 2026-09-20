@@ -29,13 +29,10 @@
     <section class="block">
       <h2>Email notify</h2>
       <label class="checkbox-row"><p-checkbox [(ngModel)]="emailEnabled" [binary]="true" /> Enabled</label>
-      <label>Audience
-        <select [(ngModel)]="emailAudience">
-          <option value="partner">Partner recipients</option>
-          <option value="platform">Documate support (platform)</option>
-        </select>
+      <label>Recipients
+        <textarea pTextarea class="full" rows="2" [(ngModel)]="emailRecipientsText" placeholder="a@x.com, b@y.com"></textarea>
       </label>
-      <textarea pTextarea class="full" rows="2" [(ngModel)]="emailRecipientsText" placeholder="a@x.com, b@y.com"></textarea>
+      <p class="hint">Comma-separated addresses, e.g. a@x.com, b@y.com. These are your team’s notification recipients (not Documate support).</p>
       <div class="events">
         @for (ev of emailEvents; track ev.eventKey) {
           <label class="checkbox-row">

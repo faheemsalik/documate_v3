@@ -13,3 +13,4 @@ Apply before writing `apps/web` code. Detail: `patterns/angular-*.md`.
 9. **Ask before widening scope** — `governance/prompt-clarification.md`.
 10. **Colocate unit tests** as `*.spec.ts`.
 11. **CorEnum values from API** — prefer binding/selecting by enum **Id** from lookup endpoints; do not invent parallel TypeScript enums that diverge from CorEnum seeds (`patterns/cor-enum.md`).
+12. **Never display system prompts in the customer app** — `/api/app` agent preview and file prompt UIs show the user prompt only.

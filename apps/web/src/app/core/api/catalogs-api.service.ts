@@ -45,8 +45,9 @@ export class CatalogsApiService {
     return this.http.get<DocumentType[]>(`${this.base}/document-types`);
   }
 
-  listProviders() {
-    return this.http.get<Provider[]>(`${this.base}/providers`);
+  listProviders(category?: string) {
+    const params = category ? { category } : undefined;
+    return this.http.get<Provider[]>(`${this.base}/providers`, { params });
   }
 
   listAgentTemplates() {

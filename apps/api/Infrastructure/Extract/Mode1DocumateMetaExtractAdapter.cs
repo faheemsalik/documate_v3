@@ -40,6 +40,12 @@ public sealed class Mode1DocumateMetaExtractAdapter(
 
         var payload = SchemaGuidedExtractor.Extract(request.OutputSchemaJson, text);
         var json = payload.ToJsonString(JsonOptions);
+        var composed = new ExtractPromptComposer().Compose(
+            request.SystemPrompt,
+            request.Instructions,
+            request.OutputSchemaJson,
+            request.PostProcessPrompt,
+            text);
 
         logger.LogInformation(
             "Extracted Document {DocumentId} via {ProviderKey} (llmArmed={Armed}); fields={FieldCount}",
@@ -48,7 +54,7 @@ public sealed class Mode1DocumateMetaExtractAdapter(
             armed,
             payload.Count);
 
-        return new ExtractAdapterResult(providerKey, payload, json);
+        return new ExtractAdapterResult(providerKey, payload, json, composed.SystemMessage, composed.UserMessage);
     }
 
     private async Task<string> ReadTextArtifactAsync(ExtractAdapterRequest request, CancellationToken cancellationToken)

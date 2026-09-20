@@ -9,6 +9,8 @@ public sealed class OpsAgent : WireFacingEntity, IHasRowVersion
     public string OutputSchemaJson { get; set; } = "{}";
     public int SchemaVersion { get; set; } = 1;
     public string Instructions { get; set; } = "";
+    public string SystemPrompt { get; set; } = "";
+    public string PostProcessPrompt { get; set; } = "";
     public long? SourceTemplateId { get; set; }
     public long? DefaultWorkflowId { get; set; }
     public long? DefaultProviderId { get; set; }

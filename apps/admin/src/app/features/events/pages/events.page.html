@@ -1,0 +1,62 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Events</h1>
+      <p class="meta">Platform public event catalog · Band 18</p>
+    </div>
+    <a routerLink="/actions">Manage action bindings →</a>
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  } @else if (loading()) {
+    <p-message severity="info" text="Loading catalog…" />
+  } @else {
+    <p class="hint">
+      Event names and action types are platform-defined. Customer and queue subscriptions live on
+      <a routerLink="/actions">Actions</a>.
+    </p>
+
+    <section>
+      <h2>Public events</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Resource</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (e of events(); track e.eventKey) {
+            <tr>
+              <td>{{ e.eventKey }}</td>
+              <td class="mono">{{ e.resourceTypeKey }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Action types</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Key</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (a of actionTypes(); track a.actionTypeKey) {
+            <tr>
+              <td>{{ a.name }}</td>
+              <td>
+                <p-tag [value]="a.actionTypeKey" severity="secondary" />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+  }
+</div>

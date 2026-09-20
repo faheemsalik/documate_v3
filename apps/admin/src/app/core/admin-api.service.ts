@@ -102,6 +102,7 @@ export interface AdminFileDocumentItem {
   pageEnd: number | null;
   createdAt: string;
   completedAt: string | null;
+  hasExtractPrompt: boolean;
 }
 
 export interface AdminDocumentDetail {
@@ -124,6 +125,9 @@ export interface AdminDocumentDetail {
   webhookAttempts: number;
   createdAt: string;
   completedAt: string | null;
+  extractSystemPrompt: string | null;
+  extractUserPrompt: string | null;
+  extractPromptCapturedAt: string | null;
 }
 
 export interface AdminAnalyticsSummary {
@@ -257,6 +261,188 @@ export interface AdminProvider {
   name: string;
   vendorHint: string | null;
   categoryKey: string;
+}
+
+export interface AdminDocumentType {
+  id: number;
+  documentTypeKey: string;
+  name: string;
+}
+
+export interface AdminAgentTemplate {
+  id: number;
+  agentTemplateKey: string;
+  name: string;
+  description?: string | null;
+  documentTypeId: number;
+  documentTypeKey: string;
+  defaultSchemaJson: string;
+  defaultInstructions: string;
+  systemPrompt: string;
+  defaultPostProcessPrompt: string;
+  defaultProviderId?: number | null;
+  isPublished: boolean;
+  version: number;
+  clonedAgentCount: number;
+}
+
+export interface AdminAgentTemplateUpdateResult {
+  template: AdminAgentTemplate;
+  clonedAgentCount: number;
+  pushedSystemPrompt: boolean;
+}
+
+export interface AdminAgentListItem {
+  id: string;
+  name: string;
+  businessId: string;
+  businessName: string;
+  tenantId: string;
+  tenantName: string;
+  documentTypeKey: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AdminAgentDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  businessId: string;
+  businessName: string;
+  tenantId: string;
+  tenantName: string;
+  documentTypeId: number;
+  documentTypeKey: string | null;
+  outputSchemaJson: string;
+  schemaVersion: number;
+  instructions: string;
+  systemPrompt: string;
+  postProcessPrompt: string;
+  sourceTemplateId: number | null;
+  defaultProviderId: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AdminAgentPromptPreview {
+  systemPrompt: string;
+  userPrompt: string;
+}
+
+export interface AdminAgentSuggestSystemPrompt {
+  systemPrompt: string;
+}
+
+export interface UpdateAdminAgentSystemPromptBody {
+  systemPrompt: string;
+}
+
+export interface CreateAdminAgentTemplateBody {
+  agentTemplateKey: string;
+  name: string;
+  description?: string | null;
+  documentTypeId: number;
+  defaultSchemaJson: string;
+  defaultInstructions: string;
+  systemPrompt?: string | null;
+  defaultPostProcessPrompt?: string | null;
+  defaultProviderId?: number | null;
+  isPublished: boolean;
+}
+
+export interface UpdateAdminAgentTemplateBody {
+  name: string;
+  description?: string | null;
+  documentTypeId: number;
+  defaultSchemaJson: string;
+  defaultInstructions: string;
+  systemPrompt?: string | null;
+  defaultPostProcessPrompt?: string | null;
+  defaultProviderId?: number | null;
+  isPublished: boolean;
+  pushSystemPrompt: boolean;
+}
+
+export interface AdminPublicEvent {
+  eventKey: string;
+  resourceTypeKey: string;
+}
+
+export interface AdminPublicActionType {
+  actionTypeKey: string;
+  name: string;
+}
+
+export interface AdminPublicEventsCatalog {
+  events: AdminPublicEvent[];
+  actionTypes: AdminPublicActionType[];
+}
+
+export interface AdminPublicEventToggle {
+  eventKey: string;
+  enabled: boolean;
+}
+
+export interface AdminActionBindingListItem {
+  id: string;
+  businessId: string;
+  businessName: string;
+  tenantId: string;
+  tenantName: string;
+  queueId: string | null;
+  queueName: string | null;
+  actionTypeKey: string;
+  enabled: boolean;
+  eventKeys: string[];
+  webhookUrl: string | null;
+  hasSecret: boolean;
+  emailAudience: string | null;
+  recipientCount: number;
+  queuePublicActionsInherit: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminActionBindingDetail {
+  id: string;
+  businessId: string;
+  businessName: string;
+  tenantId: string;
+  tenantName: string;
+  queueId: string | null;
+  queueName: string | null;
+  actionTypeKey: string;
+  enabled: boolean;
+  events: AdminPublicEventToggle[];
+  webhookUrl: string | null;
+  hasSecret: boolean;
+  emailAudience: string | null;
+  recipients: string[];
+  queuePublicActionsInherit: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAdminActionBindingBody {
+  businessId: string;
+  queueId?: string | null;
+  actionTypeKey: string;
+  enabled: boolean;
+  eventKeys?: string[];
+  url?: string | null;
+  secret?: string | null;
+  audience?: string | null;
+  recipients?: string[];
+}
+
+export interface UpdateAdminActionBindingBody {
+  enabled: boolean;
+  eventKeys: string[];
+  url?: string | null;
+  secret?: string | null;
+  audience?: string | null;
+  recipients?: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -411,5 +597,96 @@ export class AdminApiService {
       this.url(`/api/admin/system-settings/${encodeURIComponent(key)}`),
       { valueJson },
     );
+  }
+
+  listDocumentTypes(): Observable<AdminDocumentType[]> {
+    return this.http.get<AdminDocumentType[]>(this.url('/api/admin/document-types'));
+  }
+
+  listAgentTemplates(): Observable<AdminAgentTemplate[]> {
+    return this.http.get<AdminAgentTemplate[]>(this.url('/api/admin/agent-templates'));
+  }
+
+  getAgentTemplate(id: number): Observable<AdminAgentTemplate> {
+    return this.http.get<AdminAgentTemplate>(this.url(`/api/admin/agent-templates/${id}`));
+  }
+
+  createAgentTemplate(body: CreateAdminAgentTemplateBody): Observable<AdminAgentTemplate> {
+    return this.http.post<AdminAgentTemplate>(this.url('/api/admin/agent-templates'), body);
+  }
+
+  updateAgentTemplate(
+    id: number,
+    body: UpdateAdminAgentTemplateBody,
+  ): Observable<AdminAgentTemplateUpdateResult> {
+    return this.http.put<AdminAgentTemplateUpdateResult>(
+      this.url(`/api/admin/agent-templates/${id}`),
+      body,
+    );
+  }
+
+  listAgents(query: Record<string, unknown> = {}): Observable<Paged<AdminAgentListItem>> {
+    return this.http.get<Paged<AdminAgentListItem>>(this.url('/api/admin/agents'), {
+      params: this.params(query as Record<string, string | number | boolean | null | undefined | string[]>),
+    });
+  }
+
+  getAgent(id: string): Observable<AdminAgentDetail> {
+    return this.http.get<AdminAgentDetail>(this.url(`/api/admin/agents/${id}`));
+  }
+
+  getAgentPromptPreview(id: string): Observable<AdminAgentPromptPreview> {
+    return this.http.get<AdminAgentPromptPreview>(this.url(`/api/admin/agents/${id}/prompt-preview`));
+  }
+
+  previewAgentPrompt(
+    id: string,
+    body: {
+      systemPrompt?: string | null;
+      instructions?: string | null;
+      outputSchemaJson?: string | null;
+      postProcessPrompt?: string | null;
+    },
+  ): Observable<AdminAgentPromptPreview> {
+    return this.http.post<AdminAgentPromptPreview>(
+      this.url(`/api/admin/agents/${id}/prompt-preview`),
+      body,
+    );
+  }
+
+  suggestAgentSystemPrompt(id: string): Observable<AdminAgentSuggestSystemPrompt> {
+    return this.http.post<AdminAgentSuggestSystemPrompt>(
+      this.url(`/api/admin/agents/${id}/suggest-system-prompt`),
+      {},
+    );
+  }
+
+  updateAgentSystemPrompt(
+    id: string,
+    body: UpdateAdminAgentSystemPromptBody,
+  ): Observable<AdminAgentDetail> {
+    return this.http.put<AdminAgentDetail>(this.url(`/api/admin/agents/${id}/system-prompt`), body);
+  }
+
+  getPublicEventsCatalog(): Observable<AdminPublicEventsCatalog> {
+    return this.http.get<AdminPublicEventsCatalog>(this.url('/api/admin/public-events'));
+  }
+
+  listActionBindings(query: Record<string, unknown> = {}): Observable<Paged<AdminActionBindingListItem>> {
+    return this.http.get<Paged<AdminActionBindingListItem>>(this.url('/api/admin/action-bindings'), {
+      params: this.params(query as Record<string, string | number | boolean | null | undefined | string[]>),
+    });
+  }
+
+  getActionBinding(id: string): Observable<AdminActionBindingDetail> {
+    return this.http.get<AdminActionBindingDetail>(this.url(`/api/admin/action-bindings/${id}`));
+  }
+
+  createActionBinding(body: CreateAdminActionBindingBody): Observable<AdminActionBindingDetail> {
+    return this.http.post<AdminActionBindingDetail>(this.url('/api/admin/action-bindings'), body);
+  }
+
+  updateActionBinding(id: string, body: UpdateAdminActionBindingBody): Observable<AdminActionBindingDetail> {
+    return this.http.put<AdminActionBindingDetail>(this.url(`/api/admin/action-bindings/${id}`), body);
   }
 }

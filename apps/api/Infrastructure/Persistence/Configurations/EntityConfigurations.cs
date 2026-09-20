@@ -134,6 +134,8 @@ internal sealed class CorAgentTemplateConfiguration : IEntityTypeConfiguration<C
         b.Property(x => x.Name).HasMaxLength(256).IsRequired();
         b.Property(x => x.DefaultSchemaJson).HasColumnType("nvarchar(max)").IsRequired();
         b.Property(x => x.DefaultInstructions).HasColumnType("nvarchar(max)").IsRequired();
+        b.Property(x => x.SystemPrompt).HasColumnType("nvarchar(max)").IsRequired();
+        b.Property(x => x.DefaultPostProcessPrompt).HasColumnType("nvarchar(max)").IsRequired();
         b.HasOne(x => x.DocumentType).WithMany().HasForeignKey(x => x.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.DefaultProvider).WithMany().HasForeignKey(x => x.DefaultProviderId).OnDelete(DeleteBehavior.Restrict);
     }
@@ -177,6 +179,8 @@ internal sealed class OpsAgentConfiguration : IEntityTypeConfiguration<OpsAgent>
         b.Property(x => x.Name).HasMaxLength(256).IsRequired();
         b.Property(x => x.OutputSchemaJson).HasColumnType("nvarchar(max)").IsRequired();
         b.Property(x => x.Instructions).HasColumnType("nvarchar(max)").IsRequired();
+        b.Property(x => x.SystemPrompt).HasColumnType("nvarchar(max)").IsRequired();
+        b.Property(x => x.PostProcessPrompt).HasColumnType("nvarchar(max)").IsRequired();
         b.Property(x => x.ProviderStrategyJson).HasColumnType("nvarchar(max)");
         b.HasOne(x => x.DocumentType).WithMany().HasForeignKey(x => x.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.SourceTemplate).WithMany().HasForeignKey(x => x.SourceTemplateId).OnDelete(DeleteBehavior.Restrict);
@@ -430,3 +434,23 @@ internal sealed class OpsInAppNotificationConfiguration : IEntityTypeConfigurati
         b.HasIndex(x => new { x.BusinessId, x.EventId });
     }
 }
+
+internal sealed class OpsDocumentExtractPromptConfiguration : IEntityTypeConfiguration<OpsDocumentExtractPrompt>
+{
+    public void Configure(EntityTypeBuilder<OpsDocumentExtractPrompt> b)
+    {
+        EntityConfigHelpers.ConfigureWireFacing(b);
+        EntityConfigHelpers.BusinessId(b);
+        b.Property(x => x.SystemPromptText).HasColumnType("nvarchar(max)").IsRequired();
+        b.Property(x => x.UserPromptText).HasColumnType("nvarchar(max)").IsRequired();
+        b.HasOne(x => x.File).WithMany(x => x.ExtractPrompts).HasForeignKey(x => x.FileId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.DocumentId)
+            .IsUnique()
+            .HasDatabaseName("IX_OpsDocumentExtractPrompts_DocumentId")
+            .HasFilter("[IsDeleted] = 0");
+        b.HasIndex(x => x.FileId);
+        b.HasIndex(x => x.CreatedAt);
+    }
+}
+

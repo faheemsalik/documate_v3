@@ -25,6 +25,10 @@ import { AdminApiService, type AdminBusinessDetail } from '../../../core/admin-a
 
         <p>
           <a [routerLink]="['/ops']" [queryParams]="{ businessId: b.idenBusinessId }">Open in Files &amp; documents →</a>
+          ·
+          <a [routerLink]="['/actions']" [queryParams]="{ businessId: b.idenBusinessId }">Action bindings →</a>
+          ·
+          <a [routerLink]="['/agents']" [queryParams]="{ businessId: b.idenBusinessId }">Agents →</a>
         </p>
 
         <div class="cols">
@@ -37,7 +41,10 @@ import { AdminApiService, type AdminBusinessDetail } from '../../../core/admin-a
           <section>
             <h2>Agents</h2>
             @for (a of b.agents; track a.id) {
-              <div class="row">{{ a.name }} · {{ a.isActive ? 'active' : 'inactive' }}</div>
+              <div class="row">
+                <a [routerLink]="['/agents', a.id]">{{ a.name }}</a>
+                · {{ a.isActive ? 'active' : 'inactive' }}
+              </div>
             } @empty { <p class="empty">No agents.</p> }
           </section>
         </div>

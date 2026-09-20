@@ -67,6 +67,7 @@ public static class PipelineServiceCollectionExtensions
         services.AddScoped<IFileSplitStage, FileSplitStage>();
         services.AddScoped<IFileClassifyStage, FileClassifyStage>();
         services.AddScoped<IDocumentRouteStage, DocumentRouteStage>();
+        services.AddSingleton<IExtractPromptComposer, ExtractPromptComposer>();
         services.AddScoped<IDocumentExtractStage, DocumentExtractStage>();
         services.AddScoped<IDocumentExtractAdapter, LiveLlmDocumentExtractAdapter>();
         services.AddScoped<IDocumentPdfMaterializer, DocumentPdfMaterializer>();

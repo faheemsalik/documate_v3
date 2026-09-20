@@ -18,6 +18,12 @@ public sealed class StorageOptions
 
     public int SignedUrlMinutes { get; set; } = 30;
 
+    /// <summary>
+    /// Public origin partners use to fetch file/document content (e.g. http://localhost:5172).
+    /// Required for Hangfire/webhooks when local storage cannot emit S3 http(s) URLs.
+    /// </summary>
+    public string? PublicBaseUrl { get; set; }
+
     /// <summary>Optional override. Prefer shared <c>Aws:AccessKey</c>/<c>SecretKey</c> (or IAM role).</summary>
     public string? AccessKey { get; set; }
     public string? SecretKey { get; set; }

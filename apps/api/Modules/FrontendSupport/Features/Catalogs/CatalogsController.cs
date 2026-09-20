@@ -16,8 +16,10 @@ public sealed class CatalogsController(IMediator mediator) : ControllerBase
         mediator.Send(new ListDocumentTypesQuery(), cancellationToken);
 
     [HttpGet("providers")]
-    public Task<IReadOnlyList<ProviderDto>> ListProviders(CancellationToken cancellationToken) =>
-        mediator.Send(new ListProvidersQuery(), cancellationToken);
+    public Task<IReadOnlyList<ProviderDto>> ListProviders(
+        [FromQuery] string? category,
+        CancellationToken cancellationToken) =>
+        mediator.Send(new ListProvidersQuery(category), cancellationToken);
 
     [HttpGet("agent-templates")]
     public Task<IReadOnlyList<AgentTemplateDto>> ListAgentTemplates(CancellationToken cancellationToken) =>
@@ -47,11 +49,12 @@ public sealed record AgentTemplateDto(
     string DocumentTypeKey,
     string DefaultSchemaJson,
     string DefaultInstructions,
+    string DefaultPostProcessPrompt,
     long? DefaultProviderId,
     int Version);
 
 public sealed record ListDocumentTypesQuery : IRequest<IReadOnlyList<DocumentTypeDto>>;
-public sealed record ListProvidersQuery : IRequest<IReadOnlyList<ProviderDto>>;
+public sealed record ListProvidersQuery(string? Category = null) : IRequest<IReadOnlyList<ProviderDto>>;
 public sealed record ListAgentTemplatesQuery : IRequest<IReadOnlyList<AgentTemplateDto>>;
 public sealed record GetAgentTemplateByKeyQuery(string Key) : IRequest<AgentTemplateDto?>;
 public sealed record ListCatalogEnumsQuery(string TypeKey) : IRequest<IReadOnlyList<CatalogEnumDto>>;
@@ -74,10 +77,21 @@ public sealed class ListProvidersHandler(DocumateDbContext db)
 {
     public async Task<IReadOnlyList<ProviderDto>> Handle(ListProvidersQuery request, CancellationToken cancellationToken)
     {
-        return await db.CorProviders.AsNoTracking()
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.Name)
-            .Select(x => new ProviderDto(x.Id, x.ProviderKey, x.Name, x.VendorHint, x.CategoryEnumId))
+        var query =
+            from p in db.CorProviders.AsNoTracking()
+            join e in db.CorEnums.AsNoTracking() on p.CategoryEnumId equals e.Id
+            where p.IsActive
+            select new { p, CategoryKey = e.EnumKey };
+
+        if (!string.IsNullOrWhiteSpace(request.Category))
+        {
+            var cat = request.Category.Trim();
+            query = query.Where(x => x.CategoryKey == cat);
+        }
+
+        return await query
+            .OrderBy(x => x.p.Name)
+            .Select(x => new ProviderDto(x.p.Id, x.p.ProviderKey, x.p.Name, x.p.VendorHint, x.p.CategoryEnumId))
             .ToListAsync(cancellationToken);
     }
 }
@@ -101,6 +115,7 @@ public sealed class ListAgentTemplatesHandler(DocumateDbContext db)
                 d.DocumentTypeKey,
                 t.DefaultSchemaJson,
                 t.DefaultInstructions,
+                t.DefaultPostProcessPrompt,
                 t.DefaultProviderId,
                 t.Version)
         ).ToListAsync(cancellationToken);
@@ -125,6 +140,7 @@ public sealed class GetAgentTemplateByKeyHandler(DocumateDbContext db)
                 d.DocumentTypeKey,
                 t.DefaultSchemaJson,
                 t.DefaultInstructions,
+                t.DefaultPostProcessPrompt,
                 t.DefaultProviderId,
                 t.Version)
         ).FirstOrDefaultAsync(cancellationToken);

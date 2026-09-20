@@ -1,0 +1,151 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-width: 56rem;
+  min-width: 0;
+}
+
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--p-text-color);
+}
+
+h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--p-text-color);
+}
+
+h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+  font-weight: 560;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  color: var(--p-primary-color);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.meta {
+  margin: 0.2rem 0 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
+}
+
+.panel {
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  min-width: 0;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-bottom: 0.65rem;
+}
+
+.section-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.35rem 0.75rem;
+  margin: 0.65rem 0 0;
+  font-size: 0.85rem;
+}
+
+.meta-grid dt {
+  color: var(--p-text-muted-color);
+}
+
+.meta-grid dd {
+  margin: 0;
+  word-break: break-word;
+  color: var(--p-text-color);
+}
+
+.prompt {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin: 0.5rem 0 0;
+  max-height: 22rem;
+  overflow: auto;
+  background: var(--p-surface-ground, var(--p-content-background));
+  color: var(--p-text-color);
+  border: 1px solid var(--p-content-border-color);
+  padding: 0.75rem;
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.prompt-editor {
+  width: 100%;
+  min-height: 12rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .preview-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.hint {
+  margin: 0.25rem 0 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.8rem;
+}
+
+.muted {
+  margin: 0.5rem 0 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
+}
+
+a {
+  color: var(--p-primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}

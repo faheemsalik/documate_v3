@@ -56,25 +56,18 @@
         </p-tabpanel>
         <p-tabpanel value="2">
           <div class="form-grid">
-            <label class="checkbox-row">
-              <p-checkbox [(ngModel)]="postProcessEnabled" [binary]="true" />
-              Use default post-process workflow
+            <label class="full">
+              Extra extract instructions
+              <textarea
+                pTextarea
+                [(ngModel)]="postProcessPrompt"
+                rows="8"
+                placeholder="Appended to the extract prompt after the schema (dates, totals, vendor names, …)"
+              ></textarea>
             </label>
             <p class="hint">
-              When enabled, the server normalizes extracted fields after LLM extraction. Workflow id:
-              {{ defaultWorkflowId ?? 'assigned on save' }}.
+              This text is added to the user prompt at extract time. It is not a post-extract workflow.
             </p>
-            <label>
-              Provider override
-              <p-select
-                [options]="providers()"
-                [(ngModel)]="defaultProviderId"
-                optionLabel="name"
-                optionValue="id"
-                [showClear]="true"
-                placeholder="Inherit default"
-              />
-            </label>
           </div>
         </p-tabpanel>
         <p-tabpanel value="3">

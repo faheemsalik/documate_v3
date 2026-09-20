@@ -85,6 +85,7 @@
                   <th>Type</th>
                   <th>Status</th>
                   <th>Pages</th>
+                  <th>Prompt</th>
                   <th></th>
                 </tr>
               </ng-template>
@@ -95,6 +96,13 @@
                   <td>
                     @if (doc.pageStart != null && doc.pageEnd != null) {
                       {{ doc.pageStart }}–{{ doc.pageEnd }}
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td>
+                    @if (doc.hasExtractPrompt) {
+                      <a [routerLink]="['/ops/documents', doc.id]">View</a>
                     } @else {
                       —
                     }

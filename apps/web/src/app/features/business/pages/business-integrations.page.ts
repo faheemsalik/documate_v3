@@ -31,7 +31,6 @@ export class BusinessIntegrationsPage implements OnInit {
   webhookEvents: PublicEventToggle[] = [];
 
   emailEnabled = false;
-  emailAudience = 'partner';
   emailRecipientsText = '';
   emailEvents: PublicEventToggle[] = [];
 
@@ -65,7 +64,8 @@ export class BusinessIntegrationsPage implements OnInit {
         },
         email: {
           enabled: this.emailEnabled,
-          audience: this.emailAudience,
+          // Partner recipients only — Documate support is admin/platform (DR-EA6).
+          audience: 'partner',
           recipients: this.emailRecipientsText
             .split(/[,;\s]+/)
             .map((x) => x.trim())
@@ -96,7 +96,6 @@ export class BusinessIntegrationsPage implements OnInit {
     this.webhookUrl = s.webhook.url ?? '';
     this.webhookEvents = s.webhook.events.map((e) => ({ ...e }));
     this.emailEnabled = s.email.enabled;
-    this.emailAudience = s.email.audience;
     this.emailRecipientsText = s.email.recipients.join(', ');
     this.emailEvents = s.email.events.map((e) => ({ ...e }));
     this.inAppEnabled = s.inApp.enabled;

@@ -12,14 +12,13 @@ using Documate.Api.Infrastructure.Pipeline;
 using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Webhooks;
 using Documate.Api.Infrastructure.Work;
-using Documate.Api.Infrastructure.PostProcess;
 using Documate.Api.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Per-Document extract via live LLM (façade documate_meta on Document), then JSON Schema validate.
-/// Untyped / unrouted Documents fail with no_agent. Post-process is DQ-1101.
+/// Untyped / unrouted Documents fail with no_agent. MCP post-process is unused on this path (Plan 22 / DQ-1902).
 /// </summary>
 public sealed class DocumentExtractStage(
     DocumateDbContext db,
@@ -28,7 +27,6 @@ public sealed class DocumentExtractStage(
     IObjectStorage storage,
     IDocumentWebhookScheduler webhooks,
     IOpsAlertSender alerts,
-    IAgentPostProcessRunner postProcess,
     IPipelineModelSettings modelSettings,
     IOptions<PipelineOptions> options,
     ILogger<DocumentExtractStage> logger) : IDocumentExtractStage
@@ -223,7 +221,16 @@ public sealed class DocumentExtractStage(
                 agent.OutputSchemaJson,
                 agent.Instructions,
                 sourceText,
-                preferredLlmProviderKey),
+                preferredLlmProviderKey,
+                agent.SystemPrompt,
+                agent.PostProcessPrompt),
+            cancellationToken);
+
+        await UpsertExtractPromptAsync(
+            context,
+            doc,
+            result.SystemPromptText,
+            result.UserPromptText,
             cancellationToken);
 
         await db.Entry(doc).ReloadAsync(cancellationToken);
@@ -296,62 +303,6 @@ public sealed class DocumentExtractStage(
         }
 
         var finalJson = result.ResultJson;
-        if (agent.DefaultWorkflowId is long)
-        {
-            var postStage = enums.Require("document_internal_stage", "post_process");
-            doc.InternalStageEnumId = postStage;
-            doc.UpdatedByUserId = context.Item.UserId;
-            await db.SaveChangesAsync(cancellationToken);
-            await AppendDocEventAsync(
-                context,
-                doc.Id,
-                docSubject,
-                statusChanged,
-                """{"status":"processing","stage":"post_process"}""",
-                cancellationToken);
-            await DelayAsync(delay, cancellationToken);
-
-            try
-            {
-                var processed = await postProcess.RunAsync(agent, finalJson, cancellationToken);
-                finalJson = processed.ResultJson;
-                doc.ResultJson = finalJson;
-                await db.SaveChangesAsync(cancellationToken);
-                await TryWriteExtractArtifactAsync(context, doc, finalJson, cancellationToken);
-                await AppendDocEventAsync(
-                    context,
-                    doc.Id,
-                    docSubject,
-                    statusChanged,
-                    JsonSerializer.Serialize(new
-                    {
-                        status = "processing",
-                        stage = "post_process",
-                        ran = processed.Ran,
-                        workflowKey = processed.WorkflowKey,
-                    }),
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Post-process failed for Document {DocumentId}", doc.Id);
-                FailDocument(doc, docFailed, "post_process_failed", ex.Message, "post_process", context.Item.UserId);
-                await db.SaveChangesAsync(cancellationToken);
-                await AppendDocEventAsync(
-                    context,
-                    doc.Id,
-                    docSubject,
-                    statusChanged,
-                    JsonSerializer.Serialize(new
-                    {
-                        status = "failed",
-                        stage = "post_process",
-                        errorCode = "post_process_failed",
-                    }),
-                    cancellationToken);
-                return;
-            }
-        }
 
         doc.ResultJson = finalJson;
         doc.PublicStatusEnumId = docReady;
@@ -468,6 +419,45 @@ public sealed class DocumentExtractStage(
             logger.LogWarning(ex, "Could not read slice text for Document {DocumentId}", doc.Id);
             return null;
         }
+    }
+
+    private async Task UpsertExtractPromptAsync(
+        FilePipelineContext context,
+        OpsDocument doc,
+        string systemPromptText,
+        string userPromptText,
+        CancellationToken cancellationToken)
+    {
+        var existing = await db.OpsDocumentExtractPrompts
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.DocumentId == doc.Id, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        if (existing is null)
+        {
+            db.OpsDocumentExtractPrompts.Add(new OpsDocumentExtractPrompt
+            {
+                BusinessId = context.Item.BusinessId,
+                FileId = context.File.Id,
+                DocumentId = doc.Id,
+                SystemPromptText = systemPromptText,
+                UserPromptText = userPromptText,
+                CreatedByUserId = context.Item.UserId,
+                UpdatedByUserId = context.Item.UserId,
+            });
+        }
+        else
+        {
+            existing.SystemPromptText = systemPromptText;
+            existing.UserPromptText = userPromptText;
+            existing.IsDeleted = false;
+            existing.DeletedAt = null;
+            existing.DeletedByUserId = null;
+            existing.CreatedAt = now;
+            existing.UpdatedByUserId = context.Item.UserId;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task TryWriteExtractArtifactAsync(

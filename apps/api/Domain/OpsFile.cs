@@ -45,4 +45,5 @@ public sealed class OpsFile : WireFacingEntity, IHasRowVersion
     public CorEnum? PublicStatus { get; set; }
     public CorEnum? InternalStage { get; set; }
     public ICollection<OpsDocument> Documents { get; set; } = new List<OpsDocument>();
+    public ICollection<OpsDocumentExtractPrompt> ExtractPrompts { get; set; } = new List<OpsDocumentExtractPrompt>();
 }

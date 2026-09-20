@@ -11,7 +11,7 @@ import { Tabs, TabList, Tab, TabPanels, TabPanel } from 'primeng/tabs';
 import { Textarea } from 'primeng/textarea';
 import { map } from 'rxjs';
 import { AgentsApiService, type Agent } from '../../../core/api/agents-api.service';
-import { CatalogsApiService, type DocumentType, type Provider } from '../../../core/api/catalogs-api.service';
+import { CatalogsApiService, type DocumentType } from '../../../core/api/catalogs-api.service';
 import {
   IntakeMailboxesApiService,
   type IntakeMailbox,
@@ -53,7 +53,6 @@ export class AgentEditPage implements OnInit {
   readonly error = signal<string | null>(null);
   readonly agent = signal<Agent | null>(null);
   readonly documentTypes = signal<DocumentType[]>([]);
-  readonly providers = signal<Provider[]>([]);
   readonly typedMailbox = signal<IntakeMailbox | null>(null);
   readonly mailboxBusy = signal(false);
   readonly mailboxAllowlist = signal<MailboxAllowlistEntry[]>([]);
@@ -66,9 +65,7 @@ export class AgentEditPage implements OnInit {
   outputSchemaJson = '';
   schemaVersion = 1;
   isActive = true;
-  defaultWorkflowId: number | null = null;
-  defaultProviderId: number | null = null;
-  postProcessEnabled = true;
+  postProcessPrompt = '';
   mailboxEnabled = true;
   mailboxAllowlistModeEnumId: number | null = null;
   mailboxAllowlistMatchType = 'email';
@@ -81,7 +78,6 @@ export class AgentEditPage implements OnInit {
 
   ngOnInit(): void {
     this.catalogsApi.listDocumentTypes().subscribe((d) => this.documentTypes.set(d));
-    this.catalogsApi.listProviders().subscribe((p) => this.providers.set(p));
     this.catalogsApi.listEnums('allowlist_mode').subscribe({
       next: (modes) =>
         this.allowlistModes.set(modes.map((m) => ({ label: m.displayName || m.enumKey, value: m.id }))),
@@ -192,15 +188,17 @@ export class AgentEditPage implements OnInit {
         documentTypeId: this.documentTypeId,
         outputSchemaJson: this.outputSchemaJson,
         instructions: this.instructions,
+        postProcessPrompt: this.postProcessPrompt,
         schemaVersion: this.schemaVersion,
         isActive: this.isActive,
-        defaultWorkflowId: this.postProcessEnabled ? this.defaultWorkflowId : null,
-        defaultProviderId: this.defaultProviderId,
+        defaultWorkflowId: agent.defaultWorkflowId ?? null,
+        defaultProviderId: agent.defaultProviderId ?? null,
       })
       .subscribe({
         next: (updated) => {
           this.agent.set(updated);
           this.schemaVersion = updated.schemaVersion;
+          this.postProcessPrompt = updated.postProcessPrompt ?? '';
           this.saving.set(false);
         },
         error: () => {
@@ -228,9 +226,7 @@ export class AgentEditPage implements OnInit {
         this.outputSchemaJson = a.outputSchemaJson;
         this.schemaVersion = a.schemaVersion;
         this.isActive = a.isActive;
-        this.defaultWorkflowId = a.defaultWorkflowId ?? null;
-        this.defaultProviderId = a.defaultProviderId ?? null;
-        this.postProcessEnabled = a.defaultWorkflowId != null;
+        this.postProcessPrompt = a.postProcessPrompt ?? '';
         this.loading.set(false);
         this.loadTypedMailbox(a.id);
       },

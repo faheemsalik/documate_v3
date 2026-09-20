@@ -5,6 +5,7 @@ using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Storage;
 using Documate.Api.Infrastructure.Work;
 using Documate.Api.Modules.External.Features.Documents;
+using Documate.Api.Modules.FrontendSupport.Features.Files;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -43,6 +44,14 @@ public sealed class ExternalFilesController(IMediator mediator) : ControllerBase
     {
         var dto = await mediator.Send(new GetExternalFileQuery(fileId), cancellationToken);
         return dto is null ? NotFound() : Ok(dto);
+    }
+
+    /// <summary>Authenticated original-file bytes (API key). Used when local storage cannot emit S3 http(s) URLs.</summary>
+    [HttpGet("files/{fileId:guid}/content")]
+    public async Task<IActionResult> Content(Guid fileId, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetExternalFileContentQuery(fileId), cancellationToken);
+        return result is null ? NotFound() : File(result.Content, result.ContentType, result.FileName);
     }
 
     /// <summary>Cancel File (Plan 02 §11.1 / DQ-1001). Non-terminal docs → cancelled + webhooks; Ready docs kept.</summary>
@@ -101,6 +110,8 @@ public sealed record ListExternalFilesQuery(
     DateTimeOffset? CreatedTo) : IRequest<IReadOnlyList<ExternalFileDto>>;
 
 public sealed record GetExternalFileQuery(Guid FileId) : IRequest<ExternalFileDto?>;
+
+public sealed record GetExternalFileContentQuery(Guid FileId) : IRequest<FileContentResultDto?>;
 
 public sealed record CancelExternalFileCommand(Guid FileId) : IRequest<ExternalFileDto?>;
 
@@ -182,6 +193,30 @@ public sealed class GetExternalFileHandler(
         var documents = new Dictionary<Guid, IReadOnlyList<ExternalDocumentDto>> { [file.Id] = mappedDocs };
         var list = await ExternalFileDtoMapping.MapManyAsync(db, [file], cancellationToken, documents);
         return list.FirstOrDefault();
+    }
+}
+
+public sealed class GetExternalFileContentHandler(
+    DocumateDbContext db,
+    IObjectStorage storage,
+    IBusinessContext business)
+    : IRequestHandler<GetExternalFileContentQuery, FileContentResultDto?>
+{
+    public async Task<FileContentResultDto?> Handle(
+        GetExternalFileContentQuery request,
+        CancellationToken cancellationToken)
+    {
+        var file = await db.OpsFiles.AsNoTracking().FirstOrDefaultAsync(
+            f => f.Id == request.FileId && f.BusinessId == business.BusinessId && !f.IsDeleted,
+            cancellationToken);
+        if (file is null || string.IsNullOrWhiteSpace(file.StorageBucket) || string.IsNullOrWhiteSpace(file.StorageKey))
+        {
+            return null;
+        }
+
+        var stream = await storage.DownloadAsync(file.StorageBucket, file.StorageKey, cancellationToken);
+        var contentType = GetFileContentHandler.ResolveContentType(file.ContentType, file.OriginalFileName);
+        return new FileContentResultDto(stream, contentType, file.OriginalFileName);
     }
 }
 

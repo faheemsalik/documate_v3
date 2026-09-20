@@ -108,6 +108,7 @@ builder.Services.AddHostedService<Documate.Api.Infrastructure.PublicEvents.Actio
 builder.Services.AddScoped<BusinessContextAccessor>();
 builder.Services.AddScoped<IBusinessContext>(sp => sp.GetRequiredService<BusinessContextAccessor>());
 builder.Services.AddScoped<IBusinessContextSetter>(sp => sp.GetRequiredService<BusinessContextAccessor>());
+builder.Services.AddSingleton<TenantBusinessEnsureCache>();
 builder.Services.AddScoped<ITenantBusinessProvisioner, TenantBusinessProvisioner>();
 builder.Services.AddScoped<IDefaultQueueBootstrap, DefaultQueueBootstrap>();
 builder.Services.AddScoped<IAgentQueueRouteAutoMapper, AgentQueueRouteAutoMapper>();

@@ -1,0 +1,12 @@
+.page { display: flex; flex-direction: column; gap: 0.85rem; }
+.page-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.25rem; }
+.meta { margin: 0.2rem 0 0; color: var(--p-text-muted-color); font-size: 0.8rem; }
+.actions { display: flex; gap: 0.5rem; align-items: center; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.table th, .table td { text-align: left; padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--p-content-border-color); }
+.table th { color: var(--p-text-muted-color); font-size: 0.75rem; }
+.mono { font-family: ui-monospace, monospace; font-size: 0.8rem; }
+.empty { color: var(--p-text-muted-color); }
+a { color: var(--p-primary-color); text-decoration: none; }
+a:hover { text-decoration: underline; }

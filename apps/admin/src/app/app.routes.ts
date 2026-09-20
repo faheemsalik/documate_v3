@@ -63,6 +63,54 @@ export const routes: Routes = [
           import('./features/businesses/pages/business-detail.page').then((m) => m.BusinessDetailPage),
       },
       {
+        path: 'agent-templates',
+        loadComponent: () =>
+          import('./features/agent-templates/pages/agent-template-list.page').then(
+            (m) => m.AgentTemplateListPage,
+          ),
+      },
+      {
+        path: 'agent-templates/new',
+        loadComponent: () =>
+          import('./features/agent-templates/pages/agent-template-edit.page').then(
+            (m) => m.AgentTemplateEditPage,
+          ),
+      },
+      {
+        path: 'agent-templates/:id',
+        loadComponent: () =>
+          import('./features/agent-templates/pages/agent-template-edit.page').then(
+            (m) => m.AgentTemplateEditPage,
+          ),
+      },
+      {
+        path: 'agents',
+        loadComponent: () =>
+          import('./features/agents/pages/agent-list.page').then((m) => m.AgentListPage),
+      },
+      {
+        path: 'agents/:id',
+        loadComponent: () =>
+          import('./features/agents/pages/agent-detail.page').then((m) => m.AgentDetailPage),
+      },
+      {
+        path: 'events',
+        loadComponent: () =>
+          import('./features/events/pages/events.page').then((m) => m.EventsPage),
+      },
+      {
+        path: 'actions',
+        loadComponent: () =>
+          import('./features/actions/pages/actions.page').then((m) => m.ActionsPage),
+      },
+      {
+        path: 'actions/:id',
+        loadComponent: () =>
+          import('./features/actions/pages/action-binding-edit.page').then(
+            (m) => m.ActionBindingEditPage,
+          ),
+      },
+      {
         path: 'monitoring',
         loadComponent: () =>
           import('./features/monitoring/pages/monitoring.page').then((m) => m.MonitoringPage),

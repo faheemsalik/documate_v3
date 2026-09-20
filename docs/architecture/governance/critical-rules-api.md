@@ -16,5 +16,6 @@ Apply before writing any `apps/api` code. Detail: `docs/architecture/patterns/`.
 12. **Cross-module DTOs are forbidden by default** — keep DTOs feature-local.
 13. **CorEnum for persisted modes/statuses** — no static CLR enum columns on domain tables; use `XxxEnumId` FK → `CorEnum` (`patterns/cor-enum.md`).
 14. **Compare CorEnum Ids, not keys** — business/handler logic branches on `*EnumId` (resolved Ids). Do not compare `EnumKey`/`Name` in domain logic; `EnumKey` is for seed, admin, and DTO display only (`patterns/cor-enum.md`).
+15. **Never return system prompts on `/api/app`** — `OpsAgent.SystemPrompt` and `OpsDocumentExtractPrompt.SystemPromptText` are admin-only. Customer agent, catalog, files, and `/prompt-preview` DTOs expose the user prompt only.
 
 Enforcement in Plan 00: documentation + Cursor rules (no custom analyzers yet).

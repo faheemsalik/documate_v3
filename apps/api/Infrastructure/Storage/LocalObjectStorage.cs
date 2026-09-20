@@ -46,7 +46,8 @@ public sealed class LocalObjectStorage(
 
     public override Task<string> GetSignedUrlAsync(string bucket, string key, CancellationToken cancellationToken = default)
     {
-        // Local: return a file URI; production uses S3 presign.
+        // Local blobs are not fetchable over HTTP. SignedDownloadUrlService rewrites this
+        // to /api/v1/files/{id}/content (or documents) using Storage:PublicBaseUrl.
         var path = ResolvePath(bucket, key);
         return Task.FromResult(new Uri(path).AbsoluteUri);
     }

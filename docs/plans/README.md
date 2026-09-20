@@ -48,6 +48,9 @@ Agents executing **engineering** DQs must not invent product behavior. Agents on
 | [20-public-events-actions-exploration.md](./20-public-events-actions-exploration.md) | Exploration | ✅ Phase 1 complete — PE1–PE11 locked; Phase 2 approved |
 | [21-public-events-actions-implementation-plan.md](./21-public-events-actions-implementation-plan.md) | Implementation plan | ✅ Phase 2 complete → Band 18 DQ |
 | [21-public-events-actions-dispatch-queue.md](./21-public-events-actions-dispatch-queue.md) | Dispatch queue | ✅ Band 18 complete (DQ-1801…1808) |
+| [22-document-agent-prompt-creation-exploration.md](./22-document-agent-prompt-creation-exploration.md) | Exploration | ✅ Phase 1 complete — PP1–PP7, P1–P5 locked (2026-09-20) |
+| [22-document-agent-prompt-creation-implementation-plan.md](./22-document-agent-prompt-creation-implementation-plan.md) | Implementation plan | ✅ Phase 2 complete → Band 19 DQ |
+| [22-document-agent-prompt-creation-dispatch-queue.md](./22-document-agent-prompt-creation-dispatch-queue.md) | Dispatch queue | 🔄 Band 19 — DQ-1901/1902/1903/1904/1907/1908/1909/1910 ✅; next = DQ-1905 |
 
 ## Plan-writing rules
 

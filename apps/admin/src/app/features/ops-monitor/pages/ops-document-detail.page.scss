@@ -98,6 +98,19 @@ h1 {
   color: var(--p-red-500, #ef4444);
 }
 
+.prompt {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  margin: 0 0 0.75rem;
+  max-height: 18rem;
+  overflow: auto;
+  background: var(--p-surface-50, #f8fafc);
+  padding: 0.65rem;
+  border-radius: 6px;
+}
+
 :host ::ng-deep .compact-table .p-datatable-tbody > tr > td,
 :host ::ng-deep .compact-table .p-datatable-thead > tr > th {
   padding: 0.35rem 0.45rem;

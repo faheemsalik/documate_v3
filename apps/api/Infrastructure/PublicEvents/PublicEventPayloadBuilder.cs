@@ -35,6 +35,8 @@ public sealed class PublicEventPayloadBuilder(
         string eventId,
         CancellationToken cancellationToken = default)
     {
+        var trackedFile = await EnsureTrackedFileAsync(file, cancellationToken);
+        await signedUrls.RefreshFileAsync(trackedFile, cancellationToken);
         await signedUrls.RefreshDocumentAsync(doc, cancellationToken);
 
         var statusKey = await EnumKeyAsync(doc.PublicStatusEnumId, cancellationToken) ?? "unknown";
@@ -44,7 +46,7 @@ public sealed class PublicEventPayloadBuilder(
                 .Select(t => t.DocumentTypeKey)
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
-        var sourceKey = await EnumKeyAsync(file.SourceEnumId, cancellationToken);
+        var sourceKey = await EnumKeyAsync(trackedFile.SourceEnumId, cancellationToken);
         var ready = string.Equals(statusKey, "ready", StringComparison.Ordinal);
 
         JsonNode? data = null;
@@ -64,15 +66,29 @@ public sealed class PublicEventPayloadBuilder(
         if (!string.Equals(sourceKey, "api", StringComparison.Ordinal)
             && !string.Equals(sourceKey, "api_sync", StringComparison.Ordinal))
         {
-            original = new DocumentWebhookOriginalFile(file.OriginalFileName, file.ContentType, file.SizeBytes);
+            original = new DocumentWebhookOriginalFile(
+                trackedFile.OriginalFileName,
+                trackedFile.ContentType,
+                trackedFile.SizeBytes,
+                trackedFile.DownloadUrl,
+                trackedFile.DownloadUrlExpiresAt);
+        }
+        else if (!string.IsNullOrWhiteSpace(trackedFile.DownloadUrl))
+        {
+            original = new DocumentWebhookOriginalFile(
+                trackedFile.OriginalFileName,
+                trackedFile.ContentType,
+                trackedFile.SizeBytes,
+                trackedFile.DownloadUrl,
+                trackedFile.DownloadUrlExpiresAt);
         }
 
         JsonNode? emailIntake = null;
-        if (!string.IsNullOrWhiteSpace(file.EmailIntakeJson))
+        if (!string.IsNullOrWhiteSpace(trackedFile.EmailIntakeJson))
         {
             try
             {
-                emailIntake = JsonNode.Parse(file.EmailIntakeJson);
+                emailIntake = JsonNode.Parse(trackedFile.EmailIntakeJson);
             }
             catch (JsonException)
             {
@@ -93,11 +109,11 @@ public sealed class PublicEventPayloadBuilder(
             data,
             ready ? null : new DocumentWebhookError(doc.ErrorCode, doc.ErrorMessage),
             sourceKey,
-            file.EmailMessageId,
+            trackedFile.EmailMessageId,
             original,
             DateTimeOffset.UtcNow,
-            file.EmailFrom,
-            file.EmailSubject,
+            trackedFile.EmailFrom,
+            trackedFile.EmailSubject,
             emailIntake,
             doc.PdfStorageKey is null ? null : doc.DownloadUrl,
             doc.PdfStorageKey is null ? null : doc.DownloadUrlExpiresAt);
@@ -111,28 +127,79 @@ public sealed class PublicEventPayloadBuilder(
         string eventId,
         CancellationToken cancellationToken = default)
     {
-        var sourceKey = await EnumKeyAsync(file.SourceEnumId, cancellationToken);
+        var trackedFile = await EnsureTrackedFileAsync(file, cancellationToken);
+        await signedUrls.RefreshFileAsync(trackedFile, cancellationToken);
+
+        var docs = await db.OpsDocuments
+            .Where(d => d.FileId == trackedFile.Id && d.BusinessId == trackedFile.BusinessId && !d.IsDeleted)
+            .OrderBy(d => d.SequenceId)
+            .ToListAsync(cancellationToken);
+        foreach (var doc in docs)
+        {
+            await signedUrls.RefreshDocumentAsync(doc, cancellationToken);
+        }
+
+        var sourceKey = await EnumKeyAsync(trackedFile.SourceEnumId, cancellationToken);
+        var documentPayloads = new List<object>(docs.Count);
+        foreach (var doc in docs)
+        {
+            var statusKey = await EnumKeyAsync(doc.PublicStatusEnumId, cancellationToken);
+            var typeKey = doc.DocumentTypeId is long typeId
+                ? await db.CorDocumentTypes.AsNoTracking()
+                    .Where(t => t.Id == typeId)
+                    .Select(t => t.DocumentTypeKey)
+                    .FirstOrDefaultAsync(cancellationToken)
+                : null;
+            documentPayloads.Add(new
+            {
+                DocumentId = doc.Id,
+                Status = statusKey,
+                DocumentType = typeKey,
+                Url = doc.PdfStorageKey is null ? null : doc.DownloadUrl,
+                UrlExpiresAt = doc.PdfStorageKey is null ? null : doc.DownloadUrlExpiresAt,
+            });
+        }
+
         var payload = new
         {
             Event = eventName,
             EventId = eventId,
-            QueueId = file.QueueId,
-            BatchId = file.BatchId,
-            FileId = file.Id,
-            BusinessId = file.BusinessId,
+            QueueId = trackedFile.QueueId,
+            BatchId = trackedFile.BatchId,
+            FileId = trackedFile.Id,
+            BusinessId = trackedFile.BusinessId,
             Source = sourceKey,
             OriginalFile = new
             {
-                file.OriginalFileName,
-                file.ContentType,
-                file.SizeBytes,
+                trackedFile.OriginalFileName,
+                trackedFile.ContentType,
+                trackedFile.SizeBytes,
+                Url = trackedFile.DownloadUrl,
+                UrlExpiresAt = trackedFile.DownloadUrlExpiresAt,
             },
-            file.EmailMessageId,
-            file.EmailFrom,
-            file.EmailSubject,
+            Documents = documentPayloads,
+            trackedFile.EmailMessageId,
+            trackedFile.EmailFrom,
+            trackedFile.EmailSubject,
             OccurredAt = DateTimeOffset.UtcNow,
+            Url = trackedFile.DownloadUrl,
+            UrlExpiresAt = trackedFile.DownloadUrlExpiresAt,
         };
         return JsonSerializer.Serialize(payload, DocumentWebhookPayload.JsonOptions);
+    }
+
+    private async Task<OpsFile> EnsureTrackedFileAsync(OpsFile file, CancellationToken cancellationToken)
+    {
+        var entry = db.Entry(file);
+        if (entry.State != EntityState.Detached)
+        {
+            return file;
+        }
+
+        var tracked = await db.OpsFiles.FirstOrDefaultAsync(
+            f => f.Id == file.Id && f.BusinessId == file.BusinessId && !f.IsDeleted,
+            cancellationToken);
+        return tracked ?? file;
     }
 
     private async Task<string?> EnumKeyAsync(long enumId, CancellationToken cancellationToken) =>

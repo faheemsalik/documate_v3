@@ -156,13 +156,40 @@ public static class PublicActionsMapping
             .ToListAsync(cancellationToken);
 
         var webhook = rows.FirstOrDefault(r => r.ActionTypeKey == PublicEventCatalog.ActionWebhook);
-        var email = rows.FirstOrDefault(r => r.ActionTypeKey == PublicEventCatalog.ActionEmail);
+        // Partner API: only surface partner email bindings. Platform Documate-support (DR-EA6) is admin-only.
+        var email = rows
+            .Where(r => r.ActionTypeKey == PublicEventCatalog.ActionEmail)
+            .FirstOrDefault(r => !IsPlatformAudience(r));
         var inApp = rows.FirstOrDefault(r => r.ActionTypeKey == PublicEventCatalog.ActionInApp);
 
         return new PublicActionsSettingsDto(
             MapWebhook(webhook),
             MapEmail(email),
             MapInApp(inApp));
+    }
+
+    /// <summary>True when config audience is platform (Documate support).</summary>
+    public static bool IsPlatformAudience(OpsActionBinding? row)
+    {
+        if (row?.ConfigJson is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(row.ConfigJson);
+            if (doc.RootElement.TryGetProperty("audience", out var a))
+            {
+                return string.Equals(a.GetString(), "platform", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch (JsonException)
+        {
+            // ignore
+        }
+
+        return false;
     }
 
     public static WebhookActionDto MapWebhook(OpsActionBinding? row)
@@ -258,15 +285,15 @@ public static class PublicActionsMapping
 
         if (request.Email is not null)
         {
-            await UpsertTypedAsync(
+            // Customers may only configure partner recipients — strip Documate-support (platform).
+            await UpsertPartnerEmailAsync(
                 db,
                 businessId,
                 queueId,
                 userId,
-                PublicEventCatalog.ActionEmail,
                 request.Email.Enabled,
                 request.Email.EventKeys,
-                JsonSerializer.Serialize(new { audience = request.Email.Audience, recipients = request.Email.Recipients }),
+                request.Email.Recipients,
                 cancellationToken);
         }
 
@@ -369,6 +396,51 @@ public static class PublicActionsMapping
 
                 queue.UpdatedByUserId = userId;
             }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task UpsertPartnerEmailAsync(
+        DocumateDbContext db,
+        string businessId,
+        Guid? queueId,
+        string? userId,
+        bool enabled,
+        IReadOnlyList<string> eventKeys,
+        IReadOnlyList<string> recipients,
+        CancellationToken cancellationToken)
+    {
+        var configJson = JsonSerializer.Serialize(new { audience = "partner", recipients });
+        var emailRows = await db.OpsActionBindings
+            .Where(b => b.BusinessId == businessId
+                        && b.QueueId == queueId
+                        && b.ActionTypeKey == PublicEventCatalog.ActionEmail
+                        && !b.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        // Prefer an existing partner row; never overwrite a platform Documate-support binding.
+        var row = emailRows.FirstOrDefault(r => !IsPlatformAudience(r));
+        if (row is null)
+        {
+            db.OpsActionBindings.Add(new OpsActionBinding
+            {
+                BusinessId = businessId,
+                QueueId = queueId,
+                ActionTypeKey = PublicEventCatalog.ActionEmail,
+                Enabled = enabled,
+                ConfigJson = configJson,
+                EventKeysJson = CanonicalEventKeysJson(eventKeys),
+                CreatedByUserId = userId,
+                UpdatedByUserId = userId,
+            });
+        }
+        else
+        {
+            row.Enabled = enabled;
+            row.ConfigJson = configJson;
+            row.EventKeysJson = CanonicalEventKeysJson(eventKeys);
+            row.UpdatedByUserId = userId;
         }
 
         await db.SaveChangesAsync(cancellationToken);

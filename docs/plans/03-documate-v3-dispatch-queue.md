@@ -261,7 +261,8 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 - **Required Documents:** Plan 03 CorTenant sections; iden-constraints  
 - **Evidence:**  
   - `IBusinessContext` / `BusinessContextAccessor` from claims  
-  - `TenantBusinessProvisioner` + middleware upserts CorTenant + CorTenantBusiness (TenantName projection)  
+  - `TenantBusinessProvisioningMiddleware` → `TenantBusinessProvisioner` upserts CorTenant + CorTenantBusiness (TenantName projection) and bootstraps default Queue + `normalize_fields_v1` workflow  
+  - `TenantBusinessEnsureCache` (singleton): ensure SQL runs **once per `tenantId|businessId` per API process**; later authenticated requests skip re-ensure (name sync from claims only on first in-process ensure)  
   - Smoke `/api/app/me` returns Dev Tenant/Business after provision
 
 ### DQ-0201 — Platform catalogs APIs
@@ -346,7 +347,7 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 - **Evidence:**
   - `OpsQueue.IsDefault` + filtered unique index `IX_OpsQueues_BusinessId_IsDefault`
   - Migration `20260828010000_OpsQueueIsDefault` (promote oldest / insert missing)
-  - `TenantBusinessProvisioner` → `IDefaultQueueBootstrap.EnsureDefaultAsync`
+  - `TenantBusinessProvisioner` → `IDefaultQueueBootstrap.EnsureDefaultAsync` (gated by `TenantBusinessEnsureCache` after first in-process ensure — see DQ-0102)
   - `GET /api/app/me` → `defaultQueueId`; `QueueDto.isDefault`
   - Cannot delete default Queue (409)
 

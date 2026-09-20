@@ -1,0 +1,133 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <a routerLink="/agents" class="back">← Agents</a>
+      <h1>{{ agent()?.name ?? 'Agent' }}</h1>
+      @if (agent(); as a) {
+        <p class="meta">
+          <a [routerLink]="['/businesses', a.businessId]">{{ a.businessName }}</a>
+          ·
+          <a [routerLink]="['/tenants', a.tenantId]">{{ a.tenantName }}</a>
+          · {{ a.documentTypeKey ?? '—' }}
+        </p>
+      }
+    </div>
+    @if (agent(); as a) {
+      <p-tag
+        [value]="a.isActive ? 'Active' : 'Inactive'"
+        [severity]="a.isActive ? 'success' : 'secondary'"
+      />
+    }
+  </header>
+
+  @if (loading()) {
+    <p-message severity="info" text="Loading agent…" />
+  } @else if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+  @if (info()) {
+    <p-message severity="success" [text]="info()!" />
+  }
+
+  @if (agent(); as a) {
+    <section class="panel">
+      <h2>Details</h2>
+      <dl class="meta-grid">
+        <dt>Business</dt>
+        <dd><a [routerLink]="['/businesses', a.businessId]">{{ a.businessName }}</a></dd>
+        <dt>Tenant</dt>
+        <dd><a [routerLink]="['/tenants', a.tenantId]">{{ a.tenantName }}</a></dd>
+        <dt>Document type</dt>
+        <dd>{{ a.documentTypeKey ?? '—' }}</dd>
+        <dt>Schema version</dt>
+        <dd>{{ a.schemaVersion }}</dd>
+        <dt>Created</dt>
+        <dd>{{ a.createdAt | date: 'medium' }}</dd>
+        @if (a.description) {
+          <dt>Description</dt>
+          <dd>{{ a.description }}</dd>
+        }
+      </dl>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>System prompt (admin only)</h2>
+          <p class="hint">Customers never see this. Draft from instructions / schema / post-process, then Save.</p>
+        </div>
+        <div class="section-actions">
+          <p-button
+            label="Generate system prompt"
+            icon="pi pi-refresh"
+            [outlined]="true"
+            [loading]="generating()"
+            (onClick)="generateSystemPrompt()"
+          />
+          <p-button
+            label="Save"
+            icon="pi pi-check"
+            [loading]="saving()"
+            (onClick)="saveSystemPrompt()"
+          />
+        </div>
+      </div>
+      <textarea
+        pTextarea
+        class="prompt-editor"
+        [(ngModel)]="systemPromptDraft"
+        rows="10"
+        placeholder="Admin system prompt for the LLM…"
+      ></textarea>
+    </section>
+
+    <section class="panel">
+      <h2>Instructions</h2>
+      <pre class="prompt">{{ a.instructions || '—' }}</pre>
+    </section>
+
+    <section class="panel">
+      <h2>Schema</h2>
+      <pre class="prompt">{{ prettySchema(a.outputSchemaJson) }}</pre>
+    </section>
+
+    <section class="panel">
+      <h2>Post-process prompt</h2>
+      @if (a.postProcessPrompt.trim()) {
+        <pre class="prompt">{{ a.postProcessPrompt }}</pre>
+      } @else {
+        <p class="muted">None</p>
+      }
+    </section>
+
+    <section class="panel preview">
+      <div class="section-head">
+        <div>
+          <h2>Composed extract preview</h2>
+          <p class="hint">What is sent to the LLM (placeholder document text). Secondary to editing system prompt.</p>
+        </div>
+        <p-button
+          [label]="previewOpen() ? 'Hide preview' : 'Show preview'"
+          [text]="true"
+          (onClick)="togglePreview()"
+        />
+      </div>
+      @if (previewOpen()) {
+        @if (preview(); as p) {
+          <div class="preview-grid">
+            <div>
+              <h3>System</h3>
+              <pre class="prompt">{{ p.systemPrompt }}</pre>
+            </div>
+            <div>
+              <h3>User</h3>
+              <pre class="prompt">{{ p.userPrompt }}</pre>
+            </div>
+          </div>
+        } @else {
+          <p class="muted">Preview not available.</p>
+        }
+      }
+    </section>
+  }
+</div>

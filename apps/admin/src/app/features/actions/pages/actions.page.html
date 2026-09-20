@@ -1,0 +1,203 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Actions</h1>
+      <p class="meta">Business and queue action bindings · {{ total() }} total</p>
+    </div>
+    <div class="actions">
+      <input pInputText [(ngModel)]="search" placeholder="Search tenant / business / queue" (keyup.enter)="reload()" />
+      <p-select
+        [options]="actionTypeOptions"
+        [(ngModel)]="actionTypeKey"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Type"
+        [showClear]="true"
+        styleClass="filter"
+      />
+      <p-select
+        [options]="enabledOptions"
+        [(ngModel)]="enabled"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Status"
+        [showClear]="true"
+        styleClass="filter"
+      />
+      <p-select
+        [options]="scopeOptions"
+        [(ngModel)]="scope"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Scope"
+        [showClear]="true"
+        styleClass="filter"
+      />
+      <p-button label="Search" [outlined]="true" (onClick)="reload()" />
+      <p-button label="Create binding" icon="pi pi-plus" (onClick)="openCreate()" />
+    </div>
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (!loading() && rows().length === 0) {
+    <p class="empty">No action bindings found.</p>
+  } @else if (!loading()) {
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Business</th>
+          <th>Scope</th>
+          <th>Type</th>
+          <th>Enabled</th>
+          <th>Events</th>
+          <th>Config</th>
+          <th>Updated</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of rows(); track r.id) {
+          <tr class="click" (click)="openRow(r.id, $event)">
+            <td>
+              <a [routerLink]="['/actions', r.id]">{{ r.businessName }}</a>
+              <div class="sec">
+                <a [routerLink]="['/tenants', r.tenantId]">{{ r.tenantName }}</a>
+              </div>
+            </td>
+            <td>
+              @if (r.queueId) {
+                {{ r.queueName ?? 'Queue' }}
+                @if (r.queuePublicActionsInherit === true) {
+                  <div class="sec">inherit on (override unused)</div>
+                }
+              } @else {
+                Business default
+              }
+            </td>
+            <td>{{ actionLabel(r.actionTypeKey) }}</td>
+            <td>
+              <p-tag
+                [value]="r.enabled ? 'On' : 'Off'"
+                [severity]="r.enabled ? 'success' : 'secondary'"
+              />
+            </td>
+            <td class="events">{{ r.eventKeys.join(', ') || '—' }}</td>
+            <td class="mono">
+              @if (r.actionTypeKey === 'webhook') {
+                {{ r.webhookUrl || 'no URL' }}
+              } @else if (r.actionTypeKey === 'email') {
+                {{ r.emailAudience ?? 'partner' }} · {{ r.recipientCount }} recipients
+              } @else {
+                in-app
+              }
+            </td>
+            <td class="mono">{{ fmt(r.updatedAt) }}</td>
+            <td>
+              <a [routerLink]="['/actions', r.id]">Edit</a>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
+
+<p-dialog
+  header="Create action binding"
+  [(visible)]="showCreate"
+  [modal]="true"
+  [style]="{ width: 'min(36rem, 96vw)' }"
+  [contentStyle]="{ overflow: 'visible' }"
+>
+  <div class="form">
+    <label>Business *</label>
+    <p-select
+      [options]="businesses()"
+      [(ngModel)]="createBusinessId"
+      optionLabel="name"
+      optionValue="idenBusinessId"
+      placeholder="Select business"
+      (onChange)="onCreateBusinessChange()"
+      [filter]="true"
+      filterBy="name,idenBusinessId"
+      appendTo="body"
+      styleClass="w-full"
+    />
+    <label>Queue (optional override)</label>
+    <p-select
+      [options]="createQueues()"
+      [(ngModel)]="createQueueId"
+      optionLabel="name"
+      optionValue="id"
+      placeholder="Business default"
+      [showClear]="true"
+      appendTo="body"
+      styleClass="w-full"
+    />
+    <label>Action type *</label>
+    <p-select
+      [options]="actionTypeOptions"
+      [(ngModel)]="createActionType"
+      optionLabel="label"
+      optionValue="value"
+      (onChange)="onCreateActionTypeChange()"
+      appendTo="body"
+      styleClass="w-full"
+    />
+    <label class="checkbox-row">
+      <input type="checkbox" [(ngModel)]="createEnabled" />
+      Enabled
+    </label>
+
+    @if (createActionType === 'webhook') {
+      <label>Webhook URL *</label>
+      <input pInputText [(ngModel)]="createWebhookUrl" placeholder="https://…" class="w-full" />
+      <label>Secret (optional)</label>
+      <input pInputText type="password" [(ngModel)]="createWebhookSecret" placeholder="Signing secret" class="w-full" />
+    }
+
+    @if (createActionType === 'email') {
+      <label>Audience *</label>
+      <p-select
+        [options]="audienceOptions"
+        [(ngModel)]="createEmailAudience"
+        optionLabel="label"
+        optionValue="value"
+        appendTo="body"
+        styleClass="w-full"
+      />
+      <label>Recipients {{ createEmailAudience === 'partner' ? '*' : '(optional)' }}</label>
+      <textarea
+        pTextarea
+        [(ngModel)]="createEmailRecipients"
+        rows="2"
+        placeholder="a@x.com, b@y.com"
+        class="w-full"
+      ></textarea>
+    }
+
+    <div class="events-block">
+      <label>Events *</label>
+      @for (ev of createEventToggles; track ev.eventKey) {
+        <label class="checkbox-row">
+          <p-checkbox [(ngModel)]="ev.enabled" [binary]="true" />
+          {{ ev.eventKey }}
+        </label>
+      }
+      @if (createEventToggles.length === 0) {
+        <p class="sec">Loading event catalog…</p>
+      }
+    </div>
+
+    @if (createError) {
+      <p-message severity="error" [text]="createError" />
+    }
+  </div>
+  <div class="dialog-actions">
+    <p-button label="Cancel" [text]="true" (onClick)="showCreate = false" />
+    <p-button label="Save" icon="pi pi-check" [loading]="creating" (onClick)="submitCreate()" />
+  </div>
+</p-dialog>

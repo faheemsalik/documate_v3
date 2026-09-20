@@ -31,6 +31,10 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Platform',
     defaultOpen: true,
     items: [
+      { label: 'Agent templates', route: '/agent-templates' },
+      { label: 'Agents', route: '/agents' },
+      { label: 'Events', route: '/events' },
+      { label: 'Actions', route: '/actions' },
       { label: 'API monitoring', route: '/monitoring' },
       { label: 'System settings', route: '/settings' },
     ],

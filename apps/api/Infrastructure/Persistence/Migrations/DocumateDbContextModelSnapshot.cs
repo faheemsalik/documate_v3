@@ -46,6 +46,10 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DefaultPostProcessPrompt")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<long?>("DefaultProviderId")
                         .HasColumnType("bigint");
 
@@ -76,6 +80,10 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("SystemPrompt")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -833,6 +841,10 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PostProcessPrompt")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ProviderStrategyJson")
                         .HasColumnType("nvarchar(max)");
 
@@ -853,6 +865,10 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("SourceTemplateId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("SystemPrompt")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -1118,6 +1134,80 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("WebhookStatusEnumId");
 
                     b.ToTable("OpsDocuments");
+                });
+
+            modelBuilder.Entity("Documate.Api.Domain.OpsDocumentExtractPrompt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BusinessId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("FileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("SequenceId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("SequenceId"));
+
+                    b.Property<string>("SystemPromptText")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("UserPromptText")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DocumentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_OpsDocumentExtractPrompts_DocumentId")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("FileId");
+
+                    b.HasIndex("SequenceId")
+                        .IsUnique();
+
+                    b.ToTable("OpsDocumentExtractPrompts");
                 });
 
             modelBuilder.Entity("Documate.Api.Domain.OpsFile", b =>
@@ -2211,6 +2301,25 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("WebhookStatus");
                 });
 
+            modelBuilder.Entity("Documate.Api.Domain.OpsDocumentExtractPrompt", b =>
+                {
+                    b.HasOne("Documate.Api.Domain.OpsDocument", "Document")
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Documate.Api.Domain.OpsFile", "File")
+                        .WithMany("ExtractPrompts")
+                        .HasForeignKey("FileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+
+                    b.Navigation("File");
+                });
+
             modelBuilder.Entity("Documate.Api.Domain.OpsFile", b =>
                 {
                     b.HasOne("Documate.Api.Domain.OpsBatch", "Batch")
@@ -2460,6 +2569,8 @@ namespace Documate.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Documate.Api.Domain.OpsFile", b =>
                 {
                     b.Navigation("Documents");
+
+                    b.Navigation("ExtractPrompts");
                 });
 
             modelBuilder.Entity("Documate.Api.Domain.OpsIntakeMailbox", b =>

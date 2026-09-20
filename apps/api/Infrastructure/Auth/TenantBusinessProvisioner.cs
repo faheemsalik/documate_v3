@@ -16,13 +16,19 @@ public sealed class TenantBusinessProvisioner(
     DocumateDbContext db,
     ICorEnumIdResolver enumIds,
     IDefaultQueueBootstrap defaultQueues,
-    IDefaultWorkflowBootstrap defaultWorkflows) : ITenantBusinessProvisioner
+    IDefaultWorkflowBootstrap defaultWorkflows,
+    TenantBusinessEnsureCache ensureCache) : ITenantBusinessProvisioner
 {
     public async Task EnsureAsync(IBusinessContext context, CancellationToken cancellationToken = default)
     {
         if (!context.IsAuthenticated
             || string.IsNullOrWhiteSpace(context.TenantId)
             || string.IsNullOrWhiteSpace(context.BusinessId))
+        {
+            return;
+        }
+
+        if (ensureCache.IsEnsured(context.TenantId, context.BusinessId))
         {
             return;
         }
@@ -98,5 +104,7 @@ public sealed class TenantBusinessProvisioner(
         await defaultQueues.EnsureDefaultAsync(context.BusinessId, context.UserId, cancellationToken);
         // DQ-1101: default post-process workflow (Agent may attach via DefaultWorkflowId).
         await defaultWorkflows.EnsureNormalizeFieldsAsync(context.BusinessId, context.UserId, cancellationToken);
+
+        ensureCache.MarkEnsured(context.TenantId, context.BusinessId);
     }
 }

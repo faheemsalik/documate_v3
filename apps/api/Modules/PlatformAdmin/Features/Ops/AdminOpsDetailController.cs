@@ -86,7 +86,8 @@ public sealed record AdminFileDocumentItemDto(
     int? PageStart,
     int? PageEnd,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    bool HasExtractPrompt);
 
 public sealed record AdminDocumentDetailDto(
     Guid Id,
@@ -107,7 +108,10 @@ public sealed record AdminDocumentDetailDto(
     string? WebhookStatusKey,
     int WebhookAttempts,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    string? ExtractSystemPrompt,
+    string? ExtractUserPrompt,
+    DateTimeOffset? ExtractPromptCapturedAt);
 
 public sealed record GetAdminFileQuery(Guid FileId) : IRequest<AdminFileDetailDto?>;
 public sealed record GetAdminFileContentQuery(Guid FileId) : IRequest<FileContentResultDto?>;
@@ -308,6 +312,13 @@ file static class AdminOpsDetailMapping
                 .Where(t => typeIds.Contains(t.Id))
                 .ToDictionaryAsync(t => t.Id, t => t.DocumentTypeKey, cancellationToken);
 
+        var docIds = docs.Select(d => d.Id).ToList();
+        var promptDocIds = await db.OpsDocumentExtractPrompts.AsNoTracking()
+            .Where(p => docIds.Contains(p.DocumentId))
+            .Select(p => p.DocumentId)
+            .ToListAsync(cancellationToken);
+        var hasPrompt = promptDocIds.ToHashSet();
+
         return docs.Select(d =>
         {
             enumKeys.TryGetValue(d.PublicStatusEnumId, out var status);
@@ -332,7 +343,8 @@ file static class AdminOpsDetailMapping
                 d.PageStart,
                 d.PageEnd,
                 d.CreatedAt,
-                d.CompletedAt);
+                d.CompletedAt,
+                hasPrompt.Contains(d.Id));
         }).ToList();
     }
 
@@ -393,6 +405,11 @@ file static class AdminOpsDetailMapping
             ? "application/pdf"
             : GetFileContentHandler.ResolveContentType(file?.ContentType, file?.OriginalFileName);
 
+        var prompt = await db.OpsDocumentExtractPrompts.AsNoTracking()
+            .Where(p => p.DocumentId == doc.Id)
+            .Select(p => new { p.SystemPromptText, p.UserPromptText, p.CreatedAt })
+            .FirstOrDefaultAsync(cancellationToken);
+
         return new AdminDocumentDetailDto(
             doc.Id,
             doc.FileId,
@@ -412,6 +429,9 @@ file static class AdminOpsDetailMapping
             webhook,
             doc.WebhookAttempts,
             doc.CreatedAt,
-            doc.CompletedAt);
+            doc.CompletedAt,
+            prompt?.SystemPromptText,
+            prompt?.UserPromptText,
+            prompt?.CreatedAt);
     }
 }

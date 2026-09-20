@@ -2,8 +2,8 @@ namespace Documate.Api.Modules.FrontendSupport.Features.Agents;
 
 using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Auth;
+using Documate.Api.Infrastructure.Extract;
 using Documate.Api.Infrastructure.Persistence;
-using Documate.Api.Infrastructure.PostProcess;
 using Documate.Api.Infrastructure.Queues;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -23,6 +23,23 @@ public sealed class AgentsController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<AgentDto>> Get(Guid id, CancellationToken cancellationToken)
     {
         var dto = await mediator.Send(new GetAgentByIdQuery(id), cancellationToken);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    [HttpGet("{id:guid}/prompt-preview")]
+    public async Task<ActionResult<AgentPromptPreviewDto>> PreviewGet(Guid id, CancellationToken cancellationToken)
+    {
+        var dto = await mediator.Send(new GetAgentPromptPreviewQuery(id, null), cancellationToken);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    [HttpPost("{id:guid}/prompt-preview")]
+    public async Task<ActionResult<AgentPromptPreviewDto>> PreviewPost(
+        Guid id,
+        [FromBody] AgentPromptPreviewRequest? body,
+        CancellationToken cancellationToken)
+    {
+        var dto = await mediator.Send(new GetAgentPromptPreviewQuery(id, body), cancellationToken);
         return dto is null ? NotFound() : Ok(dto);
     }
 
@@ -80,6 +97,7 @@ public sealed record AgentDto(
     string OutputSchemaJson,
     int SchemaVersion,
     string Instructions,
+    string PostProcessPrompt,
     long? SourceTemplateId,
     long? DefaultWorkflowId,
     long? DefaultProviderId,
@@ -91,6 +109,7 @@ public sealed record CreateAgentRequest(
     long DocumentTypeId,
     string OutputSchemaJson,
     string Instructions,
+    string? PostProcessPrompt,
     long? DefaultWorkflowId,
     long? DefaultProviderId,
     int? SchemaVersion);
@@ -101,6 +120,7 @@ public sealed record UpdateAgentRequest(
     long DocumentTypeId,
     string OutputSchemaJson,
     string Instructions,
+    string? PostProcessPrompt,
     long? DefaultWorkflowId,
     long? DefaultProviderId,
     int SchemaVersion,
@@ -111,8 +131,17 @@ public sealed record CloneAgentFromTemplateRequest(
     string? Name,
     string? Description);
 
+public sealed record AgentPromptPreviewRequest(
+    string? Instructions,
+    string? OutputSchemaJson,
+    string? PostProcessPrompt);
+
+public sealed record AgentPromptPreviewDto(string UserPrompt);
+
 public sealed record ListAgentsQuery : IRequest<IReadOnlyList<AgentDto>>;
 public sealed record GetAgentByIdQuery(Guid Id) : IRequest<AgentDto?>;
+public sealed record GetAgentPromptPreviewQuery(Guid Id, AgentPromptPreviewRequest? Overrides)
+    : IRequest<AgentPromptPreviewDto?>;
 public sealed record CreateAgentCommand(CreateAgentRequest Request) : IRequest<AgentDto>;
 public sealed record UpdateAgentCommand(Guid Id, UpdateAgentRequest Request) : IRequest<AgentDto?>;
 public sealed record DeleteAgentCommand(Guid Id) : IRequest<bool>;
@@ -130,6 +159,7 @@ internal static class AgentMapping
             a.OutputSchemaJson,
             a.SchemaVersion,
             a.Instructions,
+            a.PostProcessPrompt,
             a.SourceTemplateId,
             a.DefaultWorkflowId,
             a.DefaultProviderId,
@@ -155,6 +185,7 @@ public sealed class ListAgentsHandler(DocumateDbContext db, IBusinessContext bus
                 a.OutputSchemaJson,
                 a.SchemaVersion,
                 a.Instructions,
+                a.PostProcessPrompt,
                 a.SourceTemplateId,
                 a.DefaultWorkflowId,
                 a.DefaultProviderId,
@@ -181,6 +212,7 @@ public sealed class GetAgentByIdHandler(DocumateDbContext db, IBusinessContext b
                 a.OutputSchemaJson,
                 a.SchemaVersion,
                 a.Instructions,
+                a.PostProcessPrompt,
                 a.SourceTemplateId,
                 a.DefaultWorkflowId,
                 a.DefaultProviderId,
@@ -189,11 +221,39 @@ public sealed class GetAgentByIdHandler(DocumateDbContext db, IBusinessContext b
     }
 }
 
+public sealed class GetAgentPromptPreviewHandler(
+    DocumateDbContext db,
+    IBusinessContext business,
+    IExtractPromptComposer composer)
+    : IRequestHandler<GetAgentPromptPreviewQuery, AgentPromptPreviewDto?>
+{
+    public async Task<AgentPromptPreviewDto?> Handle(
+        GetAgentPromptPreviewQuery request,
+        CancellationToken cancellationToken)
+    {
+        var agent = await db.OpsAgents.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == request.Id && a.BusinessId == business.BusinessId, cancellationToken);
+        if (agent is null)
+        {
+            return null;
+        }
+
+        var o = request.Overrides;
+        var composed = composer.Compose(
+            agent.SystemPrompt,
+            o?.Instructions ?? agent.Instructions,
+            string.IsNullOrWhiteSpace(o?.OutputSchemaJson) ? agent.OutputSchemaJson : o.OutputSchemaJson,
+            o?.PostProcessPrompt ?? agent.PostProcessPrompt,
+            documentText: null);
+
+        return new AgentPromptPreviewDto(composed.UserMessage);
+    }
+}
+
 public sealed class CreateAgentHandler(
     DocumateDbContext db,
     IBusinessContext business,
-    IAgentQueueRouteAutoMapper autoMap,
-    IDefaultWorkflowBootstrap workflows)
+    IAgentQueueRouteAutoMapper autoMap)
     : IRequestHandler<CreateAgentCommand, AgentDto>
 {
     public async Task<AgentDto> Handle(CreateAgentCommand command, CancellationToken cancellationToken)
@@ -206,13 +266,6 @@ public sealed class CreateAgentHandler(
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            var defaultWorkflowId = request.DefaultWorkflowId;
-            if (defaultWorkflowId is null)
-            {
-                var wf = await workflows.EnsureNormalizeFieldsAsync(business.BusinessId, business.UserId, cancellationToken);
-                defaultWorkflowId = wf.Id;
-            }
-
             var agent = new OpsAgent
             {
                 BusinessId = business.BusinessId,
@@ -221,7 +274,9 @@ public sealed class CreateAgentHandler(
                 DocumentTypeId = request.DocumentTypeId,
                 OutputSchemaJson = string.IsNullOrWhiteSpace(request.OutputSchemaJson) ? "{}" : request.OutputSchemaJson,
                 Instructions = request.Instructions ?? "",
-                DefaultWorkflowId = defaultWorkflowId,
+                SystemPrompt = ExtractPromptDefaults.SystemPrompt,
+                PostProcessPrompt = request.PostProcessPrompt ?? "",
+                DefaultWorkflowId = request.DefaultWorkflowId,
                 DefaultProviderId = request.DefaultProviderId,
                 SchemaVersion = request.SchemaVersion ?? 1,
                 IsActive = true,
@@ -265,6 +320,11 @@ public sealed class UpdateAgentHandler(DocumateDbContext db, IBusinessContext bu
         agent.DocumentTypeId = request.DocumentTypeId;
         agent.OutputSchemaJson = string.IsNullOrWhiteSpace(request.OutputSchemaJson) ? "{}" : request.OutputSchemaJson;
         agent.Instructions = request.Instructions ?? "";
+        if (request.PostProcessPrompt is not null)
+        {
+            agent.PostProcessPrompt = request.PostProcessPrompt;
+        }
+
         agent.DefaultWorkflowId = request.DefaultWorkflowId;
         agent.DefaultProviderId = request.DefaultProviderId;
         agent.SchemaVersion = request.SchemaVersion;
@@ -300,8 +360,7 @@ public sealed class DeleteAgentHandler(DocumateDbContext db, IBusinessContext bu
 public sealed class CloneAgentFromTemplateHandler(
     DocumateDbContext db,
     IBusinessContext business,
-    IAgentQueueRouteAutoMapper autoMap,
-    IDefaultWorkflowBootstrap workflows)
+    IAgentQueueRouteAutoMapper autoMap)
     : IRequestHandler<CloneAgentFromTemplateCommand, AgentDto?>
 {
     public async Task<AgentDto?> Handle(CloneAgentFromTemplateCommand command, CancellationToken cancellationToken)
@@ -323,7 +382,6 @@ public sealed class CloneAgentFromTemplateHandler(
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            var wf = await workflows.EnsureNormalizeFieldsAsync(business.BusinessId, business.UserId, cancellationToken);
             var agent = new OpsAgent
             {
                 BusinessId = business.BusinessId,
@@ -332,9 +390,13 @@ public sealed class CloneAgentFromTemplateHandler(
                 DocumentTypeId = tmpl.DocumentTypeId,
                 OutputSchemaJson = tmpl.DefaultSchemaJson,
                 Instructions = tmpl.DefaultInstructions,
+                SystemPrompt = string.IsNullOrWhiteSpace(tmpl.SystemPrompt)
+                    ? ExtractPromptDefaults.SystemPrompt
+                    : tmpl.SystemPrompt,
+                PostProcessPrompt = tmpl.DefaultPostProcessPrompt ?? "",
                 SourceTemplateId = tmpl.Id,
                 DefaultProviderId = tmpl.DefaultProviderId,
-                DefaultWorkflowId = wf.Id,
+                DefaultWorkflowId = null,
                 SchemaVersion = 1,
                 IsActive = true,
                 CreatedByUserId = business.UserId,

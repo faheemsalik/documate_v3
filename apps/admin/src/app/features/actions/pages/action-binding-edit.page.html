@@ -1,0 +1,98 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <a routerLink="/actions" class="back">← Actions</a>
+      <h1>{{ detail()?.businessName ?? 'Action binding' }}</h1>
+      @if (detail(); as d) {
+        <p class="meta">
+          {{ actionLabel(d.actionTypeKey) }}
+          ·
+          @if (d.queueId) {
+            Queue {{ d.queueName ?? d.queueId }}
+          } @else {
+            Business default
+          }
+        </p>
+      }
+    </div>
+    <p-button label="Save" icon="pi pi-check" [loading]="saving()" [disabled]="loading()" (onClick)="save()" />
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+  @if (info()) {
+    <p-message severity="success" [text]="info()!" />
+  }
+  @if (loading()) {
+    <p-message severity="info" text="Loading binding…" />
+  } @else if (detail(); as d) {
+    <p class="sub">
+      Tenant: <a [routerLink]="['/tenants', d.tenantId]">{{ d.tenantName }}</a>
+      · Business:
+      <a [routerLink]="['/businesses', d.businessId]">{{ d.businessName }}</a>
+    </p>
+    @if (d.queueId && d.queuePublicActionsInherit === true) {
+      <p-message
+        severity="warn"
+        text="This queue still inherits Business defaults, so this override is not used until inherit is turned off in the customer Queue Intake UI."
+      />
+    }
+
+    <div class="form-grid">
+      <label class="checkbox-row">
+        <p-checkbox [(ngModel)]="enabled" [binary]="true" />
+        Enabled
+      </label>
+      <div>
+        <p-tag
+          [value]="enabled ? 'On' : 'Off'"
+          [severity]="enabled ? 'success' : 'secondary'"
+        />
+      </div>
+
+      @if (d.actionTypeKey === 'webhook') {
+        <label class="full">
+          Webhook URL
+          <input pInputText [(ngModel)]="webhookUrl" placeholder="https://…" />
+        </label>
+        <label class="full">
+          Secret
+          <input
+            pInputText
+            type="password"
+            [(ngModel)]="webhookSecret"
+            [placeholder]="d.hasSecret ? 'Leave blank to keep existing secret' : 'Optional signing secret'"
+          />
+        </label>
+      }
+
+      @if (d.actionTypeKey === 'email') {
+        <label>
+          Audience
+          <p-select
+            [options]="audienceOptions"
+            [(ngModel)]="emailAudience"
+            optionLabel="label"
+            optionValue="value"
+          />
+        </label>
+        <label class="full">
+          Recipients
+          <textarea pTextarea [(ngModel)]="emailRecipientsText" rows="2" placeholder="a@x.com, b@y.com"></textarea>
+        </label>
+      }
+
+      <div class="full events">
+        <h2>Subscribed events</h2>
+        @for (ev of events; track ev.eventKey) {
+          <label class="checkbox-row">
+            <p-checkbox [(ngModel)]="ev.enabled" [binary]="true" />
+            {{ ev.eventKey }}
+          </label>
+        }
+      </div>
+    </div>
+    <p class="meta">Updated {{ fmt(d.updatedAt) }}</p>
+  }
+</div>

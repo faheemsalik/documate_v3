@@ -1,0 +1,112 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <a routerLink="/agent-templates" class="back">← Agent templates</a>
+      <h1>{{ isCreate() ? 'New template' : (template()?.name ?? 'Edit template') }}</h1>
+      @if (template(); as t) {
+        <p class="meta">
+          {{ t.agentTemplateKey }} · v{{ t.version }} · {{ t.clonedAgentCount }} cloned agents
+        </p>
+      }
+    </div>
+    <p-button label="Save" icon="pi pi-check" [loading]="saving()" (onClick)="requestSave()" />
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (loading()) {
+    <p-message severity="info" text="Loading template…" />
+  } @else {
+    <div class="form-grid">
+      <label>
+        Key
+        <input
+          pInputText
+          [(ngModel)]="agentTemplateKey"
+          [readonly]="!isCreate()"
+          placeholder="invoice_generic_v1"
+        />
+      </label>
+      <label>
+        Name
+        <input pInputText [(ngModel)]="name" />
+      </label>
+      <label class="full">
+        Description
+        <input pInputText [(ngModel)]="description" />
+      </label>
+      <label>
+        Document type
+        <p-select
+          [options]="documentTypes()"
+          [(ngModel)]="documentTypeId"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Select type"
+        />
+      </label>
+      <label>
+        Default provider
+        <p-select
+          [options]="providers()"
+          [(ngModel)]="defaultProviderId"
+          optionLabel="name"
+          optionValue="id"
+          [showClear]="true"
+          placeholder="None"
+        />
+      </label>
+      <label class="checkbox-row">
+        <p-checkbox [(ngModel)]="isPublished" [binary]="true" />
+        Published (visible in customer clone gallery)
+      </label>
+
+      <label class="full">
+        System prompt (admin only — customers never see this)
+        <textarea pTextarea [(ngModel)]="systemPrompt" rows="6"></textarea>
+      </label>
+      <label class="full">
+        Default instructions
+        <textarea pTextarea [(ngModel)]="defaultInstructions" rows="5"></textarea>
+      </label>
+      <label class="full">
+        Default post-process prompt
+        <textarea
+          pTextarea
+          [(ngModel)]="defaultPostProcessPrompt"
+          rows="4"
+          placeholder="Appended to the extract user prompt after the schema"
+        ></textarea>
+      </label>
+    </div>
+
+    <section class="schema">
+      <h2>Default schema</h2>
+      <app-schema-form-builder [schemaJson]="defaultSchemaJson" (schemaChange)="onSchemaChange($event)" />
+    </section>
+  }
+</div>
+
+<p-dialog
+  header="Push system prompt?"
+  [visible]="showPushDialog()"
+  (visibleChange)="showPushDialog.set($event)"
+  [modal]="true"
+  [style]="{ width: '28rem' }"
+>
+  <p>
+    Update system prompt on {{ template()?.clonedAgentCount ?? 0 }} cloned
+    agent{{ (template()?.clonedAgentCount ?? 0) === 1 ? '' : 's' }}?
+  </p>
+  <p class="hint">
+    Yes copies this system prompt onto every customer agent cloned from this template. No saves the
+    template only.
+  </p>
+  <div class="dialog-actions">
+    <p-button label="Cancel" [text]="true" (onClick)="cancelPush()" />
+    <p-button label="Save template only" severity="secondary" (onClick)="confirmPush(false)" />
+    <p-button label="Update clones" (onClick)="confirmPush(true)" />
+  </div>
+</p-dialog>

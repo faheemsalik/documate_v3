@@ -17,6 +17,7 @@ public sealed class LiveLlmDocumentExtractAdapter(
     IObjectStorage storage,
     IHttpClientFactory httpClientFactory,
     IOptions<LlmOptions> llmOptions,
+    IExtractPromptComposer composer,
     ILogger<LiveLlmDocumentExtractAdapter> logger) : IDocumentExtractAdapter
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
@@ -37,12 +38,18 @@ public sealed class LiveLlmDocumentExtractAdapter(
         }
 
         var (providerKey, provider) = ResolveProvider(request.PreferredLlmProviderKey);
+        var composed = composer.Compose(
+            request.SystemPrompt,
+            request.Instructions,
+            request.OutputSchemaJson,
+            request.PostProcessPrompt,
+            text);
         Exception? last = null;
         for (var attempt = 1; attempt <= 2; attempt++)
         {
             try
             {
-                var payload = await CallLlmAsync(providerKey, provider, request, text, cancellationToken);
+                var payload = await CallLlmAsync(providerKey, provider, composed, cancellationToken);
                 var json = payload.ToJsonString(JsonOptions);
                 logger.LogInformation(
                     "Extracted Document {DocumentId} via {ProviderKey} (attempt={Attempt}); fields={FieldCount}",
@@ -50,7 +57,7 @@ public sealed class LiveLlmDocumentExtractAdapter(
                     providerKey,
                     attempt,
                     payload.Count);
-                return new ExtractAdapterResult(providerKey, payload, json);
+                return new ExtractAdapterResult(providerKey, payload, json, composed.SystemMessage, composed.UserMessage);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -110,23 +117,21 @@ public sealed class LiveLlmDocumentExtractAdapter(
     private async Task<JsonObject> CallLlmAsync(
         string providerKey,
         LlmProviderOptions provider,
-        ExtractAdapterRequest request,
-        string sourceText,
+        ExtractPromptComposeResult composed,
         CancellationToken cancellationToken)
     {
         if (LlmEndpointResolver.IsAnthropic(providerKey, provider.BaseUrl))
         {
-            return await CallAnthropicAsync(provider, request, sourceText, cancellationToken);
+            return await CallAnthropicAsync(provider, composed, cancellationToken);
         }
 
-        return await CallOpenAiCompatibleAsync(providerKey, provider, request, sourceText, cancellationToken);
+        return await CallOpenAiCompatibleAsync(providerKey, provider, composed, cancellationToken);
     }
 
     private async Task<JsonObject> CallOpenAiCompatibleAsync(
         string providerKey,
         LlmProviderOptions provider,
-        ExtractAdapterRequest request,
-        string sourceText,
+        ExtractPromptComposeResult composed,
         CancellationToken cancellationToken)
     {
         var baseUrl = LlmEndpointResolver.ResolveOpenAiCompatibleBase(providerKey, provider.BaseUrl);
@@ -140,13 +145,12 @@ public sealed class LiveLlmDocumentExtractAdapter(
                 new
                 {
                     role = "system",
-                    content =
-                        "You extract structured data from documents. Return ONLY a JSON object matching the schema. No markdown.",
+                    content = composed.SystemMessage,
                 },
                 new
                 {
                     role = "user",
-                    content = BuildUserPrompt(request, sourceText),
+                    content = composed.UserMessage,
                 },
             },
         };
@@ -175,8 +179,7 @@ public sealed class LiveLlmDocumentExtractAdapter(
 
     private async Task<JsonObject> CallAnthropicAsync(
         LlmProviderOptions provider,
-        ExtractAdapterRequest request,
-        string sourceText,
+        ExtractPromptComposeResult composed,
         CancellationToken cancellationToken)
     {
         var baseUrl = LlmEndpointResolver.ResolveAnthropicBase(provider.BaseUrl);
@@ -186,11 +189,10 @@ public sealed class LiveLlmDocumentExtractAdapter(
             model = provider.Model,
             max_tokens = 4096,
             temperature = 0,
-            system =
-                "You extract structured data from documents. Return ONLY a JSON object matching the schema. No markdown.",
+            system = composed.SystemMessage,
             messages = new object[]
             {
-                new { role = "user", content = BuildUserPrompt(request, sourceText) },
+                new { role = "user", content = composed.UserMessage },
             },
         };
 
@@ -223,18 +225,6 @@ public sealed class LiveLlmDocumentExtractAdapter(
 
         return ParseJsonObject(text);
     }
-
-    private static string BuildUserPrompt(ExtractAdapterRequest request, string sourceText) =>
-        $"""
-        Agent instructions:
-        {request.Instructions}
-
-        Output JSON Schema:
-        {request.OutputSchemaJson}
-
-        Document text (full OCR / normalize text):
-        {sourceText}
-        """;
 
     private static JsonObject ParseJsonObject(string? content)
     {
