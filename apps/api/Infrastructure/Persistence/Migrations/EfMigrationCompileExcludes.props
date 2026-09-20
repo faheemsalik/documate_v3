@@ -4,6 +4,7 @@
     <Compile Remove="Infrastructure\Persistence\Migrations\20260802193025_InitialCatalog_CorOps.cs" />
     <Compile Remove="Infrastructure\Persistence\Migrations\20260818094405_OpsFileIntakeHintsJson.cs" />
     <Compile Remove="Infrastructure\Persistence\Migrations\20260818102118_OpsQueueWebhookSecretProtected.cs" />
+    <Compile Remove="Infrastructure\Persistence\Migrations\20260828010000_OpsQueueIsDefault.cs" />
   </ItemGroup>
 </Project>
 
