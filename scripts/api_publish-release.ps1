@@ -1,6 +1,13 @@
 #Requires -Version 7.0
 # Documate API - Release Build Publishing Script
 # Publishes a self-contained win-x64 package for IIS (api2.documate.ai).
+# Release zip lands under D:\deploy-artifacts\documate (not the product repo).
+
+[CmdletBinding()]
+param(
+    [string]$RepoRoot = '',
+    [string]$ArtifactsRoot = ''
+)
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Documate API - Release Build Publisher" -ForegroundColor Cyan
@@ -8,19 +15,28 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 $scriptDir = $PSScriptRoot
-$RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptDir ".."))
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptDir ".."))
+}
+if ([string]::IsNullOrWhiteSpace($ArtifactsRoot)) {
+    $ArtifactsRoot = 'D:\deploy-artifacts\documate'
+}
+
+$RepoRoot = [IO.Path]::GetFullPath($RepoRoot)
+$ArtifactsRoot = [IO.Path]::GetFullPath($ArtifactsRoot)
 
 $projectFile = Join-Path $RepoRoot "apps\api\Documate.Api.csproj"
 $configuration = "Release"
-$outputBase = Join-Path $RepoRoot "artifacts"
-$outputWin = Join-Path $outputBase "publish\Documate.Api"
-$zipWin = Join-Path $outputBase "Documate-Api-Windows-Release.zip"
+$outputWin = Join-Path $ArtifactsRoot "publish\Documate.Api"
+$zipWin = Join-Path $ArtifactsRoot "Documate-Api-Windows-Release.zip"
 
 if (-not (Test-Path -LiteralPath $projectFile)) {
     Write-Host "ERROR: Project file not found at: $projectFile" -ForegroundColor Red
     exit 1
 }
 
+Write-Host "RepoRoot: $RepoRoot" -ForegroundColor Gray
+Write-Host "ArtifactsRoot: $ArtifactsRoot" -ForegroundColor Gray
 Write-Host "Project: $projectFile" -ForegroundColor Green
 Write-Host "Configuration: $configuration" -ForegroundColor Green
 Write-Host "Target: win-x64 self-contained" -ForegroundColor Green
@@ -32,6 +48,7 @@ if (Test-Path -LiteralPath $outputWin) {
 }
 
 New-Item -ItemType Directory -Force -Path $outputWin | Out-Null
+New-Item -ItemType Directory -Force -Path $ArtifactsRoot | Out-Null
 
 Write-Host "Publishing..." -ForegroundColor Cyan
 dotnet publish $projectFile `

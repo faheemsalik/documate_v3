@@ -48,7 +48,9 @@ builder.Services.AddCors(options =>
                 "http://127.0.0.1:4203",
                 "https://127.0.0.1:4203",
                 "http://app.documate.ai",
-                "https://app.documate.ai")
+                "https://app.documate.ai",
+                "http://adminapp.documate.ai",
+                "https://adminapp.documate.ai")
             .AllowAnyHeader()
             .AllowAnyMethod());
 });

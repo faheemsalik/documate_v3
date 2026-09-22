@@ -25,9 +25,17 @@ public sealed class AdminAuthController(IOptions<AuthOptions> authOptions) : Con
             return Unauthorized(new { error = "AdminGate disabled." });
         }
 
-        if (string.IsNullOrWhiteSpace(gate.AccessToken)
-            || string.IsNullOrWhiteSpace(gate.Password)
-            || !FixedTimeEqualsUtf8(request.Username ?? "", gate.Username)
+        // Misconfiguration (SM/env) — distinct from wrong password so ops can tell them apart.
+        if (string.IsNullOrWhiteSpace(gate.Password) || string.IsNullOrWhiteSpace(gate.AccessToken))
+        {
+            return Unauthorized(new
+            {
+                error = "AdminGate Password/AccessToken not configured on this host. Check Secrets Manager merge and recycle logs.",
+            });
+        }
+
+        var username = request.Username?.Trim() ?? "";
+        if (!FixedTimeEqualsUtf8(username, gate.Username)
             || !FixedTimeEqualsUtf8(request.Password ?? "", gate.Password))
         {
             return Unauthorized(new { error = "Invalid admin credentials." });

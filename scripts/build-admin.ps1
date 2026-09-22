@@ -19,4 +19,4 @@ if (-not (Test-Path (Join-Path $admin 'node_modules'))) {
 
 Invoke-Npm -WorkingDirectory $admin -Args @('run', 'build', '--', "--configuration=$Configuration")
 Write-Host "Admin build succeeded ($Configuration)." -ForegroundColor Green
-Write-Host "Output: apps/admin/dist/admin" -ForegroundColor Gray
+Write-Host "Output: apps/admin/dist/admin/browser (includes web.config for IIS SPA fallback)." -ForegroundColor Gray

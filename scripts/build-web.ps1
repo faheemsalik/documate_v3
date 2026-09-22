@@ -19,3 +19,4 @@ if (-not (Test-Path (Join-Path $web 'node_modules'))) {
 
 Invoke-Npm -WorkingDirectory $web -Args @('run', 'build', '--', "--configuration=$Configuration")
 Write-Host "Web build succeeded ($Configuration)." -ForegroundColor Green
+Write-Host "Output: apps/web/dist/web/browser (includes web.config for IIS SPA fallback)." -ForegroundColor Gray
