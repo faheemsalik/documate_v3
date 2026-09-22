@@ -3,6 +3,7 @@ namespace Documate.Api.Modules.FrontendSupport.Features.Agents;
 using Documate.Api.Domain;
 using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Extract;
+using Documate.Api.Infrastructure.Iden;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Queues;
 using MediatR;
@@ -170,11 +171,12 @@ internal static class AgentMapping
             a.IsActive);
 }
 
-public sealed class ListAgentsHandler(DocumateDbContext db, IBusinessContext business)
+public sealed class ListAgentsHandler(DocumateDbContext db, IBusinessContext business, IFeatureEnforce enforce)
     : IRequestHandler<ListAgentsQuery, IReadOnlyList<AgentDto>>
 {
     public async Task<IReadOnlyList<AgentDto>> Handle(ListAgentsQuery request, CancellationToken cancellationToken)
     {
+        await enforce.EnsureAllowedAsync(FeatureKeys.CustomerAgentsList, cancellationToken);
         return await (
             from a in db.OpsAgents.AsNoTracking()
             join d in db.CorDocumentTypes.AsNoTracking() on a.DocumentTypeId equals d.Id
@@ -259,11 +261,13 @@ public sealed class GetAgentPromptPreviewHandler(
 public sealed class CreateAgentHandler(
     DocumateDbContext db,
     IBusinessContext business,
-    IAgentQueueRouteAutoMapper autoMap)
+    IAgentQueueRouteAutoMapper autoMap,
+    IFeatureEnforce enforce)
     : IRequestHandler<CreateAgentCommand, AgentDto>
 {
     public async Task<AgentDto> Handle(CreateAgentCommand command, CancellationToken cancellationToken)
     {
+        await enforce.EnsureAllowedAsync(FeatureKeys.CustomerAgentsCreate, cancellationToken);
         var request = command.Request;
         var documentType = await db.CorDocumentTypes.AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == request.DocumentTypeId && d.IsActive, cancellationToken)
@@ -348,11 +352,12 @@ public sealed class UpdateAgentHandler(DocumateDbContext db, IBusinessContext bu
     }
 }
 
-public sealed class DeleteAgentHandler(DocumateDbContext db, IBusinessContext business)
+public sealed class DeleteAgentHandler(DocumateDbContext db, IBusinessContext business, IFeatureEnforce enforce)
     : IRequestHandler<DeleteAgentCommand, bool>
 {
     public async Task<bool> Handle(DeleteAgentCommand command, CancellationToken cancellationToken)
     {
+        await enforce.EnsureAllowedAsync(FeatureKeys.CustomerAgentsDelete, cancellationToken);
         var agent = await db.OpsAgents
             .FirstOrDefaultAsync(a => a.Id == command.Id && a.BusinessId == business.BusinessId, cancellationToken);
         if (agent is null)

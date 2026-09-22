@@ -10,6 +10,9 @@ public sealed class CorTenantBusiness : WireFacingEntity, IHasRowVersion
     /// <summary>Stable prefix for intake addresses (e.g. mcm). Set on first mailbox create.</summary>
     public string? IntakeEmailSlug { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>Band 20 mirror sync: ok | pending | divergent (DR-SYNC-1 A blocks writes when divergent).</summary>
+    public string SyncStatus { get; set; } = "ok";
+    public DateTimeOffset? LastSyncedAtUtc { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public CorTenant? Tenant { get; set; }

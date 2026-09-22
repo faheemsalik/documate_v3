@@ -562,6 +562,7 @@ export class AdminApiService {
     idenTenantId?: string | null;
     providerModeKey?: string | null;
     initialBusinessName?: string | null;
+    initialIdenBusinessId?: string | null;
   }): Observable<AdminTenantDetail> {
     return this.http.post<AdminTenantDetail>(this.url('/api/admin/tenants'), body);
   }

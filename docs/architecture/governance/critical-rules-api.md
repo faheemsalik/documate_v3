@@ -10,12 +10,14 @@ Apply before writing any `apps/api` code. Detail: `docs/architecture/patterns/`.
 6. **Do not create shared packages** unless a DQ explicitly adds them (`patterns/shared-packages-policy.md`).
 7. **Do not modify `old_code`** unless the DQ says so (`governance/preservation-rules.md`).
 8. **Do not invent product behavior** in engineering work — point to product plans under `docs/plans/`.
-9. **Do not bypass Iden** for authentication/authorization once integration exists (`governance/iden-constraints.md`).
+9. **Do not bypass Iden** for authentication/authorization once `Auth:Mode=Iden` (`governance/auth-iden.md`, `governance/iden-constraints.md`).
 10. **Do not touch unrelated features/modules** unless explicitly requested (`governance/prompt-clarification.md`).
 11. **Prefer matching an existing feature slice** over inventing a new folder style.
 12. **Cross-module DTOs are forbidden by default** — keep DTOs feature-local.
 13. **CorEnum for persisted modes/statuses** — no static CLR enum columns on domain tables; use `XxxEnumId` FK → `CorEnum` (`patterns/cor-enum.md`).
 14. **Compare CorEnum Ids, not keys** — business/handler logic branches on `*EnumId` (resolved Ids). Do not compare `EnumKey`/`Name` in domain logic; `EnumKey` is for seed, admin, and DTO display only (`patterns/cor-enum.md`).
 15. **Never return system prompts on `/api/app`** — `OpsAgent.SystemPrompt` and `OpsDocumentExtractPrompt.SystemPromptText` are admin-only. Customer agent, catalog, files, and `/prompt-preview` DTOs expose the user prompt only.
+16. **FeatureKeys + enforce** — privileged mutations call `IFeatureEnforce` with `FeatureKeys.*`; do not invent capability strings ad hoc (`patterns/iden-tenancy-users-features.md`).
+17. **No ApiKey on `/api/app`** — External keys are `/api/v1` only (DR-KEY-1 A).
 
 Enforcement in Plan 00: documentation + Cursor rules (no custom analyzers yet).

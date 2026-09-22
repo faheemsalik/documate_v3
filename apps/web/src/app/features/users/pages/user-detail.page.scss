@@ -1,0 +1,32 @@
+.card-block {
+  margin: 1.25rem 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+}
+
+.roles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.role-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.perms {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.perms .ok {
+  color: var(--p-green-600, #16a34a);
+}
+
+.perms .no {
+  color: var(--p-text-muted-color);
+}

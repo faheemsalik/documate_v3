@@ -3,6 +3,7 @@ using Documate.Api.Infrastructure.Auth;
 using Documate.Api.Infrastructure.Configuration;
 using Documate.Api.Infrastructure.EmailIntake;
 using Documate.Api.Infrastructure.Health;
+using Documate.Api.Infrastructure.Iden;
 using Documate.Api.Infrastructure.Options;
 using Documate.Api.Infrastructure.Persistence;
 using Documate.Api.Infrastructure.Persistence.Seeding;
@@ -14,6 +15,7 @@ using Documate.Api.Modules.External.Features.EmailIntake;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +60,7 @@ builder.Services.AddCors(options =>
 builder.Services.Configure<ProviderCredentialsOptions>(builder.Configuration.GetSection(ProviderCredentialsOptions.SectionName));
 builder.Services.Configure<AwsOptions>(builder.Configuration.GetSection(AwsOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
+builder.Services.AddDocumateIden(builder.Configuration);
 builder.Services.Configure<EmailIntakeOptions>(builder.Configuration.GetSection(EmailIntakeOptions.SectionName));
 builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.SectionName));
 builder.Services.AddSingleton<Documate.Api.Infrastructure.Settings.SystemSettingsOptionsChangeSource>();
@@ -143,12 +146,17 @@ builder.Services
                 return AdminGateAuthDefaults.Scheme;
             }
 
-            if (context.Request.Headers.ContainsKey(ApiKeyService.KeyHeaderName)
-                || context.Request.Headers.Authorization.ToString()
-                    .StartsWith("ApiKey ", StringComparison.OrdinalIgnoreCase)
-                || context.Request.Path.StartsWithSegments("/api/v1"))
+            // DQ-2015: ApiKey only for External /api/v1 — never for /api/app even if X-Api-Key present.
+            if (context.Request.Path.StartsWithSegments("/api/v1"))
             {
                 return ApiKeyAuthDefaults.Scheme;
+            }
+
+            var authMode = context.RequestServices.GetService<IOptions<AuthOptions>>()?.Value.Mode
+                ?? "DevBypass";
+            if (string.Equals(authMode, "Iden", StringComparison.OrdinalIgnoreCase))
+            {
+                return IdenServiceCollectionExtensions.IdenJwtScheme;
             }
 
             return DevBypassAuthDefaults.Scheme;
@@ -162,7 +170,8 @@ builder.Services
         _ => { })
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, AdminGateAuthenticationHandler>(
         AdminGateAuthDefaults.Scheme,
-        _ => { });
+        _ => { })
+    .AddDocumateIdenJwt(builder.Configuration);
 
 builder.Services.AddAuthorization(options =>
 {
@@ -206,6 +215,11 @@ app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<EmailIntakeJ
     "email-intake-mime-retention",
     j => j.PurgeExpiredMimeAsync(),
     Cron.Daily);
+
+app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<TenancyReconcileJobs>(
+    "iden-tenancy-reconcile",
+    j => j.ReconcileAsync(),
+    Cron.Hourly);
 
 app.Run();
 

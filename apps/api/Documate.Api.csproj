@@ -17,6 +17,7 @@
     <PackageReference Include="Hangfire.SqlServer" Version="1.8.23" />
     <PackageReference Include="MailKit" Version="4.15.0" />
     <PackageReference Include="MediatR" Version="14.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -40,5 +41,8 @@
     <Content Remove="Infrastructure\Persistence\Migrations\Archive\**" />
     <EmbeddedResource Remove="Infrastructure\Persistence\Migrations\Archive\**" />
     <None Remove="Infrastructure\Persistence\Migrations\Archive\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="Iden\feature-catalog.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -11,6 +11,12 @@ public sealed class LoginHandler(IOptions<AuthOptions> authOptions) : IRequestHa
     public Task<LoginResponse?> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
         var auth = authOptions.Value;
+        if (string.Equals(auth.Mode, "Iden", StringComparison.OrdinalIgnoreCase))
+        {
+            // SPA must authenticate against Iden directly when Mode=Iden.
+            return Task.FromResult<LoginResponse?>(null);
+        }
+
         var gate = auth.InterimFeGate;
 
         if (!gate.Enabled
@@ -49,4 +55,17 @@ public sealed class LoginHandler(IOptions<AuthOptions> authOptions) : IRequestHa
 
         return CryptographicOperations.FixedTimeEquals(a, b);
     }
+}
+
+public sealed class GetAuthSessionHandler(IBusinessContext business, IOptions<AuthOptions> authOptions)
+    : IRequestHandler<GetAuthSessionQuery, SessionResponse>
+{
+    public Task<SessionResponse> Handle(GetAuthSessionQuery request, CancellationToken cancellationToken) =>
+        Task.FromResult(new SessionResponse(
+            business.UserId,
+            business.TenantId,
+            business.BusinessId,
+            business.BuContextId,
+            business.IdentityClass,
+            authOptions.Value.Mode ?? "DevBypass"));
 }

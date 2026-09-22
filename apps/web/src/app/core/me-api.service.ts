@@ -9,6 +9,8 @@ export interface MeResponse {
   tenantName?: string | null;
   businessName?: string | null;
   defaultQueueId?: string | null;
+  buContextId?: string | null;
+  identityClass?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

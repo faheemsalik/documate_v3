@@ -1,11 +1,10 @@
-namespace Documate.Api.Modules.FrontendSupport.Features.ApiKeys;
-
 using Documate.Api.Infrastructure.Auth;
+using Documate.Api.Infrastructure.Iden;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-/// <summary>App-side F2 API key management (temporary bridge — retire Band 15 / DQ-1506).</summary>
+/// <summary>App-side F2 API key management (Documate-owned integration keys — DR-KEY-1 A / Band 20).</summary>
 [ApiController]
 [Authorize]
 [Route("api/app/api-keys")]
@@ -14,8 +13,15 @@ public sealed class ApiKeysController(IMediator mediator) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ApiKeyListItemDto>>> List(CancellationToken cancellationToken)
     {
-        var items = await mediator.Send(new ListApiKeysQuery(), cancellationToken);
-        return Ok(items);
+        try
+        {
+            var items = await mediator.Send(new ListApiKeysQuery(), cancellationToken);
+            return Ok(items);
+        }
+        catch (FeatureDeniedException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Reason, feature = ex.CapabilityKey });
+        }
     }
 
     [HttpPost]
@@ -28,15 +34,29 @@ public sealed class ApiKeysController(IMediator mediator) : ControllerBase
             return BadRequest(new { error = "name is required" });
         }
 
-        var created = await mediator.Send(new CreateApiKeyCommand(body.Name, body.ExpiresAt), cancellationToken);
-        return CreatedAtAction(nameof(List), created);
+        try
+        {
+            var created = await mediator.Send(new CreateApiKeyCommand(body.Name, body.ExpiresAt), cancellationToken);
+            return CreatedAtAction(nameof(List), created);
+        }
+        catch (FeatureDeniedException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Reason, feature = ex.CapabilityKey });
+        }
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Revoke(Guid id, CancellationToken cancellationToken)
     {
-        var ok = await mediator.Send(new RevokeApiKeyCommand(id), cancellationToken);
-        return ok ? NoContent() : NotFound();
+        try
+        {
+            var ok = await mediator.Send(new RevokeApiKeyCommand(id), cancellationToken);
+            return ok ? NoContent() : NotFound();
+        }
+        catch (FeatureDeniedException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Reason, feature = ex.CapabilityKey });
+        }
     }
 }
 
@@ -55,27 +75,35 @@ public sealed record ListApiKeysQuery : IRequest<IReadOnlyList<ApiKeyListItemDto
 public sealed record CreateApiKeyCommand(string Name, DateTimeOffset? ExpiresAt) : IRequest<CreatedApiKeyDto>;
 public sealed record RevokeApiKeyCommand(Guid Id) : IRequest<bool>;
 
-public sealed class ListApiKeysHandler(IApiKeyService apiKeys) : IRequestHandler<ListApiKeysQuery, IReadOnlyList<ApiKeyListItemDto>>
+public sealed class ListApiKeysHandler(IApiKeyService apiKeys, IFeatureEnforce enforce)
+    : IRequestHandler<ListApiKeysQuery, IReadOnlyList<ApiKeyListItemDto>>
 {
     public async Task<IReadOnlyList<ApiKeyListItemDto>> Handle(ListApiKeysQuery request, CancellationToken cancellationToken)
     {
+        await enforce.EnsureAllowedAsync(FeatureKeys.CustomerApiKeysList, cancellationToken);
         var items = await apiKeys.ListAsync(cancellationToken);
         return items.Select(i => new ApiKeyListItemDto(
             i.Id, i.Name, i.KeyPrefix, i.IsActive, i.ExpiresAt, i.LastUsedAt, i.CreatedAt)).ToList();
     }
 }
 
-public sealed class CreateApiKeyHandler(IApiKeyService apiKeys) : IRequestHandler<CreateApiKeyCommand, CreatedApiKeyDto>
+public sealed class CreateApiKeyHandler(IApiKeyService apiKeys, IFeatureEnforce enforce)
+    : IRequestHandler<CreateApiKeyCommand, CreatedApiKeyDto>
 {
     public async Task<CreatedApiKeyDto> Handle(CreateApiKeyCommand request, CancellationToken cancellationToken)
     {
+        await enforce.EnsureAllowedAsync(FeatureKeys.CustomerApiKeysManage, cancellationToken);
         var created = await apiKeys.CreateAsync(request.Name, request.ExpiresAt, cancellationToken);
         return new CreatedApiKeyDto(created.Id, created.Name, created.KeyPrefix, created.RawKey, created.ExpiresAt);
     }
 }
 
-public sealed class RevokeApiKeyHandler(IApiKeyService apiKeys) : IRequestHandler<RevokeApiKeyCommand, bool>
+public sealed class RevokeApiKeyHandler(IApiKeyService apiKeys, IFeatureEnforce enforce)
+    : IRequestHandler<RevokeApiKeyCommand, bool>
 {
-    public Task<bool> Handle(RevokeApiKeyCommand request, CancellationToken cancellationToken) =>
-        apiKeys.RevokeAsync(request.Id, cancellationToken);
+    public async Task<bool> Handle(RevokeApiKeyCommand request, CancellationToken cancellationToken)
+    {
+        await enforce.EnsureAllowedAsync(FeatureKeys.CustomerApiKeysManage, cancellationToken);
+        return await apiKeys.RevokeAsync(request.Id, cancellationToken);
+    }
 }

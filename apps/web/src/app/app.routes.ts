@@ -47,6 +47,10 @@ export const routes: Routes = [
           import('./features/api-keys/api-keys.routes').then((m) => m.API_KEYS_ROUTES),
       },
       {
+        path: 'users',
+        loadChildren: () => import('./features/users/users.routes').then((m) => m.USERS_ROUTES),
+      },
+      {
         path: 'coming-soon/usage',
         component: ComingSoonPage,
         data: { title: 'Usage stats' },

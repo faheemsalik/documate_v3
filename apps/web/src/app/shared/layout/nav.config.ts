@@ -41,10 +41,12 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'Settings',
+    defaultOpen: true,
     items: [
       { label: 'Business profile', route: '/business/profile' },
       { label: 'Integrations & events', route: '/business/integrations' },
       { label: 'Businesses', route: '/business/switch' },
+      { label: 'Users & permissions', route: '/users' },
       { label: 'API keys', route: '/api-keys' },
     ],
   },

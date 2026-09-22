@@ -28,8 +28,10 @@
 | OpenAPI / clients | [patterns/openapi-and-clients.md](./patterns/openapi-and-clients.md) |
 | Infrastructure | [patterns/infrastructure-conventions.md](./patterns/infrastructure-conventions.md) |
 | Iden constraints | [governance/iden-constraints.md](./governance/iden-constraints.md) |
+| Auth × Iden (Band 20) | [governance/auth-iden.md](./governance/auth-iden.md) |
+| Iden tenancy / users / FeatureKeys | [patterns/iden-tenancy-users-features.md](./patterns/iden-tenancy-users-features.md) |
 | CorEnum (no static enum columns; compare Ids) | [patterns/cor-enum.md](./patterns/cor-enum.md) |
-| Auth wiring TBD | [governance/auth-wiring-placeholder.md](./governance/auth-wiring-placeholder.md) |
+| Auth wiring (Phase 1 bridge notes) | [governance/auth-wiring-placeholder.md](./governance/auth-wiring-placeholder.md) |
 
 ## Apps
 

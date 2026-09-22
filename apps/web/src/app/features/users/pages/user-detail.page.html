@@ -1,0 +1,52 @@
+<div class="page">
+  <p><a routerLink="/users">← Users</a></p>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (loading()) {
+    <p>Loading…</p>
+  } @else if (user(); as u) {
+    <h1>{{ u.displayName }}</h1>
+
+    <section class="card-block">
+      <h2>Profile</h2>
+      <p><strong>Email:</strong> {{ u.email }}</p>
+      <p><strong>Status:</strong> {{ u.isActive ? 'Active' : 'Inactive' }}</p>
+      @if (u.isActive) {
+        <p-button label="Deactivate" severity="danger" [outlined]="true" (onClick)="deactivate()" />
+      }
+    </section>
+
+    <section class="card-block">
+      <h2>Access</h2>
+      <div class="roles">
+        @for (r of roleOptions; track r.value) {
+          <div class="role-row">
+            <p-radiobutton
+              name="role"
+              [value]="r.value"
+              [(ngModel)]="selectedRole"
+              [inputId]="r.value"
+            />
+            <label [for]="r.value">{{ r.label }}</label>
+          </div>
+        }
+      </div>
+      <p-button label="Save role" [loading]="saving()" (onClick)="saveRole()" />
+    </section>
+
+    <section class="card-block">
+      <h2>Effective permissions (from role — read-only)</h2>
+      <ul class="perms">
+        @for (p of permissions().allow; track p) {
+          <li class="ok">✓ {{ p }}</li>
+        }
+        @for (p of permissions().deny; track p) {
+          <li class="no">✗ {{ p }}</li>
+        }
+      </ul>
+    </section>
+  }
+</div>

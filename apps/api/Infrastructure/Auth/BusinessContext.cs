@@ -9,6 +9,8 @@ public interface IBusinessContext
     string BusinessId { get; }
     string? TenantName { get; }
     string? BusinessName { get; }
+    string? BuContextId { get; }
+    string? IdentityClass { get; }
     bool IsAuthenticated { get; }
 }
 
@@ -25,6 +27,8 @@ public sealed class BusinessContext : IBusinessContext
     public string BusinessId { get; init; } = "";
     public string? TenantName { get; init; }
     public string? BusinessName { get; init; }
+    public string? BuContextId { get; init; }
+    public string? IdentityClass { get; init; }
     public bool IsAuthenticated { get; init; }
 
     public static BusinessContext FromPrincipal(ClaimsPrincipal? principal)
@@ -39,11 +43,23 @@ public sealed class BusinessContext : IBusinessContext
             IsAuthenticated = true,
             UserId = principal.FindFirstValue(AuthClaimTypes.UserId)
                 ?? principal.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? principal.FindFirstValue("sub")
                 ?? "",
-            TenantId = principal.FindFirstValue(AuthClaimTypes.TenantId) ?? "",
-            BusinessId = principal.FindFirstValue(AuthClaimTypes.BusinessId) ?? "",
-            TenantName = principal.FindFirstValue(AuthClaimTypes.TenantName),
-            BusinessName = principal.FindFirstValue(AuthClaimTypes.BusinessName),
+            TenantId = principal.FindFirstValue(AuthClaimTypes.TenantId)
+                ?? principal.FindFirstValue("tenant_id")
+                ?? "",
+            BusinessId = principal.FindFirstValue(AuthClaimTypes.BusinessId)
+                ?? principal.FindFirstValue("tenant_business_id")
+                ?? "",
+            TenantName = principal.FindFirstValue(AuthClaimTypes.TenantName)
+                ?? principal.FindFirstValue("tenant_name"),
+            BusinessName = principal.FindFirstValue(AuthClaimTypes.BusinessName)
+                ?? principal.FindFirstValue("business_name"),
+            BuContextId = principal.FindFirstValue(AuthClaimTypes.BuContextId)
+                ?? principal.FindFirstValue("bu_context_id")
+                ?? principal.FindFirstValue("context_id"),
+            IdentityClass = principal.FindFirstValue(AuthClaimTypes.IdentityClass)
+                ?? principal.FindFirstValue("identity_class"),
         };
     }
 }
@@ -61,6 +77,8 @@ public sealed class BusinessContextAccessor(IHttpContextAccessor httpContextAcce
     public string BusinessId => Current.BusinessId;
     public string? TenantName => Current.TenantName;
     public string? BusinessName => Current.BusinessName;
+    public string? BuContextId => Current.BuContextId;
+    public string? IdentityClass => Current.IdentityClass;
     public bool IsAuthenticated => Current.IsAuthenticated || Override.Value is not null;
 
     public IDisposable Use(BusinessContext context)

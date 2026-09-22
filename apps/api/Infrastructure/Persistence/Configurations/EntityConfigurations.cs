@@ -50,6 +50,7 @@ internal sealed class CorTenantConfiguration : IEntityTypeConfiguration<CorTenan
         b.Property(x => x.IdenTenantId).HasMaxLength(64).IsRequired();
         b.HasIndex(x => x.IdenTenantId).IsUnique();
         b.Property(x => x.Name).HasMaxLength(256).IsRequired();
+        b.Property(x => x.SyncStatus).HasMaxLength(32).IsRequired();
         b.HasOne(x => x.ProviderMode).WithMany().HasForeignKey(x => x.ProviderModeEnumId).OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -64,6 +65,7 @@ internal sealed class CorTenantBusinessConfiguration : IEntityTypeConfiguration<
         b.HasIndex(x => x.IdenBusinessId).IsUnique();
         b.Property(x => x.Name).HasMaxLength(256).IsRequired();
         b.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+        b.Property(x => x.SyncStatus).HasMaxLength(32).IsRequired();
         b.Property(x => x.IntakeEmailSlug).HasMaxLength(64);
         b.HasIndex(x => x.IntakeEmailSlug)
             .IsUnique()

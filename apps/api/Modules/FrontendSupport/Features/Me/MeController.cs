@@ -22,7 +22,9 @@ public sealed record MeResponse(
     string BusinessId,
     string? TenantName,
     string? BusinessName,
-    Guid? DefaultQueueId);
+    Guid? DefaultQueueId,
+    string? BuContextId,
+    string? IdentityClass);
 
 public sealed record GetMeQuery : IRequest<MeResponse>;
 
@@ -45,6 +47,8 @@ public sealed class GetMeHandler(IBusinessContext businessContext, IDefaultQueue
             businessContext.BusinessId,
             businessContext.TenantName,
             businessContext.BusinessName,
-            defaultQueueId);
+            defaultQueueId,
+            businessContext.BuContextId,
+            businessContext.IdentityClass);
     }
 }

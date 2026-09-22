@@ -4,7 +4,7 @@ public sealed class AuthOptions
 {
     public const string SectionName = "Auth";
 
-    /// <summary>DevBypass | Bearer (Iden later / Band 15).</summary>
+    /// <summary>DevBypass | Iden (Band 20).</summary>
     public string Mode { get; set; } = "DevBypass";
 
     public DevBypassOptions DevBypass { get; set; } = new();
@@ -57,6 +57,10 @@ public static class AuthClaimTypes
     public const string BusinessId = "documate_business_id";
     public const string TenantName = "documate_tenant_name";
     public const string BusinessName = "documate_business_name";
+    /// <summary>Iden BuContext id (TenantBusinessUserId) after context select.</summary>
+    public const string BuContextId = "documate_bu_context_id";
+    /// <summary>Iden identity_class: internal | portal.</summary>
+    public const string IdentityClass = "documate_identity_class";
     /// <summary>Present when AdminGate authenticates — required by PlatformAdmin policy.</summary>
     public const string PlatformAdmin = "documate_platform_admin";
 }

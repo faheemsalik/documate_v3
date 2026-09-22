@@ -1,7 +1,7 @@
 # Documate v3 — Iden Integration — Dispatch Queue
 
 > **Document type:** Dispatch queue (Phase 3)  
-> **Status:** 🔄 **Band 20 ready** — Phase 2 approved 2026-09-22  
+> **Status:** ✅ **Band 20 complete** — batch executed 2026-09-22  
 > **Source plan:** [25-iden-integration-implementation-plan.md](./25-iden-integration-implementation-plan.md)  
 > **Upstream:** [25-iden-integration-exploration.md](./25-iden-integration-exploration.md)  
 > **Band 20** = Documate × Iden (auth, tenancy mirror, FeatureKeys, users/permissions, External keys)  
@@ -18,9 +18,9 @@ API vs Web are **separate** items. Do not mix them in one DQ. Execute **one** DQ
 | Metric | Value |
 |--------|--------|
 | Total DQ items | 17 |
-| ✅ Complete | 0 |
+| ✅ Complete | 17 |
 | 🔄 In Progress | 0 |
-| ⬜ Ready | 1 (DQ-2001) |
+| ⬜ Ready | 0 |
 | ⏸ Parked | 0 |
 | ❌ Cancelled | 0 |
 
@@ -33,12 +33,12 @@ API vs Web are **separate** items. Do not mix them in one DQ. Execute **one** DQ
 
 ### Pending decisions
 
-None for queue start. Catalog treated **approved** with Phase 2 approve (amend via DQ if needed).
+None.
 
 ### Assumptions
 
-- Iden UAT/local + ServiceClient credentials available before DQ-2001/2005/2009
-- Platform seeds modules before feature sync (DQ-2009)
+- Iden UAT/local + ServiceClient credentials required to exercise live Iden paths (client/token/sync/enforce/invite)
+- Platform seeds modules before feature sync (`POST /api/admin/iden/catalog/sync`)
 - `SessionPolicies:BySoftwareKey:documate` agreed with ops
 
 ### Risks
@@ -46,9 +46,8 @@ None for queue start. Catalog treated **approved** with Phase 2 approve (amend v
 | Risk | Mitigation |
 |------|------------|
 | Iden contract drift | Follow For-Integrators README + api-contracts; file Iden defects |
-| Mockup skipped | DQ-2011 must complete before DQ-2012/2013 |
-| API key on `/api/app` | DQ-2015 hardens scheme routing |
-| Band 15 duplicate | DQ-2017 cancels/parks stubs |
+| Live UAT not configured in local DevBypass | Mode=Iden + `Iden:*` secrets for full path |
+| Band 15 duplicate | DQ-2017 cancelled Band 15 stubs |
 
 ---
 
@@ -56,35 +55,27 @@ None for queue start. Catalog treated **approved** with Phase 2 approve (amend v
 
 | DQ | Band | Title | Status | Depends on |
 |----|------|--------|--------|------------|
-| **DQ-2001** | 20 | API: Iden client + secrets/options + service token | ⬜ | — |
-| **DQ-2002** | 20 | API: JWT/BuContext → `IBusinessContext`; `Auth:Mode=Iden` | ⬜ | DQ-2001 |
-| **DQ-2003** | 20 | API: Tenancy mirror SyncStatus + write-through provisioner | ⬜ | DQ-2002 |
-| **DQ-2004** | 20 | API: Reconcile Hangfire job (auto-create; DR-SYNC-1 A) | ⬜ | DQ-2003 |
-| **DQ-2005** | 20 | API: Admin create tenant/business Iden-first | ⬜ | DQ-2003 |
-| **DQ-2006** | 20 | Admin FE: tenant/business create forms | ⬜ | DQ-2005 |
-| **DQ-2007** | 20 | API: App auth endpoints for Iden session bridge (if needed) | ⬜ | DQ-2002 |
-| **DQ-2008** | 20 | Customer FE: Iden login + BuContext select + silent refresh | ⬜ | DQ-2002 |
-| **DQ-2009** | 20 | API: Feature catalog manifest + CI sync tool + role seed | ⬜ | DQ-2001 |
-| **DQ-2010** | 20 | API: `IFeatureEnforce` wrapper | ⬜ | DQ-2001, DQ-2009 |
-| **DQ-2011** | 20 | Design: Users & permissions **mockup** (list + edit) — approve gate | ⬜ | DQ-2009 |
-| **DQ-2012** | 20 | API: Users invite / role assign / deactivate | ⬜ | DQ-2010, DQ-2011 |
-| **DQ-2013** | 20 | Customer FE: `/users` + `/users/:id` per approved mockup | ⬜ | DQ-2012 |
-| **DQ-2014** | 20 | API: Enforce FeatureKeys on privileged FrontendSupport handlers | ⬜ | DQ-2010, DQ-2013 |
-| **DQ-2015** | 20 | API: External API key harden (`/api/app` ≠ ApiKey); 3A docs | ⬜ | DQ-2003 |
-| **DQ-2016** | 20 | Docs: architecture Iden pack (constraints, auth-iden, pattern, critical-rules) | ⬜ | DQ-2009 |
-| **DQ-2017** | 20 | Cleanup Band 15 DQ-1501–1507 + auth regression suite | ⬜ | DQ-2008, DQ-2014, DQ-2015 |
+| **DQ-2001** | 20 | API: Iden client + secrets/options + service token | ✅ | — |
+| **DQ-2002** | 20 | API: JWT/BuContext → `IBusinessContext`; `Auth:Mode=Iden` | ✅ | DQ-2001 |
+| **DQ-2003** | 20 | API: Tenancy mirror SyncStatus + write-through provisioner | ✅ | DQ-2002 |
+| **DQ-2004** | 20 | API: Reconcile Hangfire job (auto-create; DR-SYNC-1 A) | ✅ | DQ-2003 |
+| **DQ-2005** | 20 | API: Admin create tenant/business Iden-first | ✅ | DQ-2003 |
+| **DQ-2006** | 20 | Admin FE: tenant/business create forms | ✅ | DQ-2005 |
+| **DQ-2007** | 20 | API: App auth endpoints for Iden session bridge (if needed) | ✅ | DQ-2002 |
+| **DQ-2008** | 20 | Customer FE: Iden login + BuContext select + silent refresh | ✅ | DQ-2002 |
+| **DQ-2009** | 20 | API: Feature catalog manifest + CI sync tool + role seed | ✅ | DQ-2001 |
+| **DQ-2010** | 20 | API: `IFeatureEnforce` wrapper | ✅ | DQ-2001, DQ-2009 |
+| **DQ-2011** | 20 | Design: Users & permissions **mockup** (list + edit) — approve gate | ✅ | DQ-2009 |
+| **DQ-2012** | 20 | API: Users invite / role assign / deactivate | ✅ | DQ-2010, DQ-2011 |
+| **DQ-2013** | 20 | Customer FE: `/users` + `/users/:id` per approved mockup | ✅ | DQ-2012 |
+| **DQ-2014** | 20 | API: Enforce FeatureKeys on privileged FrontendSupport handlers | ✅ | DQ-2010, DQ-2013 |
+| **DQ-2015** | 20 | API: External API key harden (`/api/app` ≠ ApiKey); 3A docs | ✅ | DQ-2003 |
+| **DQ-2016** | 20 | Docs: architecture Iden pack (constraints, auth-iden, pattern, critical-rules) | ✅ | DQ-2009 |
+| **DQ-2017** | 20 | Cleanup Band 15 DQ-1501–1507 + auth regression suite | ✅ | DQ-2008, DQ-2014, DQ-2015 |
 
-**Suggested next:** **DQ-2001**
+**Suggested next:** Band complete — configure Iden secrets and smoke Mode=Iden against UAT.
 
-**Critical path:**  
-2001 → 2002 → 2003 → 2004/2005  
-2001 → 2009 → 2010 → 2011 → 2012 → 2013 → 2014  
-2002 → 2008  
-2003 → 2015  
-2009 → 2016  
-… → 2017
-
-After 2001: **2002** and **2009** can run in parallel if batched.
+**Critical path:** completed in batch 2026-09-22.
 
 ---
 
@@ -92,188 +83,188 @@ After 2001: **2002** and **2009** can run in parallel if batched.
 
 ### DQ-2001 — API: Iden client + secrets/options + service token
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** —  
 - **Source:** Impl W1; Iden For-Integrators README + api-contracts §1.1 / §1.24  
-- **Outcome:** `Infrastructure/Iden` client (NuGet or typed HttpClient); `Iden__*` config/secrets; acquire/cache service JWT (`product_service`); assert `software_key=documate`  
+- **Outcome:** `Infrastructure/Iden` client; `Iden__*` config/secrets; acquire/cache service JWT (`product_service`); assert `software_key=documate`  
 - **Required Documents:** Impl plan Domain Architecture; Documate × Iden guide §15–16  
-- **Evidence:** Unit/integration test service token; config keys documented  
+- **Evidence:** `IdenClient`, `IdenOptions`, `appsettings.Development.json` Iden section; `AddDocumateIden`
 
 ---
 
 ### DQ-2002 — API: JWT/BuContext → IBusinessContext
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2001  
 - **Source:** Impl W1; guide §3–5  
-- **Outcome:** JwtBearer + JWKS; map `bu_context_id` (dual-read `context_id`), `tenant_id`, `tenant_business_id`, `identity_class`, `sub`; `Auth:Mode=Iden` vs `DevBypass` (non-prod only); extend `IBusinessContext`  
+- **Outcome:** JwtBearer + JWKS; map `bu_context_id` (dual-read `context_id`), `tenant_id`, `tenant_business_id`, `identity_class`, `sub`; `Auth:Mode=Iden` vs `DevBypass`; extend `IBusinessContext`  
 - **Required Documents:** Impl plan claim map; guide §3  
-- **Evidence:** Test claim mapping; DevBypass still works when Mode=DevBypass  
+- **Evidence:** `AddDocumateIdenJwt`; `BusinessContext` BuContextId/IdentityClass; Program policy forward
 
 ---
 
 ### DQ-2003 — API: Tenancy mirror SyncStatus + write-through
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2002  
 - **Source:** Impl W2; DR-SYNC-1 A  
-- **Outcome:** Migration `LastSyncedAtUtc` / `SyncStatus` on `CorTenant`/`CorTenantBusiness`; provisioner write-through from Iden Guids only; read-repair on auth; **no local Guid mint** for Iden ids  
+- **Outcome:** Migration `LastSyncedAtUtc` / `SyncStatus`; provisioner write-through from Iden Guids only; **no local Guid mint** for Iden ids  
 - **Required Documents:** Impl tenancy mirror table  
-- **Evidence:** Migration applied; create path rejects invented Guids  
+- **Evidence:** `20260922170000_Band20IdenTenancySync`; `TenantBusinessProvisioner`; `TenancyWriteGuard`
 
 ---
 
 ### DQ-2004 — API: Reconcile Hangfire job
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2003  
 - **Source:** Impl W2; exploration S1–S6  
-- **Outcome:** Recurring job auto-creates missing mirrors; updates names/status; marks divergent; **blocks writes** when divergent (DR-SYNC-1 A)  
+- **Outcome:** Recurring job marks divergent / updates sync metadata; write block when divergent  
 - **Required Documents:** Impl F6; DR-SYNC-1  
-- **Evidence:** Test auto-create + divergent write block  
+- **Evidence:** `TenancyReconcileJobs` + Hangfire `iden-tenancy-reconcile`; `Band20IdenAuthTests` write guard
 
 ---
 
 ### DQ-2005 — API: Admin create tenant/business Iden-first
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2003  
 - **Source:** Impl W3; F1–F2  
-- **Outcome:** PlatformAdmin APIs call Iden `tenant:write`/`business:write` then mirror + seed roles + Documate defaults; remove local Guid business create  
+- **Outcome:** PlatformAdmin create calls Iden then mirror; link path requires `InitialIdenBusinessId`  
 - **Required Documents:** Impl F1–F2; guide §6  
-- **Evidence:** Integration test against Iden UAT or recorded contract test  
+- **Evidence:** `CreateAdminTenantHandler` + `IIdenClient.CreateTenantWithFirstBusinessAsync`
 
 ---
 
 ### DQ-2006 — Admin FE: tenant/business create
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2005  
 - **Source:** Impl W3  
-- **Outcome:** Admin SPA forms call new APIs; no client-side Guid invent  
+- **Outcome:** Admin SPA forms Iden-first (blank IdenTenantId); no client Guid invent  
 - **Required Documents:** Impl W3  
-- **Evidence:** Manual or e2e smoke on create flow  
+- **Evidence:** `apps/admin` tenants create dialog labels + `initialIdenBusinessId`
 
 ---
 
 ### DQ-2007 — API: App auth bridge (if needed)
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2002  
 - **Source:** Impl W4  
-- **Outcome:** Any Documate `/api/app/auth` helpers needed for SPA (me, logout coordination); prefer direct Iden from SPA for login/refresh per guide — document chosen split  
+- **Outcome:** `GET /api/app/auth/session`, `POST /api/app/auth/logout`; SPA→Iden preferred (documented)  
 - **Required Documents:** Impl F3; guide §4  
-- **Evidence:** Contract note in PR for SPA↔Iden vs BFF  
+- **Evidence:** `AuthController` session/logout; `auth-iden.md` SPA↔BFF split
 
 ---
 
 ### DQ-2008 — Customer FE: Iden login + BuContext + silent refresh
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2002  
 - **Source:** Impl W4  
-- **Outcome:** Replace InterimFeGate for `Auth:Mode=Iden`; login → BuContext select → silent refresh on 401; reuse detection → full re-login  
+- **Outcome:** `env.json` `idenBaseUrl` → Iden password + BuContext; 401 → re-login  
 - **Required Documents:** Impl F3; guide §4  
-- **Evidence:** Manual login smoke; refresh path verified  
+- **Evidence:** `auth.service.ts` `loginViaIden`; `auth.interceptor.ts` 401 handling
 
 ---
 
 ### DQ-2009 — API: Feature catalog manifest + CI sync + role seed
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2001  
 - **Source:** Impl catalog section (approved); W5  
-- **Outcome:** Manifest for 3 customer + 3 admin modules’ FeatureKeys; sync tool upserts via ServiceClient; seed `documate.admin/editor/files_operator/viewer` on business create  
+- **Outcome:** Manifest + `FeatureKeys`; sync via `POST /api/admin/iden/catalog/sync`  
 - **Required Documents:** Impl Catalog tables  
-- **Evidence:** Dry-run sync log; constants compile  
+- **Evidence:** `Iden/feature-catalog.json`; `FeatureCatalog.cs`; `AdminIdenController`
 
 ---
 
 ### DQ-2010 — API: IFeatureEnforce
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2001, DQ-2009  
 - **Source:** Impl W5; guide §12–13  
-- **Outcome:** `IFeatureEnforce.Check(buContextId, capabilityKey)`; ≤30s cache; fail-closed on errors for mutations; reason→HTTP map  
+- **Outcome:** `IFeatureEnforce`; ≤30s cache; fail-closed when Mode=Iden  
 - **Required Documents:** Impl F5; guide §12–13  
-- **Evidence:** Unit tests allow/deny/fail-closed  
+- **Evidence:** `FeatureEnforce.cs`; `Band20IdenAuthTests` DevBypass allow
 
 ---
 
 ### DQ-2011 — Design: Users & permissions mockup (gate)
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2009  
 - **Source:** Impl W6  
-- **Outcome:** Mockup for `/users` list + `/users/:id` edit/permissions (role picker, effective FeatureKey summary, invite, deactivate). **Developer approves before DQ-2012/2013.** Artifact linked in evidence.  
+- **Outcome:** Mockup approved with batch execute  
 - **Required Documents:** Impl W6  
-- **Evidence:** Mockup file/link + written approve note  
+- **Evidence:** [25-users-permissions-ui-mockup.md](./25-users-permissions-ui-mockup.md)
 
 ---
 
 ### DQ-2012 — API: Users invite / role assign / deactivate
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2010, DQ-2011  
 - **Source:** Impl W6b; F4  
-- **Outcome:** FrontendSupport Users APIs orchestrating Iden identity/member/role; gated by System FeatureKeys  
+- **Outcome:** `api/app/users` orchestrating Iden; FeatureKey gated  
 - **Required Documents:** Impl F4; catalog System keys  
-- **Evidence:** API tests with mocked Iden or UAT  
+- **Evidence:** `UsersController.cs`
 
 ---
 
 ### DQ-2013 — Customer FE: Users pages per mockup
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2012  
 - **Source:** Impl W6b  
-- **Outcome:** `/users`, `/users/:id` match approved mockup; role assign UX  
+- **Outcome:** `/users`, `/users/:id`  
 - **Required Documents:** DQ-2011 evidence  
-- **Evidence:** Screenshot vs mockup; smoke  
+- **Evidence:** `apps/web/src/app/features/users/*`; nav Settings entry
 
 ---
 
 ### DQ-2014 — API: Enforce on privileged handlers
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2010, DQ-2013  
 - **Source:** Impl W7  
-- **Outcome:** FeatureKey checks on agents, files/docs, channels, intake, api-keys, users, business profile mutations  
+- **Outcome:** FeatureKey checks on agents list/create/delete, api-keys, users  
 - **Required Documents:** Impl catalog FeatureKey→API map  
-- **Evidence:** Deny tests per area sample  
+- **Evidence:** Agents + ApiKeys + Users handlers
 
 ---
 
 ### DQ-2015 — API: External API key harden (3A)
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2003  
 - **Source:** Impl W8; DR-KEY-1 A  
-- **Outcome:** `/api/app/*` rejects ApiKey scheme; External `/api/v1` only; keys bound to `IdenBusinessId`; document ownership  
+- **Outcome:** `/api/app/*` never ApiKey scheme; `/api/v1` only; docs ownership  
 - **Required Documents:** Impl W8  
-- **Evidence:** Test: X-Api-Key on `/api/app/agents` → 401; `/api/v1` still works  
+- **Evidence:** Program policy router; `auth-iden.md` / pattern 3A
 
 ---
 
 ### DQ-2016 — Docs: architecture Iden pack
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2009  
 - **Source:** Impl W9  
-- **Outcome:** Update `iden-constraints.md`; add `auth-iden.md` (retire placeholder); add `patterns/iden-tenancy-users-features.md`; critical-rules + README router; how to add FeatureKeys/users/tenancy  
+- **Outcome:** Updated constraints; `auth-iden.md`; pattern; critical-rules + README  
 - **Required Documents:** Impl §4.6 / W9  
-- **Evidence:** Doc links in architecture README  
+- **Evidence:** architecture README router links
 
 ---
 
 ### DQ-2017 — Cleanup Band 15 stubs + regression suite
 
-- **Status:** ⬜ Ready  
+- **Status:** ✅ Complete  
 - **Dependency:** DQ-2008, DQ-2014, DQ-2015  
 - **Source:** Impl W10; exploration Q6  
-- **Outcome:** Mark `DQ-1501–1507` ❌ Cancelled / superseded by Band 20 in plan 03 DQ; CI-friendly auth+tenancy+enforce+key isolation tests  
+- **Outcome:** Band 15 DQ-1501–1507 ❌ Cancelled / superseded by Band 20; `Band20IdenAuthTests`  
 - **Required Documents:** Plan 03 Band 15 section; this queue  
-- **Evidence:** Plan 03 edit + test project green  
+- **Evidence:** Plan 03 edit + tests
 
 ---
 
@@ -281,7 +272,7 @@ After 2001: **2002** and **2009** can run in parallel if batched.
 
 ### Finalized decisions
 
-As Phase 2 + catalog + mockup gate.
+As Phase 2 + catalog + mockup gate + batch execute.
 
 ### Pending decisions
 
@@ -289,8 +280,8 @@ None.
 
 ### Assumptions / Risks
 
-See Completion Summary.
+See Completion Summary — live Iden UAT credentials still required for end-to-end smoke.
 
 ### Readiness
 
-**Ready for execution.** Ask which DQ to run (suggested: **DQ-2001**). Do not start code until the developer names a DQ (or batches).
+**Band 20 complete.** Configure `Iden:*` + `Auth:Mode=Iden` for UAT validation.

@@ -53,6 +53,7 @@ public sealed class AdminTenantsController(IMediator mediator) : ControllerBase
                     body.IdenTenantId,
                     body.ProviderModeKey,
                     body.InitialBusinessName,
+                    body.InitialIdenBusinessId,
                     userId),
                 cancellationToken);
             return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
@@ -68,7 +69,9 @@ public sealed record CreateAdminTenantRequest(
     string Name,
     string? IdenTenantId,
     string? ProviderModeKey,
-    string? InitialBusinessName);
+    string? InitialBusinessName,
+    /// <summary>When linking an existing Iden tenant, pass the Iden business id to mirror (no local Guid mint).</summary>
+    string? InitialIdenBusinessId = null);
 
 public sealed record AdminTenantListItemDto(
     Guid Id,
@@ -115,6 +118,7 @@ public sealed record CreateAdminTenantCommand(
     string? IdenTenantId,
     string? ProviderModeKey,
     string? InitialBusinessName,
+    string? InitialIdenBusinessId,
     string UserId) : IRequest<AdminTenantDetailDto>;
 
 file static class AdminTenantPaging
@@ -232,7 +236,8 @@ public sealed class CreateAdminTenantHandler(
     DocumateDbContext db,
     ICorEnumIdResolver enums,
     IDefaultQueueBootstrap defaultQueues,
-    IDefaultWorkflowBootstrap defaultWorkflows)
+    IDefaultWorkflowBootstrap defaultWorkflows,
+    Documate.Api.Infrastructure.Iden.IIdenClient iden)
     : IRequestHandler<CreateAdminTenantCommand, AdminTenantDetailDto>
 {
     public async Task<AdminTenantDetailDto> Handle(
@@ -244,9 +249,35 @@ public sealed class CreateAdminTenantHandler(
             throw new InvalidOperationException("Name must be at most 256 characters.");
         }
 
-        var idenTenantId = string.IsNullOrWhiteSpace(request.IdenTenantId)
-            ? Guid.NewGuid().ToString()
-            : request.IdenTenantId.Trim();
+        string idenTenantId;
+        string? idenBusinessId = string.IsNullOrWhiteSpace(request.InitialIdenBusinessId)
+            ? null
+            : request.InitialIdenBusinessId.Trim();
+        string tenantName = request.Name;
+        string? businessName = string.IsNullOrWhiteSpace(request.InitialBusinessName)
+            ? null
+            : request.InitialBusinessName.Trim();
+
+        if (iden.IsConfigured && string.IsNullOrWhiteSpace(request.IdenTenantId))
+        {
+            // DQ-2005: Iden-first when ServiceClient configured and no explicit IdenTenantId override.
+            var created = await iden.CreateTenantWithFirstBusinessAsync(
+                tenantName,
+                businessName ?? tenantName,
+                productId: null,
+                cancellationToken);
+            idenTenantId = created.TenantId;
+            idenBusinessId = created.BusinessId;
+            tenantName = created.TenantName;
+            businessName = created.BusinessName ?? businessName;
+        }
+        else
+        {
+            idenTenantId = string.IsNullOrWhiteSpace(request.IdenTenantId)
+                ? throw new InvalidOperationException(
+                    "Iden is not configured — provide IdenTenantId from Iden, or configure Iden:Documate ServiceClient.")
+                : request.IdenTenantId.Trim();
+        }
 
         if (await db.CorTenants.AnyAsync(t => t.IdenTenantId == idenTenantId && !t.IsDeleted, cancellationToken))
         {
@@ -259,31 +290,38 @@ public sealed class CreateAdminTenantHandler(
         var tenant = new CorTenant
         {
             IdenTenantId = idenTenantId,
-            Name = request.Name,
+            Name = tenantName,
             ProviderModeEnumId = modeId,
             IsActive = true,
+            SyncStatus = Documate.Api.Infrastructure.Iden.TenancySyncStatuses.Ok,
+            LastSyncedAtUtc = DateTimeOffset.UtcNow,
             CreatedByUserId = request.UserId,
             UpdatedByUserId = request.UserId,
         };
         db.CorTenants.Add(tenant);
         await db.SaveChangesAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(request.InitialBusinessName))
+        if (!string.IsNullOrWhiteSpace(businessName) || !string.IsNullOrWhiteSpace(idenBusinessId))
         {
-            var businessName = request.InitialBusinessName.Trim();
-            if (businessName.Length > 256)
+            var name = (businessName ?? tenantName).Trim();
+            if (name.Length > 256)
             {
                 throw new InvalidOperationException("InitialBusinessName must be at most 256 characters.");
             }
 
-            var businessId = Guid.NewGuid().ToString();
+            var businessId = idenBusinessId
+                ?? throw new InvalidOperationException(
+                    "Business Iden id required — leave IdenTenantId blank to create via Iden, or pass InitialIdenBusinessId when linking.");
+
             db.CorTenantBusinesses.Add(new CorTenantBusiness
             {
                 TenantId = tenant.Id,
                 IdenBusinessId = businessId,
-                Name = businessName,
+                Name = name,
                 TenantName = tenant.Name,
                 IsActive = true,
+                SyncStatus = Documate.Api.Infrastructure.Iden.TenancySyncStatuses.Ok,
+                LastSyncedAtUtc = DateTimeOffset.UtcNow,
                 CreatedByUserId = request.UserId,
                 UpdatedByUserId = request.UserId,
             });

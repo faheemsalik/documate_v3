@@ -1,0 +1,55 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Users</h1>
+      <p class="subtitle">Business members and role templates</p>
+    </div>
+    <p-button label="Invite user" icon="pi pi-user-plus" (onClick)="openInvite()" />
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  <p-table [value]="users()" [loading]="loading()">
+    <ng-template pTemplate="header">
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Status</th>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="body" let-u>
+      <tr class="row-link" [routerLink]="['/users', u.memberId]">
+        <td>{{ u.displayName }}</td>
+        <td>{{ u.email }}</td>
+        <td>{{ roleLabel(u.roleSysKey) }}</td>
+        <td>{{ u.isActive ? 'Active' : 'Inactive' }}</td>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="4">No users yet. Invite someone to get started.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>
+
+<p-dialog header="Invite user" [(visible)]="showInvite" [modal]="true" [style]="{ width: '28rem' }">
+  <div class="form">
+    <label>Email *</label>
+    <input pInputText [(ngModel)]="inviteEmail" type="email" />
+    <label>Display name</label>
+    <input pInputText [(ngModel)]="inviteName" />
+    <label>Role</label>
+    <p-select [options]="roleOptions" [(ngModel)]="inviteRole" optionLabel="label" optionValue="value" />
+    @if (inviteError) {
+      <p-message severity="error" [text]="inviteError" />
+    }
+  </div>
+  <div class="dialog-actions">
+    <p-button label="Cancel" [text]="true" (onClick)="showInvite = false" />
+    <p-button label="Invite" [loading]="inviting" (onClick)="submitInvite()" />
+  </div>
+</p-dialog>

@@ -1,0 +1,21 @@
+{
+  "modules": [
+    { "moduleKey": "customer.agents_and_channels", "displayName": "Agents & Channels" },
+    { "moduleKey": "customer.files_and_documents", "displayName": "Files & Documents" },
+    { "moduleKey": "customer.system", "displayName": "System" },
+    { "moduleKey": "admin.tenancy", "displayName": "Tenancy" },
+    { "moduleKey": "admin.platform", "displayName": "Platform" },
+    { "moduleKey": "admin.operations", "displayName": "Operations" }
+  ],
+  "features": [
+    { "moduleKey": "customer.agents_and_channels", "featureKey": "documate.customer.agents.list", "name": "Agents list", "capabilityType": "page", "sortOrder": 10, "isActive": true },
+    { "moduleKey": "customer.agents_and_channels", "featureKey": "documate.customer.agents.view", "name": "View agent", "capabilityType": "action", "sortOrder": 20, "isActive": true },
+    { "moduleKey": "customer.agents_and_channels", "featureKey": "documate.customer.agents.create", "name": "Create agent", "capabilityType": "action", "sortOrder": 30, "isActive": true },
+    { "moduleKey": "customer.agents_and_channels", "featureKey": "documate.customer.agents.update", "name": "Update agent", "capabilityType": "action", "sortOrder": 40, "isActive": true },
+    { "moduleKey": "customer.agents_and_channels", "featureKey": "documate.customer.agents.delete", "name": "Delete agent", "capabilityType": "sensitive", "sortOrder": 50, "isActive": true },
+    { "moduleKey": "customer.files_and_documents", "featureKey": "documate.customer.files.list", "name": "Files list", "capabilityType": "page", "sortOrder": 20, "isActive": true },
+    { "moduleKey": "customer.files_and_documents", "featureKey": "documate.customer.files.view", "name": "View file", "capabilityType": "action", "sortOrder": 30, "isActive": true },
+    { "moduleKey": "customer.system", "featureKey": "documate.customer.users.list", "name": "Users list", "capabilityType": "page", "sortOrder": 10, "isActive": true },
+    { "moduleKey": "customer.system", "featureKey": "documate.customer.users.permissions.manage", "name": "Manage user permissions", "capabilityType": "sensitive", "sortOrder": 30, "isActive": true }
+  ]
+}

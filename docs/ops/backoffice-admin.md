@@ -56,7 +56,17 @@ Analytics buckets are **UTC**. Stage timings are **approximate** (compute-on-rea
 | Artifact | Script / output | Typical host |
 |----------|-----------------|--------------|
 | API | `scripts/api_publish-release.ps1` → IIS API site | e.g. `api2.documate.ai` |
-| Customer SPA | `scripts/build-web.ps1 -Configuration production` → `apps/web/dist/...` | e.g. `app.documate.ai` |
-| Admin SPA | `scripts/build-admin.ps1 -Configuration production` → `apps/admin/dist/admin` | e.g. `admin.documate.ai` (or internal host) |
+| Customer SPA | `scripts/spa_publish-release.ps1 -App web` → unzip to IIS site root | e.g. `app.documate.ai` |
+| Admin SPA | `scripts/spa_publish-release.ps1 -App admin` → unzip to IIS site root | e.g. `adminapp.documate.ai` |
 
-Admin is its own Angular build (static files + `env.json` for API origin). It is **not** included in the API zip. Deploy it as a second static site (or second IIS site) with its own `env.json` pointing at the same API. Keep AdminGate credentials out of the customer portal deploy.
+Unzip into the folder that already contains `index.html`. **`web.config` must sit next to `index.html`** — without it, direct URLs (`/login`, `/home`, `/dashboard`) return IIS `404 - File or directory not found`.
+
+If copying `web.config` makes the site return **500.19**, on the IIS host run:
+
+```powershell
+.\scripts\iis-enable-spa-fallback.ps1 -SitePhysicalPath 'C:\path\to\site'
+```
+
+(or `%windir%\system32\inetsrv\appcmd unlock config /section:system.webServer/httpErrors` then copy `web.config` again).
+
+Admin is its own Angular build (static files + `env.json` for API origin). It is **not** included in the API zip. Keep AdminGate credentials out of the customer portal deploy.

@@ -42,10 +42,10 @@
 | ✅ Complete | 46 |
 | 🔄 In Progress | 0 |
 | ⬜ Ready | 0 |
-| ⏸ Parked | 7 (DQ-1501–1507 Iden follow-on J3) |
-| ❌ Cancelled | 2 (DQ-1301, DQ-1302 → Band 16 customer frontend MVP) |
+| ⏸ Parked | 0 |
+| ❌ Cancelled | 9 (DQ-1301–1302; DQ-1501–1507 superseded by Band 20 / plan 25) |
 
-**Count note:** Phase 1 executable = bands 00–14 except DQ-1202. Band 15 parked until Phase 1 product accepted (Decision **J3**).
+**Count note:** Phase 1 executable = bands 00–14 except DQ-1202. Band 15 ❌ cancelled — Iden work is Band 20 ([25-iden-integration-dispatch-queue.md](./25-iden-integration-dispatch-queue.md)).
 
 ### Finalized decisions (from plan 03)
 
@@ -64,7 +64,7 @@
 | — | Entity catalog **approved** |
 | — | Keep Queue + QueueRoute (Queue untyped; type→Agent routes) |
 | K | **K1** — Default channel: Business create → default Queue (`IsDefault`); Agent create/clone auto-route when Business has exactly one Queue; Phase 1 UI shows Queue ID on Business; multi-queue UI later |
-| — | **Iden Integration & Validation** (Band 15) — parked until Phase 1 done |
+| — | **Iden Integration** — Band 15 ❌ → Band 20 (plan 25) |
 
 ### Pending decisions
 
@@ -81,8 +81,8 @@ None blocking Phase 1 execution. (J3 locked.)
 | Risk | Mitigation |
 |------|------------|
 | Split/classify quality | Clear Failed codes; PartialReady; reprocess (E3 honesty) |
-| F2 keys become permanent | J3: activate Band 15 right after Phase 1 product acceptance; keep F2 labeled temporary |
-| Iden API gaps / bugs | Defect loop in Band 15; fix in Iden repo; explicit waivers only |
+| F2 keys become permanent | Band 20 DR-KEY-1 A: Documate-owned `/api/v1` keys; `/api/app` hardened |
+| Iden API gaps / bugs | Band 20 + Iden defect loop; fix in Iden repo; explicit waivers only |
 | Email sold before allowlist | Stub only until Wave 14 + real D1/D2 phase |
 
 ---
@@ -139,13 +139,13 @@ None blocking Phase 1 execution. (J3 locked.)
 | DQ-1402 | 14 | Upload intake performance (multi-file parallel, fewer DB round trips, intake timing metrics) | ✅ | DQ-0601, DQ-0401, DQ-1401 |
 | DQ-1410 | 14 | System settings: CorSystemSetting + cache/seed + wire EmailIntake/Pipeline (Plan 15 SS-0…SS-2) | ✅ | DQ-1401; [settings impl](./15-system-settings-db-implementation-plan.md) |
 | DQ-1411 | 14 | System settings: `/api/admin/system-settings` + separate admin creds + tests (SS-3…SS-4) | ✅ | DQ-1410 |
-| DQ-1501 | 15 | Inventory Iden APIs + Documate-facing contract note | ⏸ | Activation: after Phase 1 product done-when (J3) |
-| DQ-1502 | 15 | Live Iden human auth (Angular + API) — no fixed shipping tokens | ⏸ | DQ-1501, DQ-0101 |
-| DQ-1503 | 15 | Integration harness: Tenant→Business through Documate | ⏸ | DQ-1502, DQ-0102 |
-| DQ-1504 | 15 | Iden defect loop (reproduce via Documate; fix/track in Iden) | ⏸ | DQ-1503 |
-| DQ-1505 | 15 | Iden M2M / machine auth for External APIs | ⏸ | DQ-1501, DQ-0601 |
-| DQ-1506 | 15 | Retire F2 TenantApiKey (remove or kill-switch); docs Iden-only | ⏸ | DQ-1505, DQ-0603 |
-| DQ-1507 | 15 | Auth + tenancy regression suite (CI-friendly) | ⏸ | DQ-1503, DQ-1505 |
+| DQ-1501 | 15 | Inventory Iden APIs + Documate-facing contract note | ❌ | Superseded by Band 20 (plan 25) |
+| DQ-1502 | 15 | Live Iden human auth (Angular + API) — no fixed shipping tokens | ❌ | Superseded by DQ-2002/2008 |
+| DQ-1503 | 15 | Integration harness: Tenant→Business through Documate | ❌ | Superseded by DQ-2003–2005 |
+| DQ-1504 | 15 | Iden defect loop (reproduce via Documate; fix/track in Iden) | ❌ | Continue ad-hoc under Band 20 ops |
+| DQ-1505 | 15 | Iden M2M / machine auth for External APIs | ❌ | Out of Band 20 scope (3A Documate keys remain; M2M later) |
+| DQ-1506 | 15 | Retire F2 TenantApiKey (remove or kill-switch); docs Iden-only | ❌ | Superseded by DR-KEY-1 A (Documate-owned keys on `/api/v1`) |
+| DQ-1507 | 15 | Auth + tenancy regression suite (CI-friendly) | ❌ | Superseded by DQ-2017 (`Band20IdenAuthTests`) |
 
 **Count note:** Index includes DQ-1202 ⏸ and Band 15 ⏸ (J3). Phase 1 execution starts at DQ-0001.
 
@@ -187,8 +187,7 @@ DQ-1101, DQ-1201…1203 ✅; DQ-1401 ✅.
 Band 13 Angular (**DQ-1301/1302**) ❌ superseded by Band 16.
 
 ### Wave 10 — Iden Integration & Validation (J3 — follow-on)
-All DQ-1501–1507 ⏸ until Phase 1 product done-when (waves 0–9) accepted.  
-Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
+All DQ-1501–1507 ❌ Cancelled — superseded by Band 20 (plan 25).  
 
 ---
 
@@ -753,67 +752,67 @@ Then activate DQ-1501 → … → DQ-1507. F2 remains Phase 1 bridge only.
 - **Evidence:** `EmailIntakeMimeRetentionService`; recurring `email-intake-mime-retention`; metric `email_intake.mime_deleted`; runbook §9; `EmailIntakeMimeRetentionTests`.
 
 ### DQ-1501 — Inventory Iden APIs + contract note
-- **Status:** ⏸ Parked  
+- **Status:** ❌ Cancelled — superseded by Band 20 (plan 25 / DQ-2001+)  
 - **Dependency:** —  
-- **Activation trigger:** Start after Phase 1 product done-when accepted (Decision J3).  
+- **Activation trigger:** ~~Start after Phase 1 product done-when accepted (Decision J3).~~  
 - **Source:** Plan 03 Wave 10; `iden-constraints.md`; Decision J3  
 - **Outcome:** Documented inventory of Iden endpoints/flows Documate needs (OIDC/JWT, Tenant, Business, memberships, M2M/clients). Short Documate-facing contract note checked into `docs/` (or linked from auth-wiring). Gaps listed explicitly.  
 - **Required Documents:** Iden docs/repo; `iden-constraints.md`  
-- **Evidence:** (fill on completion)
+- **Evidence:** See plan 25 exploration + `docs/architecture/governance/auth-iden.md`
 
 ### DQ-1502 — Live Iden human auth (no fixed shipping tokens)
-- **Status:** ⏸ Parked  
+- **Status:** ❌ Cancelled — superseded by DQ-2002 / DQ-2008  
 - **Dependency:** DQ-1501, DQ-0101  
 - **Source:** Plan 03 Wave 10; Decision J3  
 - **Outcome:** Angular + API use live Iden for humans. Fixed/dev bearer tokens absent from shipping configs (local-only bypasses documented and non-default).  
 - **Required Documents:** DQ-1501 contract note; `auth-wiring-placeholder.md`  
-- **Evidence:** (fill on completion)
+- **Evidence:** Band 20 `Auth:Mode=Iden` + SPA `idenBaseUrl`
 
 ### DQ-1503 — Tenant→Business harness through Documate
-- **Status:** ⏸ Parked  
+- **Status:** ❌ Cancelled — superseded by DQ-2003–2005  
 - **Dependency:** DQ-1502, DQ-0102  
 - **Source:** Plan 03 H1; Iden tenancy  
 - **Outcome:** Repeatable path: login → Tenant/Business context → CorTenant/CorTenantBusiness upsert → Business-scoped API call succeeds/fails correctly.  
 - **Required Documents:** Plan 03 CorTenant sections  
-- **Evidence:** (fill on completion)
+- **Evidence:** Band 20 provisioner + admin Iden-first create
 
 ### DQ-1504 — Iden defect loop
-- **Status:** ⏸ Parked  
+- **Status:** ❌ Cancelled — continue ad-hoc under Band 20  
 - **Dependency:** DQ-1503  
 - **Source:** Plan 03 Wave 10  
 - **Outcome:** Iden issues found via Documate are reproduced, filed against Iden, and fixed or explicitly waived. Documate does not paper over Iden bugs with permanent local hacks.  
 - **Required Documents:** Iden issue tracker / PRs  
-- **Evidence:** (fill on completion — issue/PR links)
+- **Evidence:** (ops process; not a Band 15 DQ)
 
 ### DQ-1505 — Iden M2M for External
-- **Status:** ⏸ Parked  
+- **Status:** ❌ Cancelled — out of Band 20 (3A Documate keys remain)  
 - **Dependency:** DQ-1501, DQ-0601  
 - **Source:** Plan 03 Wave 10; Decision F retirement path  
 - **Outcome:** External APIs accept Iden machine credentials (client credentials / M2M as Iden provides) resolving to Business scope.  
 - **Required Documents:** DQ-1501 contract note  
-- **Evidence:** (fill on completion)
+- **Evidence:** DR-KEY-1 A keeps Documate-owned `/api/v1` keys; Iden M2M deferred
 
 ### DQ-1506 — Retire F2 API keys
-- **Status:** ⏸ Parked  
+- **Status:** ❌ Cancelled — superseded by DR-KEY-1 A  
 - **Dependency:** DQ-1505, DQ-0603  
 - **Source:** Decision F2 bridge end  
 - **Outcome:** TenantApiKey path removed or kill-switched off by default; docs state Iden-only machine auth. Migration note for any bridge keys.  
 - **Required Documents:** Plan 03 TenantApiKey; DQ-1505  
-- **Evidence:** (fill on completion)
+- **Evidence:** Keys remain Documate-owned on `/api/v1`; hardened away from `/api/app` (DQ-2015)
 
 ### DQ-1507 — Auth + tenancy regression suite
-- **Status:** ⏸ Parked  
+- **Status:** ❌ Cancelled — superseded by DQ-2017  
 - **Dependency:** DQ-1503, DQ-1505  
 - **Source:** Plan 03 Wave 10  
 - **Outcome:** Automated (CI-friendly) checks for human auth, Business scoping, and M2M External auth against Iden (or recorded Iden test env).  
 - **Required Documents:** DQ-1501–1506  
-- **Evidence:** (fill on completion)
+- **Evidence:** `tests/api/Band20IdenAuthTests.cs`
 
 ---
 
 ## Readiness
 
-**Decision J3 locked.** Decision **K1** locked (default channel). Band 15 parked.  
+**Decision J3 locked.** Decision **K1** locked (default channel). Band 15 ❌ cancelled → Band 20.  
 **Waves 0–6 complete; DQ-0701–0704 ✅; DQ-0801 ✅; DQ-0901 ✅; DQ-1001–1002 ✅; DQ-1101 ✅; DQ-0304 ✅; DQ-0204 ✅.**  
 **Wave 4b (Plan 04 real split) complete:** DQ-0705…0710 + DQ-0802 ✅ (API suite: 78 passed, 2026-09-15).  
 **Also:** Band 17 back office — [16-backoffice-frontend-dispatch-queue.md](./16-backoffice-frontend-dispatch-queue.md). Upload perf `DQ-1402` ✅.  

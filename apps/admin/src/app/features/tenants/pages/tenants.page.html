@@ -49,10 +49,12 @@
   <div class="form">
     <label>Name *</label>
     <input pInputText [(ngModel)]="createName" />
-    <label>IdenTenantId (optional)</label>
-    <input pInputText [(ngModel)]="createIden" placeholder="auto-generated if blank" />
-    <label>Initial business name (optional)</label>
-    <input pInputText [(ngModel)]="createBusiness" />
+    <label>IdenTenantId (leave blank to create in Iden)</label>
+    <input pInputText [(ngModel)]="createIden" placeholder="Blank = Iden-first create" />
+    <label>Initial business name</label>
+    <input pInputText [(ngModel)]="createBusiness" placeholder="Defaults to tenant name" />
+    <label>Initial Iden business id (only when linking existing tenant)</label>
+    <input pInputText [(ngModel)]="createIdenBusiness" placeholder="Required if IdenTenantId set" />
     @if (createError) {
       <p-message severity="error" [text]="createError" />
     }

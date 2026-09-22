@@ -48,6 +48,8 @@ public sealed class TenantBusinessProvisioner(
                 Name = tenantName,
                 ProviderModeEnumId = mode1Id,
                 IsActive = true,
+                SyncStatus = Documate.Api.Infrastructure.Iden.TenancySyncStatuses.Ok,
+                LastSyncedAtUtc = DateTimeOffset.UtcNow,
                 CreatedByUserId = context.UserId,
                 UpdatedByUserId = context.UserId,
             };
@@ -58,6 +60,11 @@ public sealed class TenantBusinessProvisioner(
         {
             tenant.Name = tenantName;
             tenant.UpdatedByUserId = context.UserId;
+            tenant.LastSyncedAtUtc = DateTimeOffset.UtcNow;
+            if (tenant.SyncStatus != Documate.Api.Infrastructure.Iden.TenancySyncStatuses.Divergent)
+            {
+                tenant.SyncStatus = Documate.Api.Infrastructure.Iden.TenancySyncStatuses.Ok;
+            }
             await db.SaveChangesAsync(cancellationToken);
         }
 
@@ -73,6 +80,8 @@ public sealed class TenantBusinessProvisioner(
                 Name = businessName,
                 TenantName = tenant.Name,
                 IsActive = true,
+                SyncStatus = Documate.Api.Infrastructure.Iden.TenancySyncStatuses.Ok,
+                LastSyncedAtUtc = DateTimeOffset.UtcNow,
                 CreatedByUserId = context.UserId,
                 UpdatedByUserId = context.UserId,
             });
@@ -80,6 +89,7 @@ public sealed class TenantBusinessProvisioner(
         }
         else
         {
+            Documate.Api.Infrastructure.Iden.TenancyWriteGuard.EnsureWritable(business);
             var dirty = false;
             if (!string.Equals(business.Name, businessName, StringComparison.Ordinal))
             {
@@ -96,6 +106,11 @@ public sealed class TenantBusinessProvisioner(
             if (dirty)
             {
                 business.UpdatedByUserId = context.UserId;
+                business.LastSyncedAtUtc = DateTimeOffset.UtcNow;
+                if (business.SyncStatus != Documate.Api.Infrastructure.Iden.TenancySyncStatuses.Divergent)
+                {
+                    business.SyncStatus = Documate.Api.Infrastructure.Iden.TenancySyncStatuses.Ok;
+                }
                 await db.SaveChangesAsync(cancellationToken);
             }
         }

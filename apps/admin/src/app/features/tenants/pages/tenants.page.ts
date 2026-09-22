@@ -27,6 +27,7 @@ export class TenantsPage implements OnInit {
   createName = '';
   createIden = '';
   createBusiness = '';
+  createIdenBusiness = '';
   createError = '';
   creating = false;
 
@@ -58,6 +59,7 @@ export class TenantsPage implements OnInit {
     this.createName = '';
     this.createIden = '';
     this.createBusiness = '';
+    this.createIdenBusiness = '';
     this.createError = '';
     this.showCreate = true;
   }
@@ -74,6 +76,7 @@ export class TenantsPage implements OnInit {
         name: this.createName.trim(),
         idenTenantId: this.createIden.trim() || null,
         initialBusinessName: this.createBusiness.trim() || null,
+        initialIdenBusinessId: this.createIdenBusiness.trim() || null,
       })
       .subscribe({
         next: (t) => {
